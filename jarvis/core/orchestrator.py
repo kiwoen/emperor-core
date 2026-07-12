@@ -72,6 +72,7 @@ class TaskResult:
     success: bool
     output: Any = None
     error: Optional[str] = None
+    data: dict[str, Any] = field(default_factory=dict)
     artifacts: list[Path] = field(default_factory=list)
     memory_keys: list[str] = field(default_factory=list)
     execution_time_ms: float = 0.0
@@ -202,15 +203,66 @@ class IntentParser:
         return "query"
 
     def _extract_entities(self, text: str) -> dict[str, Any]:
-        # Simplified entity extraction — production would use NER models
+        """Extract structured entities from natural language text.
+
+        Handles both Chinese and English patterns:
+        - Time expressions (HH:MM, 早上8点, 明天下午3点)
+        - Numeric values with units (50%, 25°C, 10分钟)
+        - Key-value patterns (key:value)
+        - @mentions and #tags
+        - Priority indicators (urgent, ASAP, 紧急)
+        """
+        import re
         entities: dict[str, Any] = {}
-        words = text.split()
-        for i, word in enumerate(words):
-            if word.startswith("@") or word.startswith("#"):
-                entities["tag"] = word[1:]
+
+        # Time extraction
+        time_patterns = [
+            (r'(\d{1,2}[:：]\d{2})', 'time'),
+            (r'(明天|后天|今天|下?周[一二三四五六日])(早上|上午|中午|下午|晚上|凌晨)?(\d{1,2})点', 'time'),
+            (r'(早上|上午|中午|下午|晚上|凌晨)(\d{1,2})点', 'time'),
+            (r'(\d{1,2})分钟后', 'relative_time'),
+            (r'(\d+)\s*小时(?:之)?后', 'relative_time'),
+        ]
+        for pattern, label in time_patterns:
+            m = re.search(pattern, text)
+            if m:
+                entities[label] = m.group(0) if not m.lastindex or m.lastindex < 1 else m.group(0)
+                break
+
+        # Numeric with unit
+        num_unit = re.findall(r'(\d+(?:\.\d+)?)\s*([°%℃℉度]|[CcKk]?[Gg][Bb]|MB|分钟|小时|天|次|张|个|篇|页|元|美元)', text)
+        for val, unit in num_unit:
+            key = {'°': 'temperature', '℃': 'temperature', '℉': 'temperature',
+                   '度': 'temperature', '%': 'percent', '％': 'percent'}.get(unit, unit)
+            entities[key] = float(val) if '.' in val else int(val)
+
+        # Currency
+        currency = re.search(r'([¥￥\$]\s*\d+(?:\.\d+)?)', text)
+        if currency:
+            entities['amount'] = currency.group(0)
+
+        # Key:value
+        for word in text.split():
             if ":" in word and not word.startswith("http"):
                 key, _, val = word.partition(":")
                 entities[key] = val
+
+        # Mentions and tags
+        for word in text.split():
+            if word.startswith("@") or word.startswith("#"):
+                entities['tag'] = word[1:]
+
+        # Priority
+        for marker in ['紧急', 'urgent', 'asap', '重要', 'important']:
+            if marker in text.lower():
+                entities['priority'] = 'high'
+                break
+
+        # Duration
+        dur = re.search(r'(\d+)\s*(分钟|小时|天)', text)
+        if dur:
+            entities['duration'] = f"{dur.group(1)}{dur.group(2)}"
+
         return entities
 
 
@@ -319,7 +371,11 @@ class Orchestrator:
                 mod = importlib.import_module(name)
                 if hasattr(mod, "DomainModule"):
                     module_instance = mod.DomainModule(self)
-                    domain_field = getattr(mod, "DOMAIN", None) or Domain.CORE
-                    self.registry.register(domain_field, module_instance)
+                    domain_str = getattr(mod, "DOMAIN", None) or "core"
+                    try:
+                        domain_enum = Domain[domain_str.upper()]
+                    except KeyError:
+                        domain_enum = Domain.CORE
+                    self.registry.register(domain_enum, module_instance)
             except ImportError:
                 logger.warning("Domain %s not available — skipping", name)
