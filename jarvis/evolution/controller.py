@@ -81,6 +81,58 @@ class EvolutionController:
         )
         self._load_state()
 
+    # ── Computed Statistics Properties ────────────────────────────
+
+    @property
+    def total_cycles(self) -> int:
+        """Total execution cycles recorded."""
+        return len(self.records)
+
+    @property
+    def optimizations_applied(self) -> int:
+        """Number of optimization records written."""
+        return len(self._load_optimization_records())
+
+    @property
+    def model_switches(self) -> int:
+        """Number of task types that have tried multiple models."""
+        return sum(1 for models in self.model_stats.values() if len(models) > 1)
+
+    @property
+    def capability_additions(self) -> int:
+        """Number of optimization events (proxy for capability growth)."""
+        return len(self._load_optimization_records())
+
+    @property
+    def average_score(self) -> float:
+        """Overall success rate across all records."""
+        if not self.records:
+            return 0.0
+        return sum(1 for r in self.records if r.success) / len(self.records)
+
+    @property
+    def history(self) -> list[dict[str, Any]]:
+        """Recent task execution history."""
+        return [
+            {
+                "task_id": r.task_id,
+                "domain": r.domain,
+                "success": r.success,
+                "timestamp": r.timestamp,
+            }
+            for r in self.records[-50:]
+        ]
+
+    @property
+    def most_improved_domain(self) -> str:
+        """Domain with the most activity (proxy for improvement)."""
+        if not self.records:
+            return ""
+        from collections import Counter
+
+        domain_counts = Counter(r.domain for r in self.records)
+        return domain_counts.most_common(1)[0][0] if domain_counts else ""
+
     async def record_success(self, intent: Any, result: Any) -> None:
         """Record a successful task for learning."""
         record = TaskRecord(

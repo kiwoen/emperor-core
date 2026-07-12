@@ -1,162 +1,39 @@
 """
-Research & Analytics Domain.
-
-Handles: web search, paper review, data analysis, competitive intelligence,
-literature review, trend analysis, market research, experiment design.
+Research Domain — academic search, paper discovery, trend analysis.
 """
 
 from __future__ import annotations
 
-DOMAIN = "research"
+from typing import Any
+from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+
+
+DOMAIN = Domain.RESEARCH
 
 CAPABILITIES = [
-    "web_search", "paper_review", "data_analysis",
-    "competitive_intelligence", "literature_review", "trend_analysis",
-    "market_research", "experiment_design", "synthesis_report",
-    "news_aggregation",
+    "academic_search", "paper_discovery", "trend_analysis",
+    "research_framework", "citation_lookup", "literature_review",
 ]
 
-import json
-import logging
-from typing import Any
 
-logger = logging.getLogger("jarvis.domain.research")
+class DomainModule(DomainModule):
+    """Research domain handler."""
 
+    domain = Domain.RESEARCH
+    capabilities = CAPABILITIES
 
-class DomainModule:
-    """Research domain — web search, paper retrieval, synthesis."""
+    async def handle(self, intent: Intent) -> TaskResult:
+        text = intent.raw_text.lower()
 
-    def __init__(self, orchestrator):
-        self.orchestrator = orchestrator
+        if "搜索" in text or "search" in text:
+            data: dict[str, Any] = {"search_type": "academic", "query": intent.raw_text}
+        elif "论文" in text or "paper" in text:
+            data = {"search_type": "paper", "sources": ["arxiv", "scholar.google", "dblp", "semantic_scholar"]}
+        elif "趋势" in text or "trend" in text:
+            data = {"search_type": "trend", "time_horizon": "last_6_months"}
+        elif "研究" in text or "research" in text:
+            data = {"search_type": "framework", "phase_1": "literature_review", "phase_2": "methodology_design", "phase_3": "analysis", "phase_4": "report"}
+        else:
+            data = {"search_type": "general"}
 
-    async def handle(self, intent):
-        from jarvis.core.orchestrator import TaskResult, Domain
-
-        action = intent.action
-        raw = intent.raw_text
-        entities = intent.entities
-
-        handlers = {
-            "搜索": self._handle_search,
-            "论文": self._handle_paper,
-            "趋势": self._handle_trend,
-            "分析": self._handle_analysis,
-            "研究": self._handle_research,
-            "新闻": self._handle_news,
-        }
-
-        for keyword, handler in handlers.items():
-            if keyword in action or keyword in raw:
-                return await handler(raw, entities)
-
-        return TaskResult(
-            domain=Domain.RESEARCH,
-            success=True,
-            output=f"Research intent logged: {raw[:100]}",
-            data={"action": action, "entities": entities},
-            memory_keys=["research_query"],
-        )
-
-    async def _handle_search(self, raw: str, entities: dict):
-        from jarvis.core.orchestrator import TaskResult, Domain
-
-        query = entities.get("query", raw)
-        return TaskResult(
-            domain=Domain.RESEARCH,
-            success=True,
-            output=f"Search query compiled: {query[:200]}",
-            data={
-                "query": query,
-                "search_type": "web",
-                "sources": self._suggest_sources(raw),
-            },
-            memory_keys=["research_search"],
-        )
-
-    async def _handle_paper(self, raw: str, entities: dict):
-        from jarvis.core.orchestrator import TaskResult, Domain
-
-        topic = entities.get("topic", raw)
-        return TaskResult(
-            domain=Domain.RESEARCH,
-            success=True,
-            output=f"Paper search initialized for: {topic[:200]}",
-            data={
-                "topic": topic,
-                "sources": ["arxiv", "semantic_scholar", "google_scholar"],
-                "search_params": {"max_results": 10, "sort_by": "relevance"},
-            },
-            memory_keys=["research_paper"],
-        )
-
-    async def _handle_research(self, raw: str, entities: dict):
-        from jarvis.core.orchestrator import TaskResult, Domain
-
-        return TaskResult(
-            domain=Domain.RESEARCH,
-            success=True,
-            output=f"Research plan generated for: {raw[:200]}",
-            data={
-                "phase_1": "literature_review",
-                "phase_2": "data_collection",
-                "phase_3": "analysis",
-                "phase_4": "synthesis",
-            },
-            memory_keys=["research_topic"],
-        )
-
-    async def _handle_analysis(self, raw: str, entities: dict):
-        from jarvis.core.orchestrator import TaskResult, Domain
-
-        return TaskResult(
-            domain=Domain.RESEARCH,
-            success=True,
-            output=f"Analysis framework ready for: {raw[:200]}",
-            data={
-                "methods": ["descriptive", "comparative", "trend"],
-                "output_formats": ["report", "visualization", "summary"],
-            },
-            memory_keys=["research_analysis"],
-        )
-
-    async def _handle_trend(self, raw: str, entities: dict):
-        from jarvis.core.orchestrator import TaskResult, Domain
-
-        return TaskResult(
-            domain=Domain.RESEARCH,
-            success=True,
-            output=f"Trend analysis initiated: {raw[:200]}",
-            data={
-                "time_horizon": "1_year",
-                "data_sources": ["news", "papers", "patents", "social_media"],
-            },
-            memory_keys=["research_trend"],
-        )
-
-    async def _handle_news(self, raw: str, entities: dict):
-        from jarvis.core.orchestrator import TaskResult, Domain
-
-        return TaskResult(
-            domain=Domain.RESEARCH,
-            success=True,
-            output=f"News aggregation for: {raw[:200]}",
-            data={
-                "aggregation_type": "timeline",
-                "sources": ["rss", "api", "web_scrape"],
-            },
-            memory_keys=["research_news"],
-        )
-
-    def _suggest_sources(self, query: str) -> list[str]:
-        """Suggest relevant search sources based on query content."""
-        sources = ["web"]
-        lower = query.lower()
-        if any(w in lower for w in ["论文", "paper", "arxiv", "学术"]):
-            sources.extend(["arxiv", "semantic_scholar"])
-        if any(w in lower for w in ["代码", "code", "github", "repo"]):
-            sources.append("github")
-        if any(w in lower for w in ["新闻", "news", "最新"]):
-            sources.append("news_api")
-        if any(w in lower for w in ["数据", "data", "statistics", "统计"]):
-            sources.append("data_catalog")
-        return sources
+        return TaskResult(domain=Domain.RESEARCH, success=True, output=f"[RESEARCH] Acknowledged: {intent.raw_text}", data=data)

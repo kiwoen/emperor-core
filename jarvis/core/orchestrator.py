@@ -32,6 +32,7 @@ import logging
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
+from collections.abc import AsyncIterator
 from typing import Any, Callable, Coroutine, Optional
 
 logger = logging.getLogger("jarvis.orchestrator")
@@ -77,6 +78,24 @@ class TaskResult:
     memory_keys: list[str] = field(default_factory=list)
     execution_time_ms: float = 0.0
     tokens_consumed: int = 0
+
+
+class DomainModule:
+    """Base class for all domain modules.
+
+    Each domain module (research, engineering, etc.) must subclass
+    this and implement handle().
+    """
+
+    domain: Domain
+    capabilities: list[str] = []
+
+    def __init__(self, orchestrator: Optional[Any] = None):
+        self.orchestrator = orchestrator
+
+    async def handle(self, intent: Intent) -> TaskResult:
+        """Handle an intent and return a TaskResult."""
+        raise NotImplementedError
 
 
 class DomainRegistry:
@@ -345,6 +364,86 @@ class Orchestrator:
             self.context = self.context[-50:]
 
         return result
+
+    async def execute_stream(self, user_input: str) -> AsyncIterator[dict[str, Any]]:
+        """Stream execution progress as an async generator.
+
+        Yields progress events during each pipeline stage:
+        intent_parsed → domain_routed → executing → result (or error).
+
+        Intended for WebSocket streaming — the caller iterates the
+        generator and pushes each event to the client.
+        """
+        import asyncio as _asyncio
+
+        loop = _asyncio.get_event_loop()
+
+        # Stage 1: Parse intent
+        intent = self.intent_parser.parse(user_input, self.context)
+        yield {"type": "progress", "stage": "intent_parsed", "domain": intent.primary_domain.name, "action": intent.action}
+
+        # Stage 2: Route
+        module = self.registry.get(intent.primary_domain)
+        if not module:
+            yield {
+                "type": "error",
+                "message": f"Domain {intent.primary_domain.name} not loaded",
+                "timestamp": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+            }
+            return
+        yield {"type": "progress", "stage": "domain_routed", "domain": intent.primary_domain.name}
+
+        # Stage 3: Execute
+        yield {"type": "progress", "stage": "executing", "domain": intent.primary_domain.name}
+        start_time = loop.time()
+        try:
+            if hasattr(module, "handle"):
+                result = await module.handle(intent)
+            else:
+                result = await self._default_handle(module, intent)
+        except Exception as e:
+            logger.exception("Execution failed in domain %s", intent.primary_domain.name)
+            yield {
+                "type": "error",
+                "message": str(e),
+                "domain": intent.primary_domain.name,
+                "timestamp": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+            }
+            return
+
+        result.execution_time_ms = (loop.time() - start_time) * 1000
+
+        # Stage 4: Memory
+        if self.memory:
+            await self.memory.store(
+                key=f"task_{id(result)}",
+                value={
+                    "intent": intent.raw_text,
+                    "domain": intent.primary_domain.name,
+                    "success": result.success,
+                    "output": str(result.output)[:2000],
+                },
+            )
+
+        # Stage 5: Evolution
+        if self.evolution and result.success:
+            await self.evolution.record_success(intent, result)
+
+        # Stage 6: Update context
+        self.context.append(user_input)
+        if len(self.context) > 50:
+            self.context = self.context[-50:]
+
+        # Final result
+        yield {
+            "type": "result",
+            "success": result.success,
+            "domain": result.domain.name,
+            "output": str(result.output) if result.output else None,
+            "error": result.error,
+            "execution_time_ms": result.execution_time_ms,
+            "timestamp": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+        }
 
     async def _default_handle(self, module: Any, intent: Intent) -> TaskResult:
         """Fallback handler when domain lacks a handle() method."""

@@ -127,7 +127,7 @@ async def status():
     """Full system status."""
     orch = orchestrator_ref
     domains = orch.registry.list_domains() if orch else []
-    mem_count = len(orch.memory._store) if orch and orch.memory else 0
+    mem_count = (len(orch.memory.episodic) + len(orch.memory.semantic)) if orch and orch.memory else 0
 
     return StatusResponse(
         name=config_ref.name if config_ref else "JARVIS",
@@ -195,13 +195,19 @@ async def search_memory(query: str = "", limit: int = 20):
 
     from jarvis.core.orchestrator import TaskResult
 
+    if query:
+        entries = await orch.memory.retrieve(query, top_k=limit)
+    else:
+        all_entries = list(orch.memory.episodic.values()) + list(orch.memory.semantic.values())
+        entries = sorted(all_entries, key=lambda e: e.timestamp, reverse=True)[:limit]
+
     results: list[MemoryEntry] = []
-    for key, value in orch.memory._store.items():
-        if query and query.lower() not in str(value).lower():
-            continue
-        results.append(MemoryEntry(key=str(key), value=value))
-        if len(results) >= limit:
-            break
+    for entry in entries:
+        results.append(MemoryEntry(
+            key=entry.key,
+            value=entry.content,
+            timestamp=datetime.fromtimestamp(entry.timestamp, tz=timezone.utc).isoformat() if entry.timestamp else None,
+        ))
     return results
 
 @app.get("/evolution/report", response_model=EvolutionReport)
@@ -311,6 +317,29 @@ async def websocket_endpoint(ws: WebSocket):
             await ws.close()
         except Exception:
             pass
+
+
+# ---------------------------------------------------------------------------
+# Streaming helper – used by WebSocket stream message type
+# ---------------------------------------------------------------------------
+
+async def _run_stream(ws: WebSocket, command: str) -> None:
+    """Iterate orchestrator.execute_stream() and push each event to WebSocket."""
+    orch = orchestrator_ref
+    if not orch:
+        await ws.send_json({"type": "error", "message": "Orchestrator not initialized"})
+        return
+
+    try:
+        async for event in orch.execute_stream(command):
+            await ws.send_json(event)
+    except Exception as e:
+        logger.exception("Stream execution failed")
+        await ws.send_json({
+            "type": "error",
+            "message": str(e),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
 
 
 # ---------------------------------------------------------------------------

@@ -1,3 +1,4 @@
+
 """
 JARVIS Memory Engine — Hybrid memory with ChromaDB semantic search.
 
@@ -8,7 +9,8 @@ Four-layer architecture:
 4. Procedural Memory — skill templates, code patterns, best practices
 
 ChromaDB provides embedding-based semantic retrieval.
-Keyword matching serves as fallback when ChromaDB is unavailable.
+TF-IDF serves as lightweight fallback when ChromaDB embedding is unavailable.
+Keyword matching (Jaccard) is the final fallback.
 """
 
 from __future__ import annotations
@@ -22,17 +24,29 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
+import numpy as np
+
 logger = logging.getLogger("jarvis.memory")
 
 # Optional dependency: chromadb
 try:
     import chromadb
     from chromadb.config import Settings as ChromaSettings
+
     CHROMADB_AVAILABLE = True
 except ImportError:
     CHROMADB_AVAILABLE = False
     chromadb = None
     ChromaSettings = None
+
+# Optional dependency: sklearn (for TF-IDF fallback)
+try:
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.metrics.pairwise import cosine_similarity
+
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
 
 
 @dataclass
@@ -66,9 +80,15 @@ class MemoryEntry:
 class MemoryEngine:
     """Hybrid memory engine with ChromaDB semantic search.
 
-    Fallback behavior: if ChromaDB is not installed, gracefully degrades
-    to keyword-based BM25-like scoring. This is already working and tested.
+    Retrieval cascade:
+    1. ChromaDB embedding-based semantic search (when available)
+    2. TF-IDF cosine similarity (lightweight fallback, >5 docs)
+    3. Jaccard keyword matching (final fallback)
     """
+
+    # Minimum number of documents required to enable TF-IDF fallback.
+    # Below this threshold Jaccard keyword matching is more reliable.
+    TFIDF_MIN_DOCS = 5
 
     def __init__(
         self,
@@ -96,6 +116,12 @@ class MemoryEngine:
         self._embedding_fn = None
         self._chroma_ready = False
 
+        # TF-IDF fallback state
+        self._tfidf_vectorizer: Any = None
+        self._tfidf_matrix: Any = None
+        self._tfidf_keys: list[str] = []
+        self._tfidf_dirty: bool = True
+
         # Load from disk first (always works)
         self._load()
 
@@ -103,7 +129,7 @@ class MemoryEngine:
         if CHROMADB_AVAILABLE:
             self._init_chromadb()
         else:
-            logger.info("ChromaDB not installed — using keyword-based retrieval")
+            logger.info("ChromaDB not installed — using TF-IDF / keyword retrieval")
 
     # ── ChromaDB Setup ──────────────────────────────────────────────
 
@@ -133,20 +159,16 @@ class MemoryEngine:
                 )
 
             # Embedding function is optional — try, but don't fail
-            # Requires sentence-transformers + network access to HuggingFace
             self._embedding_fn = None
-            # Uncomment when network allows:
-            # from chromadb.utils import embedding_functions
-            # self._embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-            #     model_name=self.embedding_model,
-            # )
 
             self._chroma_ready = True
-            logger.info("ChromaDB ready (%d episodic, %d semantic)",
-                        self._episodic_collection.count(),
-                        self._semantic_collection.count())
+            logger.info(
+                "ChromaDB ready (%d episodic, %d semantic)",
+                self._episodic_collection.count(),
+                self._semantic_collection.count(),
+            )
         except Exception as e:
-            logger.info("ChromaDB unavailable (%s), keyword fallback", e)
+            logger.info("ChromaDB unavailable (%s), TF-IDF / keyword fallback", e)
             self._chroma_client = None
             self._chroma_ready = False
 
@@ -179,6 +201,9 @@ class MemoryEngine:
             if len(self.episodic) > self.compression_threshold:
                 await self._compress()
 
+        # Mark TF-IDF as needing rebuild
+        self._tfidf_dirty = True
+
         # Also store in ChromaDB
         if self._chroma_ready and self._embedding_fn:
             try:
@@ -186,12 +211,14 @@ class MemoryEngine:
                 collection.add(
                     ids=[key],
                     documents=[content],
-                    metadatas=[{
-                        "entry_type": entry_type,
-                        "importance": importance,
-                        "timestamp": entry.timestamp,
-                        **entry.metadata,
-                    }],
+                    metadatas=[
+                        {
+                            "entry_type": entry_type,
+                            "importance": importance,
+                            "timestamp": entry.timestamp,
+                            **entry.metadata,
+                        }
+                    ],
                 )
             except Exception as e:
                 logger.debug("ChromaDB store failed (non-fatal): %s", e)
@@ -202,6 +229,7 @@ class MemoryEngine:
             if self.episodic[oldest].importance > 0.8:
                 await self._archive(self.episodic[oldest])
             del self.episodic[oldest]
+            self._tfidf_dirty = True
 
         self._save()
 
@@ -211,12 +239,15 @@ class MemoryEngine:
         top_k: int = 10,
         entry_types: list[str] | None = None,
     ) -> list[MemoryEntry]:
-        """Retrieve memories by semantic similarity (ChromaDB) or keyword fallback."""
+        """Retrieve memories by semantic similarity (ChromaDB) or fallback."""
         all_entries = list(self.episodic.values()) + list(self.semantic.values())
         if entry_types:
             all_entries = [e for e in all_entries if e.entry_type in entry_types]
 
-        # Try ChromaDB semantic search first (requires embedding function)
+        if not all_entries:
+            return []
+
+        # Step 1: ChromaDB semantic search (requires embedding function)
         if self._chroma_ready and self._embedding_fn and self._episodic_collection and self._episodic_collection.count() > 0:
             try:
                 chroma_results = await self._chroma_retrieve(query, top_k, entry_types)
@@ -225,8 +256,93 @@ class MemoryEngine:
             except Exception as e:
                 logger.debug("ChromaDB retrieve failed, falling back: %s", e)
 
-        # Keyword fallback
+        # Step 2: TF-IDF cosine similarity fallback
+        if SKLEARN_AVAILABLE and len(all_entries) >= self.TFIDF_MIN_DOCS:
+            try:
+                tfidf_results = self._tfidf_retrieve(query, top_k, all_entries)
+                if tfidf_results:
+                    return tfidf_results[:top_k]
+            except Exception as e:
+                logger.debug("TF-IDF retrieve failed, falling back to Jaccard: %s", e)
+
+        # Step 3: Jaccard keyword fallback
         return self._keyword_retrieve(query, top_k, all_entries)
+
+    # ── TF-IDF Fallback Retrieval ──────────────────────────────────
+
+    def _build_tfidf_index(self, entries: list[MemoryEntry]) -> None:
+        """Build or rebuild the TF-IDF index from current in-memory entries."""
+        if not SKLEARN_AVAILABLE or len(entries) < self.TFIDF_MIN_DOCS:
+            self._tfidf_vectorizer = None
+            self._tfidf_matrix = None
+            self._tfidf_keys = []
+            return
+
+        if not self._tfidf_dirty and self._tfidf_vectorizer is not None:
+            return
+
+        documents = [e.content for e in entries]
+        self._tfidf_keys = [e.key for e in entries]
+
+        try:
+            self._tfidf_vectorizer = TfidfVectorizer(
+                max_features=5000,
+                stop_words="english",
+                ngram_range=(1, 2),
+            )
+            self._tfidf_matrix = self._tfidf_vectorizer.fit_transform(documents)
+            self._tfidf_dirty = False
+            logger.debug(
+                "TF-IDF index built: %d docs, %d features",
+                self._tfidf_matrix.shape[0],
+                self._tfidf_matrix.shape[1],
+            )
+        except Exception as e:
+            logger.warning("TF-IDF index build failed: %s", e)
+            self._tfidf_vectorizer = None
+            self._tfidf_matrix = None
+
+    def _tfidf_retrieve(
+        self,
+        query: str,
+        top_k: int,
+        entries: list[MemoryEntry],
+    ) -> list[MemoryEntry]:
+        """Retrieve using TF-IDF cosine similarity."""
+        # Build or refresh index
+        self._build_tfidf_index(entries)
+        if self._tfidf_vectorizer is None or self._tfidf_matrix is None:
+            return []
+
+        # Vectorize query
+        try:
+            query_vec = self._tfidf_vectorizer.transform([query])
+        except Exception:
+            return []
+
+        # Compute cosine similarity
+        try:
+            sims = cosine_similarity(query_vec, self._tfidf_matrix).flatten()
+        except Exception:
+            return []
+
+        # Sort by similarity, exclude zero-score results
+        scored: list[tuple[float, MemoryEntry]] = []
+        for idx, sim in enumerate(sims):
+            if sim > 0 and idx < len(entries):
+                # Blend TF-IDF similarity with recency and importance
+                entry = entries[idx]
+                recency_boost = 1.0 / (1.0 + (time.time() - entry.timestamp) / 86400)
+                blended_score = sim * 0.6 + entry.importance * 0.25 + recency_boost * 0.15
+                scored.append((blended_score, entry))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        top = [e for _, e in scored[:top_k]]
+        for e in top:
+            e.increment_access()
+        return top
+
+    # ── ChromaDB retrieval ────────────────────────────────────────
 
     async def _chroma_retrieve(
         self,
@@ -256,8 +372,7 @@ class MemoryEngine:
                 distances = qr.get("distances", [[]])[0]
 
                 for mem_id, dist in zip(ids, distances):
-                    score = 1.0 / (1.0 + dist)  # Convert distance to similarity
-                    # Look up in-memory entry
+                    score = 1.0 / (1.0 + dist)
                     entry = source_dict.get(mem_id)
                     if entry:
                         entry.increment_access()
@@ -364,6 +479,7 @@ class MemoryEngine:
             if entry.key in self.episodic:
                 del self.episodic[entry.key]
 
+        self._tfidf_dirty = True
         logger.info("Compression complete — %d entries remaining", len(self.episodic))
 
     async def _archive(self, entry: MemoryEntry) -> None:
@@ -383,7 +499,8 @@ class MemoryEngine:
             return 0.0
 
         overlap = query_terms & all_target_terms
-        jaccard = len(overlap) / len(query_terms | all_target_terms)
+        union = query_terms | all_target_terms
+        jaccard = len(overlap) / len(union) if union else 0.0
 
         recency_boost = 1.0 / (1.0 + (time.time() - entry.timestamp) / 86400)
         importance_boost = entry.importance
