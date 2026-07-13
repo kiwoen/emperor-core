@@ -13,6 +13,7 @@ Startup order:
     5. HermesMCPClient          — connects Hermes to external MCP servers
     6. Orchestrator             — master controller (routes through bus)
     7. KnowledgeGraph           — cross-domain semantic graph (auto-ingestion)
+    8. ImperialCourt            — Emperor + 8 ministers (court-mode dispatch)
 
 Shutdown: reverse order, graceful cancellation of pending operations.
 """
@@ -48,6 +49,7 @@ class SystemIntegration:
         self._hermes_client: Any = None
         self._orchestrator: Any = None
         self._knowledge_graph: Any = None
+        self._imperial_court: Any = None
         self._running = False
 
     # ------------------------------------------------------------------
@@ -83,6 +85,10 @@ class SystemIntegration:
         if self._knowledge_graph is None:
             raise RuntimeError("Integration not started — call start() first")
         return self._knowledge_graph
+
+    @property
+    def imperial_court(self) -> Any:
+        return self._imperial_court
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -174,6 +180,21 @@ class SystemIntegration:
         logger.info("  ✓ KnowledgeGraph ready (%d entities, %d edges)",
                      kg_summary["entity_count"], kg_summary["edge_count"])
 
+        # ── Phase 8: Imperial Court ──────────────────────────────────────
+        logger.info("[8/8] Convening Imperial Court ...")
+        from jarvis.court.emperor import ImperialCourt
+        self._imperial_court = ImperialCourt(
+            bus=self._bus,
+            knowledge_graph=self._knowledge_graph,
+        )
+        self._imperial_court.install_ministers_from_factory()
+        court_metrics = self._imperial_court.get_court_metrics()
+        logger.info("  ✓ Imperial Court convened (%d ministers)",
+                     court_metrics["minister_count"])
+
+        # Wire court into orchestrator (enables court mode on demand)
+        self._orchestrator.imperial_court = self._imperial_court
+
         self._running = True
         logger.info("=" * 50)
         logger.info("JARVIS System Integration — ALL SYSTEMS GO")
@@ -192,6 +213,7 @@ class SystemIntegration:
         # Shutdown in reverse order
         components = [
             ("KnowledgeGraph", None),  # no async shutdown — passive in-memory graph
+            ("ImperialCourt", None),   # no async shutdown — in-memory state only
             ("Orchestrator", None),  # no explicit shutdown needed
             ("HermesMCPClient", self._hermes_client.shutdown() if self._hermes_client else None),
             ("HermesMCPServer", None),  # passive — no lifecycle
@@ -251,6 +273,7 @@ class SystemIntegration:
     def status(self) -> dict:
         """Return a health-check summary of all subsystems."""
         kg_summary = self._knowledge_graph.summary() if self._knowledge_graph else {}
+        court_metrics = self._imperial_court.get_court_metrics() if self._imperial_court else {}
         return {
             "running": self._running,
             "bus": {
@@ -264,11 +287,18 @@ class SystemIntegration:
             "orchestrator": {
                 "loaded": self._orchestrator is not None,
                 "domains": len(self._orchestrator.registry.list_domains()) if self._orchestrator else 0,
+                "execution_mode": self._orchestrator.execution_mode.name if self._orchestrator else "N/A",
             },
             "knowledge_graph": {
                 "loaded": self._knowledge_graph is not None,
                 "entities": kg_summary.get("entity_count", 0),
                 "edges": kg_summary.get("edge_count", 0),
+            },
+            "imperial_court": {
+                "loaded": self._imperial_court is not None,
+                "ministers": court_metrics.get("minister_count", 0),
+                "decrees": court_metrics.get("decree_count", 0),
+                "recent_success_rate": court_metrics.get("recent_success_rate", 0),
             },
         }
 

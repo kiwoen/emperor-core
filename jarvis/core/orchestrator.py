@@ -52,6 +52,17 @@ class Domain(Enum):
     CORE = auto()  # meta-domain for system operations
 
 
+class ExecutionMode(Enum):
+    """How the Orchestrator dispatches user intents.
+
+    DIRECT: route to domain modules via IntentParser → DomainRegistry (classic)
+    COURT:  route through the Imperial Court (Emperor → ministers → decree)
+    """
+
+    DIRECT = auto()
+    COURT = auto()
+
+
 @dataclass
 class Intent:
     """Parsed user intent with context."""
@@ -314,12 +325,16 @@ class Orchestrator:
         memory_engine: Any = None,
         evolution_controller: Any = None,
         sandbox_manager: Any = None,
+        imperial_court: Any = None,
+        execution_mode: ExecutionMode = ExecutionMode.DIRECT,
     ) -> None:
         self.registry = DomainRegistry()
         self.intent_parser = IntentParser()
         self.memory = memory_engine
         self.evolution = evolution_controller
         self.sandbox = sandbox_manager
+        self.imperial_court = imperial_court
+        self.execution_mode = execution_mode
         self.context: list[str] = []
         # Lazy-init: WorkflowEngine needs self reference (circular dependency)
         self._workflow: Any = None
@@ -345,6 +360,37 @@ class Orchestrator:
         logger.info("Parsed intent: domain=%s, action=%s, secondary=%s",
                      intent.primary_domain.name, intent.action,
                      [d.name for d in intent.secondary_domains])
+
+        # Step 1.5: Court mode — delegate to Imperial Court
+        if (
+            self.execution_mode == ExecutionMode.COURT
+            and self.imperial_court is not None
+        ):
+            result = await self._execute_with_court(user_input, intent)
+
+            # Step 4: Store in memory
+            if self.memory:
+                await self.memory.store(
+                    key=f"task_{id(result)}",
+                    value={
+                        "intent": intent.raw_text,
+                        "domain": intent.primary_domain.name,
+                        "success": result.success,
+                        "output": str(result.output)[:2000],
+                        "court_mode": True,
+                    },
+                )
+
+            # Step 5: Feed to evolution engine
+            if self.evolution and result.success:
+                await self.evolution.record_success(intent, result)
+
+            # Step 6: Update context
+            self.context.append(user_input)
+            if len(self.context) > 50:
+                self.context = self.context[-50:]
+
+            return result
 
         # Check for multi-domain workflow
         from jarvis.core.workflow import WorkflowEngine
@@ -449,6 +495,54 @@ class Orchestrator:
         intent = self.intent_parser.parse(user_input, self.context)
         yield {"type": "progress", "stage": "intent_parsed", "domain": intent.primary_domain.name, "action": intent.action}
 
+        # Court mode: delegate to Emperor pipeline
+        if (
+            self.execution_mode == ExecutionMode.COURT
+            and self.imperial_court is not None
+        ):
+            yield {"type": "progress", "stage": "court_convened", "domain": intent.primary_domain.name}
+            start = loop.time()
+            try:
+                result = await self._execute_with_court(user_input, intent)
+            except Exception as e:
+                logger.exception("Court stream execution failed")
+                yield {
+                    "type": "error",
+                    "message": f"Court error: {e}",
+                    "timestamp": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+                }
+                return
+
+            # Memory + evolution + context
+            if self.memory:
+                await self.memory.store(
+                    key=f"task_{id(result)}",
+                    value={
+                        "intent": intent.raw_text,
+                        "domain": intent.primary_domain.name,
+                        "success": result.success,
+                        "output": str(result.output)[:2000],
+                        "court_mode": True,
+                    },
+                )
+            if self.evolution and result.success:
+                await self.evolution.record_success(intent, result)
+            self.context.append(user_input)
+            if len(self.context) > 50:
+                self.context = self.context[-50:]
+
+            yield {
+                "type": "result",
+                "success": result.success,
+                "domain": result.domain.name,
+                "output": str(result.output) if result.output else None,
+                "error": result.error,
+                "execution_time_ms": result.execution_time_ms,
+                "court_mode": True,
+                "timestamp": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+            }
+            return
+
         # Stage 2: Route
         module = self.registry.get(intent.primary_domain)
         if not module:
@@ -511,6 +605,63 @@ class Orchestrator:
             "execution_time_ms": result.execution_time_ms,
             "timestamp": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
         }
+
+    def set_court_mode(self, enabled: bool = True) -> None:
+        """Enable or disable Imperial Court dispatching.
+
+        When enabled, all user intents are routed through the Emperor
+        pipeline (petition → analyze → ministers → decree) instead of
+        direct domain module routing.
+        """
+        if enabled and self.imperial_court is None:
+            logger.warning("Cannot enable court mode: imperial_court not set")
+            return
+        self.execution_mode = ExecutionMode.COURT if enabled else ExecutionMode.DIRECT
+        logger.info("Execution mode: %s", self.execution_mode.name)
+
+    async def _execute_with_court(self, user_input: str, intent: Intent) -> TaskResult:
+        """Route through the Imperial Court: petition → Emperor → ministers → decree.
+
+        Converts Decree back to TaskResult for backward compatibility with
+        the rest of the orchestrator pipeline (memory, evolution, context).
+        """
+        import time as _time
+
+        start = asyncio.get_event_loop().time()
+
+        try:
+            decree = await self.imperial_court.receive_petition(
+                intent=user_input,
+            )
+        except Exception as e:
+            logger.exception("Imperial Court execution failed")
+            return TaskResult(
+                domain=intent.primary_domain,
+                success=False,
+                error=f"Court error: {e}",
+                execution_time_ms=(asyncio.get_event_loop().time() - start) * 1000,
+            )
+
+        execution_ms = decree.execution_time_ms or (
+            (asyncio.get_event_loop().time() - start) * 1000
+        )
+
+        return TaskResult(
+            domain=intent.primary_domain,
+            success=decree.success,
+            output=decree.output,
+            data={
+                "court_mode": True,
+                "decree_id": decree.decree_id,
+                "ministers_consulted": decree.ministers_consulted,
+                "confidence": decree.confidence,
+                "recommendations": decree.recommendations,
+                "dissenting": decree.dissenting_opinions,
+                "court_session": decree.court_session,
+                "execution_ms": execution_ms,
+            },
+            execution_time_ms=execution_ms,
+        )
 
     async def _default_handle(self, module: Any, intent: Intent) -> TaskResult:
         """Fallback handler when domain lacks a handle() method."""
