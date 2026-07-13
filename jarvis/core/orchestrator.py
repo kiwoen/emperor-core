@@ -321,15 +321,69 @@ class Orchestrator:
         self.evolution = evolution_controller
         self.sandbox = sandbox_manager
         self.context: list[str] = []
+        # Lazy-init: WorkflowEngine needs self reference (circular dependency)
+        self._workflow: Any = None
+
+    @property
+    def workflow(self) -> Any:
+        """Lazy-init WorkflowEngine to avoid circular imports."""
+        if self._workflow is None:
+            from jarvis.core.workflow import WorkflowEngine
+            self._workflow = WorkflowEngine(self)
+        return self._workflow
 
     async def execute(self, user_input: str) -> TaskResult:
-        """Main entry point — parse, route, execute, learn."""
+        """Main entry point — parse, route, execute, learn.
+
+        Auto-detects multi-domain workflows: if the intent has
+        secondary_domains, delegates to the WorkflowEngine for
+        cross-domain pipeline/parallel execution.
+        """
 
         # Step 1: Parse intent
         intent = self.intent_parser.parse(user_input, self.context)
-        logger.info("Parsed intent: domain=%s, action=%s", intent.primary_domain.name, intent.action)
+        logger.info("Parsed intent: domain=%s, action=%s, secondary=%s",
+                     intent.primary_domain.name, intent.action,
+                     [d.name for d in intent.secondary_domains])
 
-        # Step 2: Route to domain module
+        # Check for multi-domain workflow
+        from jarvis.core.workflow import WorkflowEngine
+        if WorkflowEngine.requires_workflow(intent):
+            logger.info("Routing to workflow engine (multi-domain)")
+            wf_result = await self.workflow.execute(intent)
+            # Convert workflow result to TaskResult for backward compatibility
+            if not wf_result.success and wf_result.error:
+                return TaskResult(
+                    domain=intent.primary_domain,
+                    success=False,
+                    error=wf_result.error,
+                )
+
+            # Collect all memory keys from sub-steps
+            all_memory_keys: list[str] = []
+            for domain, tresult in wf_result.steps:
+                all_memory_keys.extend(tresult.memory_keys)
+
+            result = TaskResult(
+                domain=intent.primary_domain,
+                success=wf_result.all_succeeded,
+                output=wf_result.merged_output,
+                data={
+                    "workflow_mode": wf_result.mode.name,
+                    "steps": [{"domain": d.name, "success": r.success}
+                              for d, r in wf_result.steps],
+                    "execution_ms": wf_result.total_execution_ms,
+                },
+                memory_keys=all_memory_keys,
+            )
+
+            # Feed to evolution
+            if self.evolution and result.success:
+                await self.evolution.record_success(intent, result)
+
+            return result
+
+        # Step 2: Route to domain module (single-domain path)
         module = self.registry.get(intent.primary_domain)
         if not module:
             return TaskResult(
