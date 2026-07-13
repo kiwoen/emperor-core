@@ -98,6 +98,8 @@ class ImperialCourt:
 
     def install_minister(self, minister: Minister) -> None:
         """Appoint a minister to the court."""
+        if self.knowledge_graph is not None:
+            minister.set_knowledge_graph(self.knowledge_graph)
         self.ministers[minister.name] = minister
         logger.info("[Emperor] Appointed %s (%s) to the court",
                      minister.name, minister.archetype)

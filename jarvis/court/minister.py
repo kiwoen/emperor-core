@@ -111,6 +111,7 @@ class Minister:
         self,
         profile: MinisterProfile,
         system_prompt_template: str = "",
+        knowledge_graph: Any = None,
     ) -> None:
         self.profile = profile
         self.system_prompt_template = system_prompt_template
@@ -125,15 +126,28 @@ class Minister:
         self._confidence_baseline: float = profile.quality_score
         # Model provider — injected after construction
         self._provider: Optional[Any] = None
+        # Knowledge graph — for context-aware reasoning
+        self._knowledge_graph: Optional[Any] = knowledge_graph
+        # Transient KG context for current dispatch
+        self._kg_context: str = ""
 
     def set_provider(self, provider: Any) -> None:
         """Inject a real model provider (called by ProviderRegistry)."""
         self._provider = provider
 
+    def set_knowledge_graph(self, kg: Any) -> None:
+        """Inject a KnowledgeGraph for context-aware reasoning."""
+        self._knowledge_graph = kg
+
     @property
     def has_real_model(self) -> bool:
         """Whether this minister has a configured real model provider."""
         return self._provider is not None and self._provider.is_available
+
+    @property
+    def has_knowledge_graph(self) -> bool:
+        """Whether this minister has access to a knowledge graph."""
+        return self._knowledge_graph is not None
 
     def _build_system_prompt(self) -> str:
         """Build the system prompt from template, filling in minister metadata."""
@@ -147,7 +161,7 @@ class Minister:
             weaknesses=", ".join(self.profile.weaknesses[:4]),
         )
 
-    async def _try_real_model(self, edict: Edict) -> Optional[tuple[str, float]]:
+    async def _try_real_model(self, edict: Edict, kg_context: str = "") -> Optional[tuple[str, float]]:
         """Attempt to use the real model provider.
 
         Returns (output, confidence) on success, None if unavailable or error.
@@ -157,6 +171,8 @@ class Minister:
         try:
             from jarvis.court.providers.base import GenerationParams
             system = self._build_system_prompt()
+            if kg_context:
+                system = f"{system}\n\n{kg_context}" if system else kg_context
             params = GenerationParams(
                 system_prompt=system,
                 temperature=self._current_temperature,
@@ -170,6 +186,71 @@ class Minister:
                 self.name, e,
             )
         return None
+
+    async def _query_kg_for_context(self, intent: str) -> str:
+        """Query the KnowledgeGraph for entities relevant to this intent.
+
+        Returns a formatted context string for injection into the system prompt.
+        Uses both standard ingest (English extraction) and direct keyword search
+        (for CJK / non-English entity names).
+        """
+        if self._knowledge_graph is None:
+            return ""
+
+        try:
+            # Strategy 1: standard ingest for English entities
+            ingested = await self._knowledge_graph.ingest(intent, domain=self.domain)
+
+            # Strategy 2: direct keyword scan of KG entity names
+            # This handles CJK / non-English entity names that the regex won't match
+            all_entity_names = list(self._knowledge_graph.entities.keys())
+            matched_names: list[str] = []
+            for eid, entity in self._knowledge_graph.entities.items():
+                name = entity.name.lower()
+                intent_lower = intent.lower()
+                # Match if entity name appears in intent (any language)
+                if name in intent_lower:
+                    matched_names.append(entity.name)
+
+            # Collect neighbors for matched entities
+            all_neighbors: list[dict] = []
+            seen: set[str] = set()
+
+            # From ingest results
+            for entity in ingested[:3]:
+                neighbors = await self._knowledge_graph.get_neighbors(
+                    entity.name, max_depth=1, include_weights=True,
+                )
+                for n in neighbors:
+                    if n["entity"] not in seen:
+                        all_neighbors.append(n)
+                        seen.add(n["entity"])
+
+            # From keyword-matched entities
+            for name in matched_names[:5]:
+                if name not in seen:
+                    neighbors = await self._knowledge_graph.get_neighbors(
+                        name, max_depth=1, include_weights=True,
+                    )
+                    for n in neighbors:
+                        if n["entity"] not in seen:
+                            all_neighbors.append(n)
+                            seen.add(n["entity"])
+
+            if not all_neighbors:
+                return ""
+
+            lines = ["[知识图谱上下文 — 相关实体与关系]"]
+            for n in all_neighbors[:8]:
+                weight_info = f" (权重={n['weight']})" if "weight" in n else ""
+                lines.append(
+                    f"  - {n['entity']} [{n['type']}] "
+                    f"← {n['relation']}{weight_info}"
+                )
+            return "\n".join(lines)
+        except Exception as e:
+            logger.debug("[%s] KG query skipped: %s", self.name, e)
+            return ""
 
     # ------------------------------------------------------------------
     # Identity
@@ -263,9 +344,12 @@ class Minister:
             start = time.monotonic()
             memorial: Memorial
             try:
+                # Query KG for contextual enrichment
+                self._kg_context = await self._query_kg_for_context(edict.intent)
+
                 # Try real model first, fall back to mock _handle()
                 self.state = MinisterState.EXECUTING
-                real_result = await self._try_real_model(edict)
+                real_result = await self._try_real_model(edict, kg_context=self._kg_context)
                 if real_result is not None:
                     output, confidence = real_result
                 else:
