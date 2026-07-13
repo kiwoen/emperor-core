@@ -22,6 +22,7 @@ class LLMConfig:
     provider: str = "openai"
     model: str = "gpt-4o"
     api_key: str = ""
+    base_url: str = ""
     temperature: float = 0.7
     max_tokens: int = 1024
     mock_mode: bool = True
@@ -72,14 +73,17 @@ class LLMEngine:
         messages.append({"role": "user", "content": prompt})
 
         model_id = f"{self.config.provider}/{self.config.model}"
+        kwargs: dict[str, Any] = {
+            "model": model_id,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "api_key": self.config.api_key,
+        }
+        if self.config.base_url:
+            kwargs["api_base"] = self.config.base_url
         try:
-            response = await litellm.acompletion(
-                model=model_id,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                api_key=self.config.api_key,
-            )
+            response = await litellm.acompletion(**kwargs)
             return response.choices[0].message.content.strip()
         except Exception as e:
             logger.error(f"LLM call failed: {e}, falling back to mock")
@@ -218,12 +222,14 @@ def get_llm() -> LLMEngine:
 def init_llm(config_obj: Any) -> LLMEngine:
     """Initialize LLM engine from JARVIS config."""
     global _llm_instance
+    llm_cfg = getattr(config_obj, "llm", None) or getattr(config_obj, "model", None)
     llm_config = LLMConfig(
-        provider=getattr(getattr(config_obj, "llm", None), "provider", "openai"),
-        model=getattr(getattr(config_obj, "llm", None), "model", "gpt-4o"),
-        api_key=getattr(getattr(config_obj, "llm", None), "api_key", ""),
-        temperature=getattr(getattr(config_obj, "llm", None), "temperature", 0.7),
-        max_tokens=getattr(getattr(config_obj, "llm", None), "max_tokens", 1024),
+        provider=getattr(llm_cfg, "provider", "openai"),
+        model=getattr(llm_cfg, "model", "gpt-4o"),
+        api_key=getattr(llm_cfg, "api_key", ""),
+        base_url=getattr(llm_cfg, "base_url", ""),
+        temperature=getattr(llm_cfg, "temperature", 0.7),
+        max_tokens=getattr(llm_cfg, "max_tokens", 1024),
     )
     _llm_instance = LLMEngine(llm_config)
     return _llm_instance

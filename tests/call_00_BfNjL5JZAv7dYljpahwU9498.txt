@@ -1,0 +1,1476 @@
+...........................FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF            [100%]
+================================== FAILURES ===================================
+_______________________ TestResearchDomain.test_search ________________________
+
+self = <tests.test_domains.TestResearchDomain object at 0x0000022359998AD0>
+
+    @pytest.mark.asyncio
+    async def test_search(self):
+>       dm = _load_domain("jarvis.domains.research")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:40: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Research Domain — academic search, paper discovery, trend analysis.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\research\__init__.py:8: ImportError
+________________________ TestResearchDomain.test_paper ________________________
+
+self = <tests.test_domains.TestResearchDomain object at 0x00000223599991D0>
+
+    @pytest.mark.asyncio
+    async def test_paper(self):
+>       dm = _load_domain("jarvis.domains.research")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:49: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Research Domain — academic search, paper discovery, trend analysis.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\research\__init__.py:8: ImportError
+________________________ TestResearchDomain.test_trend ________________________
+
+self = <tests.test_domains.TestResearchDomain object at 0x00000223599998D0>
+
+    @pytest.mark.asyncio
+    async def test_trend(self):
+>       dm = _load_domain("jarvis.domains.research")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:57: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Research Domain — academic search, paper discovery, trend analysis.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\research\__init__.py:8: ImportError
+_________________ TestResearchDomain.test_research_framework __________________
+
+self = <tests.test_domains.TestResearchDomain object at 0x000002235999A010>
+
+    @pytest.mark.asyncio
+    async def test_research_framework(self):
+>       dm = _load_domain("jarvis.domains.research")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:65: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Research Domain — academic search, paper discovery, trend analysis.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\research\__init__.py:8: ImportError
+_____________________ TestEngineeringDomain.test_code_gen _____________________
+
+self = <tests.test_domains.TestEngineeringDomain object at 0x0000022359999C10>
+
+    @pytest.mark.asyncio
+    async def test_code_gen(self):
+>       dm = _load_domain("jarvis.domains.engineering")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Engineering Domain — code generation, debugging, refactoring, architecture.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\engineering\__init__.py:8: ImportError
+______________________ TestEngineeringDomain.test_debug _______________________
+
+self = <tests.test_domains.TestEngineeringDomain object at 0x000002235999A2D0>
+
+    @pytest.mark.asyncio
+    async def test_debug(self):
+>       dm = _load_domain("jarvis.domains.engineering")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:89: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Engineering Domain — code generation, debugging, refactoring, architecture.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\engineering\__init__.py:8: ImportError
+_____________________ TestEngineeringDomain.test_refactor _____________________
+
+self = <tests.test_domains.TestEngineeringDomain object at 0x000002235999A690>
+
+    @pytest.mark.asyncio
+    async def test_refactor(self):
+>       dm = _load_domain("jarvis.domains.engineering")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:97: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Engineering Domain — code generation, debugging, refactoring, architecture.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\engineering\__init__.py:8: ImportError
+_______________________ TestEngineeringDomain.test_git ________________________
+
+self = <tests.test_domains.TestEngineeringDomain object at 0x000002235999AA90>
+
+    @pytest.mark.asyncio
+    async def test_git(self):
+>       dm = _load_domain("jarvis.domains.engineering")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:105: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Engineering Domain — code generation, debugging, refactoring, architecture.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\engineering\__init__.py:8: ImportError
+___________________ TestEngineeringDomain.test_architecture ___________________
+
+self = <tests.test_domains.TestEngineeringDomain object at 0x000002235999AF10>
+
+    @pytest.mark.asyncio
+    async def test_architecture(self):
+>       dm = _load_domain("jarvis.domains.engineering")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:113: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Engineering Domain — code generation, debugging, refactoring, architecture.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\engineering\__init__.py:8: ImportError
+_______________________ TestCreatorDomain.test_writing ________________________
+
+self = <tests.test_domains.TestCreatorDomain object at 0x000002235999B690>
+
+    @pytest.mark.asyncio
+    async def test_writing(self):
+>       dm = _load_domain("jarvis.domains.creator")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:128: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Creator Domain — writing, design, presentations, image prompts.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\creator\__init__.py:8: ImportError
+________________________ TestCreatorDomain.test_design ________________________
+
+self = <tests.test_domains.TestCreatorDomain object at 0x000002235999BD90>
+
+    @pytest.mark.asyncio
+    async def test_design(self):
+>       dm = _load_domain("jarvis.domains.creator")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:136: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Creator Domain — writing, design, presentations, image prompts.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\creator\__init__.py:8: ImportError
+_____________________ TestCreatorDomain.test_presentation _____________________
+
+self = <tests.test_domains.TestCreatorDomain object at 0x00000223599A04D0>
+
+    @pytest.mark.asyncio
+    async def test_presentation(self):
+>       dm = _load_domain("jarvis.domains.creator")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:144: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Creator Domain — writing, design, presentations, image prompts.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\creator\__init__.py:8: ImportError
+_____________________ TestCreatorDomain.test_image_prompt _____________________
+
+self = <tests.test_domains.TestCreatorDomain object at 0x00000223599A0C50>
+
+    @pytest.mark.asyncio
+    async def test_image_prompt(self):
+>       dm = _load_domain("jarvis.domains.creator")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:152: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Creator Domain — writing, design, presentations, image prompts.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\creator\__init__.py:8: ImportError
+______________________ TestPersonalDomain.test_reminder _______________________
+
+self = <tests.test_domains.TestPersonalDomain object at 0x00000223599A13D0>
+
+    @pytest.mark.asyncio
+    async def test_reminder(self):
+>       dm = _load_domain("jarvis.domains.personal")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:167: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Personal Domain — reminders, todos, notes, planning, focus.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\personal\__init__.py:8: ImportError
+________________________ TestPersonalDomain.test_todo _________________________
+
+self = <tests.test_domains.TestPersonalDomain object at 0x00000223599A1B50>
+
+    @pytest.mark.asyncio
+    async def test_todo(self):
+>       dm = _load_domain("jarvis.domains.personal")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:175: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Personal Domain — reminders, todos, notes, planning, focus.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\personal\__init__.py:8: ImportError
+________________________ TestPersonalDomain.test_note _________________________
+
+self = <tests.test_domains.TestPersonalDomain object at 0x00000223599A23D0>
+
+    @pytest.mark.asyncio
+    async def test_note(self):
+>       dm = _load_domain("jarvis.domains.personal")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:183: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Personal Domain — reminders, todos, notes, planning, focus.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\personal\__init__.py:8: ImportError
+________________________ TestPersonalDomain.test_plan _________________________
+
+self = <tests.test_domains.TestPersonalDomain object at 0x00000223599A2C90>
+
+    @pytest.mark.asyncio
+    async def test_plan(self):
+>       dm = _load_domain("jarvis.domains.personal")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:191: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Personal Domain — reminders, todos, notes, planning, focus.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\personal\__init__.py:8: ImportError
+________________________ TestPersonalDomain.test_focus ________________________
+
+self = <tests.test_domains.TestPersonalDomain object at 0x00000223599A3510>
+
+    @pytest.mark.asyncio
+    async def test_focus(self):
+>       dm = _load_domain("jarvis.domains.personal")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:199: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Personal Domain — reminders, todos, notes, planning, focus.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\personal\__init__.py:8: ImportError
+________________________ TestSecurityDomain.test_scan _________________________
+
+self = <tests.test_domains.TestSecurityDomain object at 0x000002235999B2D0>
+
+    @pytest.mark.asyncio
+    async def test_scan(self):
+>       dm = _load_domain("jarvis.domains.security")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:214: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Security Domain — scanning, monitoring, encryption, vulnerability assessment.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\security\__init__.py:8: ImportError
+_______________________ TestSecurityDomain.test_monitor _______________________
+
+self = <tests.test_domains.TestSecurityDomain object at 0x0000022359998A10>
+
+    @pytest.mark.asyncio
+    async def test_monitor(self):
+>       dm = _load_domain("jarvis.domains.security")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:222: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Security Domain — scanning, monitoring, encryption, vulnerability assessment.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\security\__init__.py:8: ImportError
+_______________________ TestSecurityDomain.test_encrypt _______________________
+
+self = <tests.test_domains.TestSecurityDomain object at 0x00000223599A2210>
+
+    @pytest.mark.asyncio
+    async def test_encrypt(self):
+>       dm = _load_domain("jarvis.domains.security")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:230: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Security Domain — scanning, monitoring, encryption, vulnerability assessment.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\security\__init__.py:8: ImportError
+________________________ TestSecurityDomain.test_vuln _________________________
+
+self = <tests.test_domains.TestSecurityDomain object at 0x00000223599A22D0>
+
+    @pytest.mark.asyncio
+    async def test_vuln(self):
+>       dm = _load_domain("jarvis.domains.security")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:238: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Security Domain — scanning, monitoring, encryption, vulnerability assessment.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\security\__init__.py:8: ImportError
+_______________________ TestHealthDomain.test_exercise ________________________
+
+self = <tests.test_domains.TestHealthDomain object at 0x00000223599A1E50>
+
+    @pytest.mark.asyncio
+    async def test_exercise(self):
+>       dm = _load_domain("jarvis.domains.health")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:253: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Health Domain — exercise, sleep, diet, meditation.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\health\__init__.py:8: ImportError
+_________________________ TestHealthDomain.test_sleep _________________________
+
+self = <tests.test_domains.TestHealthDomain object at 0x00000223599A0F10>
+
+    @pytest.mark.asyncio
+    async def test_sleep(self):
+>       dm = _load_domain("jarvis.domains.health")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:261: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Health Domain — exercise, sleep, diet, meditation.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\health\__init__.py:8: ImportError
+_________________________ TestHealthDomain.test_diet __________________________
+
+self = <tests.test_domains.TestHealthDomain object at 0x00000223599A39D0>
+
+    @pytest.mark.asyncio
+    async def test_diet(self):
+>       dm = _load_domain("jarvis.domains.health")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:269: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Health Domain — exercise, sleep, diet, meditation.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\health\__init__.py:8: ImportError
+______________________ TestHealthDomain.test_meditation _______________________
+
+self = <tests.test_domains.TestHealthDomain object at 0x00000223599A4150>
+
+    @pytest.mark.asyncio
+    async def test_meditation(self):
+>       dm = _load_domain("jarvis.domains.health")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:277: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Health Domain — exercise, sleep, diet, meditation.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\health\__init__.py:8: ImportError
+________________________ TestFinanceDomain.test_stock _________________________
+
+self = <tests.test_domains.TestFinanceDomain object at 0x00000223599A49D0>
+
+    @pytest.mark.asyncio
+    async def test_stock(self):
+>       dm = _load_domain("jarvis.domains.finance")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:292: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Finance Domain — stock analysis, budgeting, crypto tracking, portfolio.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\finance\__init__.py:8: ImportError
+________________________ TestFinanceDomain.test_budget ________________________
+
+self = <tests.test_domains.TestFinanceDomain object at 0x00000223599A50D0>
+
+    @pytest.mark.asyncio
+    async def test_budget(self):
+>       dm = _load_domain("jarvis.domains.finance")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:300: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Finance Domain — stock analysis, budgeting, crypto tracking, portfolio.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\finance\__init__.py:8: ImportError
+________________________ TestFinanceDomain.test_crypto ________________________
+
+self = <tests.test_domains.TestFinanceDomain object at 0x00000223599A57D0>
+
+    @pytest.mark.asyncio
+    async def test_crypto(self):
+>       dm = _load_domain("jarvis.domains.finance")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:308: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Finance Domain — stock analysis, budgeting, crypto tracking, portfolio.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\finance\__init__.py:8: ImportError
+______________________ TestFinanceDomain.test_portfolio _______________________
+
+self = <tests.test_domains.TestFinanceDomain object at 0x00000223599A5F10>
+
+    @pytest.mark.asyncio
+    async def test_portfolio(self):
+>       dm = _load_domain("jarvis.domains.finance")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:316: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Finance Domain — stock analysis, budgeting, crypto tracking, portfolio.
+    """
+    
+    from __future__ import annotations
+    
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\finance\__init__.py:8: ImportError
+__________________________ TestHomeDomain.test_light __________________________
+
+self = <tests.test_domains.TestHomeDomain object at 0x00000223599A6650>
+
+    @pytest.mark.asyncio
+    async def test_light(self):
+>       dm = _load_domain("jarvis.domains.home")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:331: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Home Domain — smart device control, climate, scenes, energy monitoring.
+    """
+    
+    from __future__ import annotations
+    
+    import re
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\home\__init__.py:9: ImportError
+_________________________ TestHomeDomain.test_climate _________________________
+
+self = <tests.test_domains.TestHomeDomain object at 0x00000223599A6D50>
+
+    @pytest.mark.asyncio
+    async def test_climate(self):
+>       dm = _load_domain("jarvis.domains.home")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:340: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Home Domain — smart device control, climate, scenes, energy monitoring.
+    """
+    
+    from __future__ import annotations
+    
+    import re
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\home\__init__.py:9: ImportError
+__________________________ TestHomeDomain.test_scene __________________________
+
+self = <tests.test_domains.TestHomeDomain object at 0x00000223599A11D0>
+
+    @pytest.mark.asyncio
+    async def test_scene(self):
+>       dm = _load_domain("jarvis.domains.home")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:349: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Home Domain — smart device control, climate, scenes, energy monitoring.
+    """
+    
+    from __future__ import annotations
+    
+    import re
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\home\__init__.py:9: ImportError
+_________________________ TestHomeDomain.test_energy __________________________
+
+self = <tests.test_domains.TestHomeDomain object at 0x000002235999A290>
+
+    @pytest.mark.asyncio
+    async def test_energy(self):
+>       dm = _load_domain("jarvis.domains.home")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:357: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_domains.py:28: in _load_domain
+    mod = importlib.import_module(domain_module_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1204: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:940: in exec_module
+    ???
+<frozen importlib._bootstrap>:241: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Home Domain — smart device control, climate, scenes, energy monitoring.
+    """
+    
+    from __future__ import annotations
+    
+    import re
+    from typing import Any
+>   from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+E   ImportError: cannot import name 'DomainModule' from 'jarvis.core.orchestrator' (C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core\jarvis\core\orchestrator.py)
+
+jarvis\domains\home\__init__.py:9: ImportError
+============================== warnings summary ===============================
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\site-packages\fastapi\testclient.py:1
+  D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_domains.py::TestResearchDomain::test_search - ImportError: ...
+FAILED tests/test_domains.py::TestResearchDomain::test_paper - ImportError: c...
+FAILED tests/test_domains.py::TestResearchDomain::test_trend - ImportError: c...
+FAILED tests/test_domains.py::TestResearchDomain::test_research_framework - I...
+FAILED tests/test_domains.py::TestEngineeringDomain::test_code_gen - ImportEr...
+FAILED tests/test_domains.py::TestEngineeringDomain::test_debug - ImportError...
+FAILED tests/test_domains.py::TestEngineeringDomain::test_refactor - ImportEr...
+FAILED tests/test_domains.py::TestEngineeringDomain::test_git - ImportError: ...
+FAILED tests/test_domains.py::TestEngineeringDomain::test_architecture - Impo...
+FAILED tests/test_domains.py::TestCreatorDomain::test_writing - ImportError: ...
+FAILED tests/test_domains.py::TestCreatorDomain::test_design - ImportError: c...
+FAILED tests/test_domains.py::TestCreatorDomain::test_presentation - ImportEr...
+FAILED tests/test_domains.py::TestCreatorDomain::test_image_prompt - ImportEr...
+FAILED tests/test_domains.py::TestPersonalDomain::test_reminder - ImportError...
+FAILED tests/test_domains.py::TestPersonalDomain::test_todo - ImportError: ca...
+FAILED tests/test_domains.py::TestPersonalDomain::test_note - ImportError: ca...
+FAILED tests/test_domains.py::TestPersonalDomain::test_plan - ImportError: ca...
+FAILED tests/test_domains.py::TestPersonalDomain::test_focus - ImportError: c...
+FAILED tests/test_domains.py::TestSecurityDomain::test_scan - ImportError: ca...
+FAILED tests/test_domains.py::TestSecurityDomain::test_monitor - ImportError:...
+FAILED tests/test_domains.py::TestSecurityDomain::test_encrypt - ImportError:...
+FAILED tests/test_domains.py::TestSecurityDomain::test_vuln - ImportError: ca...
+FAILED tests/test_domains.py::TestHealthDomain::test_exercise - ImportError: ...
+FAILED tests/test_domains.py::TestHealthDomain::test_sleep - ImportError: can...
+FAILED tests/test_domains.py::TestHealthDomain::test_diet - ImportError: cann...
+FAILED tests/test_domains.py::TestHealthDomain::test_meditation - ImportError...
+FAILED tests/test_domains.py::TestFinanceDomain::test_stock - ImportError: ca...
+FAILED tests/test_domains.py::TestFinanceDomain::test_budget - ImportError: c...
+FAILED tests/test_domains.py::TestFinanceDomain::test_crypto - ImportError: c...
+FAILED tests/test_domains.py::TestFinanceDomain::test_portfolio - ImportError...
+FAILED tests/test_domains.py::TestHomeDomain::test_light - ImportError: canno...
+FAILED tests/test_domains.py::TestHomeDomain::test_climate - ImportError: can...
+FAILED tests/test_domains.py::TestHomeDomain::test_scene - ImportError: canno...
+FAILED tests/test_domains.py::TestHomeDomain::test_energy - ImportError: cann...
+34 failed, 27 passed, 1 warning in 13.34s

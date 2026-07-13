@@ -1,0 +1,212 @@
+[File Agent] Task completed.
+Agent ID: sa_19f56b4545c_48c2a10e3699
+Task: <overall_goal>
+继续完善 JARVIS Core 项目，需要分批次推进以下工作：
+1. 将 APIServer 与 Orchestrator 正确集成（当前 /execute 端点因缺少 orchestrator 返回错误）
+2. 实现真正的 WebSocket 双向通信（支持流式推送）
+3. 创建 CLI 入口点（jarvis serve 启动服务、jarvis chat 交互模式）
+4. 补充 memory 引擎的轻量级 embedding 回退方案（当前 ChromaDB 因 sentence-transformers 不可用而降级为纯关键词检索）
+</overall_goal>
+<current_task>
+请先读取以下关键文件的当前状态，了解项目全貌后给出分阶段实施计划：
+
+1. jarvis/api/server.py — API 服务器当前状态
+2. jarvis/core/orchestrator.py — 编排器当前实现
+3. jarvis/memory/engine.py — 记忆引擎当前状态
+4. jarvis/core/evolution.py — 进化控制器当前状态
+5. jarvis/core/sandbox.py — 沙箱当前状态
+6. pyproject.toml — 项目配置
+
+读取后输出：
+- 每个模块当前可用能力摘要表
+- 明确的集成缺口列表
+- 建议的分阶段实施顺序（每个阶段产出物和验收标准）
+
+注意：只做分析和计划输出，不要修改任何代码。
+
+Result: 已读取全部关键文件，以下是完整分析。
+
+---
+
+## 一、各模块当前可用能力摘要表
+
+### 1. API Server (`jarvis/api/server.py` — 339 行)
+
+| 能力项 | 状态 | 说明 |
+|--------|------|------|
+| FastAPI 应用实例 | **就绪** | CORS、lifespan 管理均已配置 |
+| `/health` | **就绪** | 健康检查 |
+| `/status` | **可用但有 Bug** | 读取 `orch.memory._store`（该属性不存在） |
+| `/domains` | **就绪** | 列出已加载域及能力 |
+| `/execute` | **可用但依赖外部注入** | 依赖全局 `orchestrator_ref`；无 orchestrator 时返回错误 |
+| `/memory/search` | **可用但有 Bug** | 同样引用 `orch.memory._store`（不存在） |
+| `/evolution/report` | **可用但有 Bug** | 引用 `evo.total_cycles` 等不存在的属性 |
+| WebSocket `/ws` | **部分可用** | 支持 command/status/domains/ping 消息，但无流式推送 |
+| Pydantic 模型 | **就绪** | ExecuteRequest/Response、StatusResponse 等完整定义 |
+
+### 2. Orchestrator (`jarvis/core/orchestrator.py` — 382 行)
+
+| 能力项 | 状态 | 说明 |
+|--------|------|------|
+| IntentParser（关键词路由） | **就绪** | 中英文关键词 → Domain 枚举，支持上下文加分 |
+| DomainRegistry | **就绪** | 热插拔域注册/查询/列举 |
+| `execute()` 主流程 | **就绪** | parse → route → execute → memory → evolution 六步管道 |
+| `load_all_domains()` | **就绪** | 自动发现并导入 8 个域模块 |
+| TaskResult 标准化 | **就绪** | 统一定义返回值 |
+| 实体提取（时间/数值/货币） | **就绪** | 正则提取，支持中英文 |
+| **域模块实际处理器** | **缺失** | 所有 `jarvis.domains.*` 仅含空 `__init__.py`，无 `DomainModule` 类 |
+| 多域协同工作流 | **缺失** | `secondary_domains` 已解析但未实际调度 |
+| LLM 集成 | **缺失** | 整个执行链依赖域模块内部的 LLM 调用，而域模块是桩 |
+
+### 3. Memory Engine (`jarvis/memory/engine.py` — 449 行)
+
+| 能力项 | 状态 | 说明 |
+|--------|------|------|
+| 四层内存架构 | **就绪** | Working / Episodic / Semantic / Procedural |
+| ChromaDB 持久化存储 | **就绪** | `PersistentClient` 已初始化，collection 已创建 |
+| 关键词回退检索 (BM25-like) | **就绪** | Jaccard + recency + importance 加权 |
+| 磁盘持久化 (JSONL/JSON) | **就绪** | 加载/保存均已实现 |
+| 自动压缩 & 归档 | **就绪** | episodic→semantic 摘要 + 高重要性归档 |
+| LRU 驱逐 | **就绪** | 超 max_entries 时驱逐低重要性条目 |
+| **ChromaDB 语义检索** | **降级中** | `_embedding_fn = None`，嵌入函数被注释掉 — 所有 ChromaDB query 静默失败后走关键词回退 |
+| `_store` 属性 | **不存在** | `server.py` 引用 `orch.memory._store` 会触发 `AttributeError` |
+
+### 4. Evolution Controller (`jarvis/evolution/controller.py` — 260 行)
+
+| 能力项 | 状态 | 说明 |
+|--------|------|------|
+| TaskRecord 追踪 | **就绪** | 成功/失败记录 + 模型/时间统计 |
+| ModelSelector（模型路由统计） | **就绪** | 按 task_key 统计各模型平均耗时，选出最优 |
+| CapabilityGrower（能力提议） | **就绪** | 分析高频失败域，输出建议文本 |
+| 状态持久化 | **就绪** | JSONL 读写 |
+| Performance Report | **就绪** | 成功率、平均耗时、日任务量 |
+| **PromptOptimizer 实际优化** | **占位** | `optimize_prompts()` 仅记录日志，不生成新 prompt 变体 |
+| **模型路由实际切换** | **占位** | 只输出日志，不更新 `config.model.task_model_map` |
+| **TextGrad 集成** | **未实现** | 依赖在 pyproject.toml 中但未使用 |
+| `total_cycles` / `optimizations_applied` 等属性 | **不存在** | `server.py` 的 `/evolution/report` 引用这些不存在的属性 |
+
+### 5. Sandbox Manager (`jarvis/sandbox/__init__.py` — 276 行)
+
+| 能力项 | 状态 | 说明 |
+|--------|------|------|
+| 三后端架构 | **就绪** | docker / local_subprocess / local_direct |
+| Python 代码执行 | **就绪** | 写入临时脚本 → 子进程执行 |
+| Shell 命令执行 | **就绪** | 超时控制 + 输出截断 |
+| 审计日志 | **就绪** | 最近 1000 条 |
+| Workspace 清理 | **就绪** | `cleanup()` 删除临时目录 |
+| **Windows 兼容性** | **有 Bug** | `_execute_subprocess` 在非 Unix 系统调 `powershell`，但测试环境在 Windows 上，需确认 |
+| Docker 后端 | **未验证** | 镜像未构建 |
+
+### 6. 项目配置 (`pyproject.toml` — 59 行)
+
+| 能力项 | 状态 | 说明 |
+|--------|------|------|
+| 依赖声明 | **就绪** | 24 个运行时依赖 + 6 个开发依赖 |
+| 构建系统 | **就绪** | setuptools |
+| Lint 配置 | **就绪** | ruff / black / mypy |
+| **CLI 入口点** | **缺失** | 无 `[project.scripts]` 段，无法通过 `jarvis serve` 启动 |
+| `sentence-transformers` | **缺失** | ChromaDB 嵌入所需的依赖未声明 |
+
+---
+
+## 二、明确的集成缺口列表
+
+### 阻断级（影响核心功能可用性）
+
+| # | 缺口 | 位置 | 影响 |
+|---|------|------|------|
+| G1 | `server.py` 引用 `orch.memory._store` — 该属性不存在 | server.py L130, L132 | `/status` 和 `/memory/search` 崩溃 |
+| G2 | `server.py` 引用 `evo.total_cycles` 等不存在属性 | server.py L184-192 | `/evolution/report` 返回全零（静默错误） |
+| G3 | 所有 8 个域模块为空桩，无 `DomainModule` 类 | `jarvis/domains/*/__init__.py` | `load_all_domains()` 全部 skip，"Domain not loaded" |
+| G4 | ChromaDB `_embedding_fn = None`，语义检索不可用 | engine.py L114-120 | 100% 走关键词回退，ChromaDB 形同虚设 |
+
+### 高优先级（影响目标功能）
+
+| # | 缺口 | 位置 | 影响 |
+|---|------|------|------|
+| G5 | WebSocket 无流式推送能力 | server.py WebSocket handler | 不支持 token 级流式输出 |
+| G6 | 无 CLI 入口点 (`jarvis serve` / `jarvis chat`) | pyproject.toml | 无法通过命令行子命令启动 |
+| G7 | `main.py` 无 argparse/click，CLI + server 硬编码同进程 | main.py | 无法单独启动 serve 模式或 chat 模式 |
+| G8 | EvolutionController 缺少 `total_cycles` 等统计属性 | controller.py | API 报告不可用 |
+| G9 | PromptOptimizer 仅有日志占位，无实际优化 | controller.py L133-148 | 自进化核心功能缺失 |
+| G10 | 无轻量级 embedding 回退方案 | engine.py | ChromaDB 不可用时仅有 Jaccard，无 TF-IDF/SVD 等替代 |
+
+### 中优先级
+
+| # | 缺口 | 位置 | 影响 |
+|---|------|------|------|
+| G11 | IntentParser 无语义消歧（纯关键词） | orchestrator.py | 模糊意图一律归 PERSONAL |
+| G12 | `secondary_domains` 解析后未用于多域调度 | orchestrator.py L249 | 单域串行执行 |
+| G13 | 无认证中间件 | server.py | 虽有 `require_authentication` 配置但未实现 |
+| G14 | `textgrad` 依赖可能安装失败 | pyproject.toml | 安装阻塞（temp 目录中有多次安装尝试脚本） |
+
+---
+
+## 三、建议的分阶段实施顺序
+
+### 阶段 0：修复阻断级 Bug（立即执行）
+
+**目标**：使现有代码可运行、API 端点不崩溃。
+
+| 产出物 | 验收标准 |
+|--------|----------|
+| 修复 `server.py` 中 `_store` → `episodic`/`semantic` | `/status` 返回正确的 memory_entries 数；`/memory/search` 返回结果而非空数组 |
+| 修复 `server.py` 中 `evolution/report` 的属性引用 | `/evolution/report` 返回 EvolutionController 中实际存在的字段 |
+| 为 EvolutionController 补充缺失的统计属性 | `total_cycles`、`optimizations_applied`、`model_switches`、`capability_additions`、`average_score`、`history` 可正确返回 |
+| 为至少 1 个域模块（如 `creator`）实现最小 `DomainModule` 桩 | `load_all_domains()` 至少成功加载 1 个域；`/domains` 返回非空列表；`/execute` 对匹配命令返回非错误结果 |
+
+### 阶段 1：APIServer + Orchestrator 正确集成
+
+**目标**：`/execute` 端点端到端可用，返回有意义的结果。
+
+| 产出物 | 验收标准 |
+|--------|----------|
+| 为所有 8 个域模块实现最小 `DomainModule`（含 `handle()` 方法） | `load_all_domains()` 加载 8 个域；`/domains` 列出 8 个域 |
+| 各域 `handle()` 至少返回占位 TaskResult | `POST /execute {"command":"写一首诗"}` 返回 `domain: CREATOR, success: true` |
+| `server.py` 中所有属性引用修复 | 全部测试通过（包括 `test_api.py` 现有的 10 个测试） |
+| `main.py` 启动流程可正常初始化并进入 CLI | `python -m jarvis` 无 ImportError 或 AttributeError |
+
+### 阶段 2：CLI 入口点 + 子命令
+
+**目标**：`jarvis serve` 启动服务、`jarvis chat` 进入交互模式。
+
+| 产出物 | 验收标准 |
+|--------|----------|
+| `pyproject.toml` 添加 `[project.scripts]` | `pip install -e .` 后 `jarvis` 命令可用 |
+| `main.py` 重构为 argparse/click 子命令结构 | `jarvis serve` 仅启动 API server；`jarvis chat` 仅启动 CLI 交互 |
+| `jarvis serve` 支持 `--host` / `--port` 参数 | `jarvis serve --port 9000` 在 9000 端口启动 |
+| CLI 帮助信息完整 | `jarvis --help` 显示所有子命令及参数 |
+
+### 阶段 3：WebSocket 流式推送
+
+**目标**：WebSocket 支持 token 级流式输出，而非等待完整结果。
+
+| 产出物 | 验收标准 |
+|--------|----------|
+| Orchestrator 新增 `execute_stream()` 异步生成器方法 | 返回 `AsyncIterator[dict]`，每步 yield 一个状态更新 |
+| WebSocket handler 支持 `type: "stream"` 消息类型 | 发送 `{"type":"command","data":"写一篇文章"}` → 收到多个 `{"type":"token"/"progress"/"result"}` 帧 |
+| 向前兼容现有非流式 command 类型 | 现有 `{"type":"command"}` 行为不变 |
+| 连接管理：客户端断开时取消任务 | 断开 WebSocket 后后台执行立即终止 |
+
+### 阶段 4：Memory 轻量级 Embedding 回退
+
+**目标**：在 ChromaDB 嵌入函数不可用时，有比纯关键词更好的检索方案。
+
+| 产出物 | 验收标准 |
+|--------|----------|
+| 实现 TF-IDF 向量化回退（基于 `sklearn` 或纯 numpy） | `sentence-transformers` 不可用时自动启用 TF-IDF |
+| 稀疏向量余弦相似度检索 | 语义检索准确率显著优于纯 Jaccard（可量化对比） |
+| `_store` 兼容属性或重构 server.py 引用 | `server.py` 通过 MemoryEngine 公共 API 获取统计，不走 `_store` |
+| `sentence-transformers` 添加为可选依赖 | `pip install jarvis-core[full]` 可安装完整嵌入能力 |
+
+### 阶段 5（可选/后续）：Evolution 闭环 + 域模块实际实现
+
+| 产出物 | 验收标准 |
+|--------|----------|
+| PromptOptimizer 实际调用 LLM 生成 prompt 变体 | 低成功率任务触发后，`prompt_variants` 中新增变体 |
+| ModelSelector 实际更新 `config.model.task_model_map` | 多次执行后不同任务类型自动路由到最优模型 |
+| 至少 2 个域模块集成真实 LLM 调用 | `creator` 可生成文本、`research` 可调用搜索 |
+
+---
+
+**总结**：项目骨架完整，架构设计清晰（五层 + 八域），但当前处于"框架已搭好、实际逻辑待填充"的状态。优先修复 G1-G4 四个阻断级 Bug 和 G6-G7 两个 CLI 缺口即可使项目具备最小可用形态，后续再逐步填充域模块和流式/进化能力。

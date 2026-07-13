@@ -115,7 +115,17 @@ class JARVISConfig(BaseSettings):
 
 
 def load_config(config_path: Optional[Path] = None) -> JARVISConfig:
-    """Load configuration from file or environment."""
+    """Load configuration from file or environment.
+
+    Priority: explicit config_path > JARVIS_CONFIG env > project root .env > cwd .env.
+    """
     if config_path and config_path.exists():
         return JARVISConfig(_env_file=str(config_path))
+
+    # Try project root .env (the config.py's grandparent dir)
+    project_root = Path(__file__).resolve().parent.parent.parent
+    env_file = project_root / ".env"
+    if env_file.exists():
+        return JARVISConfig(_env_file=str(env_file))
+
     return JARVISConfig()

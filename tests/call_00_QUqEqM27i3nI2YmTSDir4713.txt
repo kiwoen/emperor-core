@@ -1,0 +1,1378 @@
+============================= test session starts =============================
+platform win32 -- Python 3.11.8, pytest-9.1.1, pluggy-1.6.0 -- D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c613216\output\jarvis-core
+configfile: pyproject.toml
+plugins: anyio-4.14.1, asyncio-1.4.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 61 items
+
+tests/test_api.py::TestHealth::test_health_returns_ok PASSED             [  1%]
+tests/test_api.py::TestHealth::test_status_returns_fields PASSED         [  3%]
+tests/test_api.py::TestDomains::test_list_domains_returns_list PASSED    [  4%]
+tests/test_api.py::TestDomains::test_domain_entry_structure PASSED       [  6%]
+tests/test_api.py::TestExecute::test_execute_empty_command_rejected PASSED [  8%]
+tests/test_api.py::TestExecute::test_execute_no_orchestrator_returns_error PASSED [  9%]
+tests/test_api.py::TestExecute::test_execute_response_structure PASSED   [ 11%]
+tests/test_api.py::TestMemory::test_memory_search_no_orchestrator PASSED [ 13%]
+tests/test_api.py::TestMemory::test_memory_search_with_query PASSED      [ 14%]
+tests/test_api.py::TestEvolution::test_evolution_report_no_orchestrator PASSED [ 16%]
+tests/test_api.py::TestWebSocket::test_ws_endpoint_exists PASSED         [ 18%]
+tests/test_core.py::TestIntentParser::test_parse_research_intent PASSED  [ 19%]
+tests/test_core.py::TestIntentParser::test_parse_engineering_intent PASSED [ 21%]
+tests/test_core.py::TestIntentParser::test_parse_creator_intent PASSED   [ 22%]
+tests/test_core.py::TestIntentParser::test_parse_personal_intent PASSED  [ 24%]
+tests/test_core.py::TestIntentParser::test_parse_finance_intent PASSED   [ 26%]
+tests/test_core.py::TestIntentParser::test_parse_ambiguous PASSED        [ 27%]
+tests/test_core.py::TestIntentParser::test_parse_with_context PASSED     [ 29%]
+tests/test_core.py::TestIntentParser::test_extract_action PASSED         [ 31%]
+tests/test_core.py::TestMemoryEngine::test_store_and_retrieve PASSED     [ 32%]
+tests/test_core.py::TestMemoryEngine::test_add_fact PASSED               [ 34%]
+tests/test_core.py::TestEvolutionController::test_record_success PASSED  [ 36%]
+tests/test_core.py::TestEvolutionController::test_performance_report_empty PASSED [ 37%]
+tests/test_core.py::TestSandboxManager::test_execute_simple_command PASSED [ 39%]
+tests/test_core.py::TestSandboxManager::test_execute_python PASSED       [ 40%]
+tests/test_core.py::TestDomainRegistry::test_register_and_get PASSED     [ 42%]
+tests/test_core.py::TestDomainRegistry::test_list_domains PASSED         [ 44%]
+tests/test_domains.py::TestResearchDomain::test_search FAILED            [ 45%]
+tests/test_domains.py::TestResearchDomain::test_paper FAILED             [ 47%]
+tests/test_domains.py::TestResearchDomain::test_trend FAILED             [ 49%]
+tests/test_domains.py::TestResearchDomain::test_research_framework FAILED [ 50%]
+tests/test_domains.py::TestEngineeringDomain::test_code_gen FAILED       [ 52%]
+tests/test_domains.py::TestEngineeringDomain::test_debug FAILED          [ 54%]
+tests/test_domains.py::TestEngineeringDomain::test_refactor FAILED       [ 55%]
+tests/test_domains.py::TestEngineeringDomain::test_git FAILED            [ 57%]
+tests/test_domains.py::TestEngineeringDomain::test_architecture FAILED   [ 59%]
+tests/test_domains.py::TestCreatorDomain::test_writing FAILED            [ 60%]
+tests/test_domains.py::TestCreatorDomain::test_design FAILED             [ 62%]
+tests/test_domains.py::TestCreatorDomain::test_presentation FAILED       [ 63%]
+tests/test_domains.py::TestCreatorDomain::test_image_prompt FAILED       [ 65%]
+tests/test_domains.py::TestPersonalDomain::test_reminder FAILED          [ 67%]
+tests/test_domains.py::TestPersonalDomain::test_todo FAILED              [ 68%]
+tests/test_domains.py::TestPersonalDomain::test_note FAILED              [ 70%]
+tests/test_domains.py::TestPersonalDomain::test_plan FAILED              [ 72%]
+tests/test_domains.py::TestPersonalDomain::test_focus FAILED             [ 73%]
+tests/test_domains.py::TestSecurityDomain::test_scan FAILED              [ 75%]
+tests/test_domains.py::TestSecurityDomain::test_monitor FAILED           [ 77%]
+tests/test_domains.py::TestSecurityDomain::test_encrypt FAILED           [ 78%]
+tests/test_domains.py::TestSecurityDomain::test_vuln FAILED              [ 80%]
+tests/test_domains.py::TestHealthDomain::test_exercise FAILED            [ 81%]
+tests/test_domains.py::TestHealthDomain::test_sleep FAILED               [ 83%]
+tests/test_domains.py::TestHealthDomain::test_diet FAILED                [ 85%]
+tests/test_domains.py::TestHealthDomain::test_meditation FAILED          [ 86%]
+tests/test_domains.py::TestFinanceDomain::test_stock FAILED              [ 88%]
+tests/test_domains.py::TestFinanceDomain::test_budget FAILED             [ 90%]
+tests/test_domains.py::TestFinanceDomain::test_crypto FAILED             [ 91%]
+tests/test_domains.py::TestFinanceDomain::test_portfolio FAILED          [ 93%]
+tests/test_domains.py::TestHomeDomain::test_light FAILED                 [ 95%]
+tests/test_domains.py::TestHomeDomain::test_climate FAILED               [ 96%]
+tests/test_domains.py::TestHomeDomain::test_scene FAILED                 [ 98%]
+tests/test_domains.py::TestHomeDomain::test_energy FAILED                [100%]
+
+================================== FAILURES ===================================
+_______________________ TestResearchDomain.test_search ________________________
+
+self = <tests.test_domains.TestResearchDomain object at 0x0000026D36DFECD0>
+
+    @pytest.mark.asyncio
+    async def test_search(self):
+        dm = _load_domain("jarvis.domains.research")
+        intent = _make_intent("搜索量子计算最新论文", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:42: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\research\__init__.py:50: in handle
+    return await handler(raw, entities)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.research.DomainModule object at 0x0000026D36D15350>
+raw = '搜索量子计算最新论文', entities = {}
+
+    async def _handle_search(self, raw: str, entities: dict):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+        query = entities.get("query", raw)
+>       return TaskResult(
+            domain=Domain.RESEARCH,
+            success=True,
+            output=f"Search query compiled: {query[:200]}",
+            data={
+                "query": query,
+                "search_type": "web",
+                "sources": self._suggest_sources(raw),
+            },
+            memory_keys=["research_search"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\research\__init__.py:64: TypeError
+________________________ TestResearchDomain.test_paper ________________________
+
+self = <tests.test_domains.TestResearchDomain object at 0x0000026D36DFF0D0>
+
+    @pytest.mark.asyncio
+    async def test_paper(self):
+        dm = _load_domain("jarvis.domains.research")
+        intent = _make_intent("查找GPT论文", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\research\__init__.py:50: in handle
+    return await handler(raw, entities)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.research.DomainModule object at 0x0000026D36DB0050>
+raw = '查找GPT论文', entities = {}
+
+    async def _handle_paper(self, raw: str, entities: dict):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+        topic = entities.get("topic", raw)
+>       return TaskResult(
+            domain=Domain.RESEARCH,
+            success=True,
+            output=f"Paper search initialized for: {topic[:200]}",
+            data={
+                "topic": topic,
+                "sources": ["arxiv", "semantic_scholar", "google_scholar"],
+                "search_params": {"max_results": 10, "sort_by": "relevance"},
+            },
+            memory_keys=["research_paper"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\research\__init__.py:80: TypeError
+________________________ TestResearchDomain.test_trend ________________________
+
+self = <tests.test_domains.TestResearchDomain object at 0x0000026D36DFFC50>
+
+    @pytest.mark.asyncio
+    async def test_trend(self):
+        dm = _load_domain("jarvis.domains.research")
+        intent = _make_intent("AI行业趋势分析", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\research\__init__.py:50: in handle
+    return await handler(raw, entities)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.research.DomainModule object at 0x0000026D36C08AD0>
+raw = 'AI行业趋势分析', entities = {}
+
+    async def _handle_analysis(self, raw: str, entities: dict):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+>       return TaskResult(
+            domain=Domain.RESEARCH,
+            success=True,
+            output=f"Analysis framework ready for: {raw[:200]}",
+            data={
+                "methods": ["descriptive", "comparative", "trend"],
+                "output_formats": ["report", "visualization", "summary"],
+            },
+            memory_keys=["research_analysis"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\research\__init__.py:111: TypeError
+_________________ TestResearchDomain.test_research_framework __________________
+
+self = <tests.test_domains.TestResearchDomain object at 0x0000026D36DFC190>
+
+    @pytest.mark.asyncio
+    async def test_research_framework(self):
+        dm = _load_domain("jarvis.domains.research")
+        intent = _make_intent("研究可再生能源技术", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\research\__init__.py:50: in handle
+    return await handler(raw, entities)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.research.DomainModule object at 0x0000026D36D3CCD0>
+raw = '研究可再生能源技术', entities = {}
+
+    async def _handle_research(self, raw: str, entities: dict):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+>       return TaskResult(
+            domain=Domain.RESEARCH,
+            success=True,
+            output=f"Research plan generated for: {raw[:200]}",
+            data={
+                "phase_1": "literature_review",
+                "phase_2": "data_collection",
+                "phase_3": "analysis",
+                "phase_4": "synthesis",
+            },
+            memory_keys=["research_topic"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\research\__init__.py:95: TypeError
+_____________________ TestEngineeringDomain.test_code_gen _____________________
+
+self = <tests.test_domains.TestEngineeringDomain object at 0x0000026D36DF1D10>
+
+    @pytest.mark.asyncio
+    async def test_code_gen(self):
+        dm = _load_domain("jarvis.domains.engineering")
+        intent = _make_intent("写一个Python排序函数", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:83: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\engineering\__init__.py:58: in handle
+    return await handler(raw, entities)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.engineering.DomainModule object at 0x0000026D36E80DD0>
+raw = '写一个Python排序函数', entities = {}
+
+    async def _handle_code_gen(self, raw: str, entities: dict):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+        lang = self._detect_language(raw)
+>       return TaskResult(
+            domain=Domain.ENGINEERING,
+            success=True,
+            output=f"Code generation ready for {raw[:150]}",
+            data={
+                "language": lang,
+                "context": "sandbox_execution",
+                "safety_check": "pending",
+            },
+            memory_keys=["engineering_codegen"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\engineering\__init__.py:72: TypeError
+______________________ TestEngineeringDomain.test_debug _______________________
+
+self = <tests.test_domains.TestEngineeringDomain object at 0x0000026D36DF28D0>
+
+    @pytest.mark.asyncio
+    async def test_debug(self):
+        dm = _load_domain("jarvis.domains.engineering")
+        intent = _make_intent("修复这段代码的bug", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:91: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\engineering\__init__.py:58: in handle
+    return await handler(raw, entities)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.engineering.DomainModule object at 0x0000026D36EA1310>
+raw = '修复这段代码的bug', entities = {}
+
+    async def _handle_code_gen(self, raw: str, entities: dict):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+        lang = self._detect_language(raw)
+>       return TaskResult(
+            domain=Domain.ENGINEERING,
+            success=True,
+            output=f"Code generation ready for {raw[:150]}",
+            data={
+                "language": lang,
+                "context": "sandbox_execution",
+                "safety_check": "pending",
+            },
+            memory_keys=["engineering_codegen"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\engineering\__init__.py:72: TypeError
+_____________________ TestEngineeringDomain.test_refactor _____________________
+
+self = <tests.test_domains.TestEngineeringDomain object at 0x0000026D36DF2E90>
+
+    @pytest.mark.asyncio
+    async def test_refactor(self):
+        dm = _load_domain("jarvis.domains.engineering")
+        intent = _make_intent("重构这个模块", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:99: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\engineering\__init__.py:58: in handle
+    return await handler(raw, entities)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.engineering.DomainModule object at 0x0000026D36C743D0>
+raw = '重构这个模块', entities = {}
+
+    async def _handle_refactor(self, raw: str, entities: dict):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+>       return TaskResult(
+            domain=Domain.ENGINEERING,
+            success=True,
+            output=f"Refactoring plan for: {raw[:150]}",
+            data={
+                "strategy": "safe_refactor",
+                "preserve_tests": True,
+                "backup_first": True,
+            },
+            memory_keys=["engineering_refactor"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\engineering\__init__.py:102: TypeError
+_______________________ TestEngineeringDomain.test_git ________________________
+
+self = <tests.test_domains.TestEngineeringDomain object at 0x0000026D36DF37D0>
+
+    @pytest.mark.asyncio
+    async def test_git(self):
+        dm = _load_domain("jarvis.domains.engineering")
+        intent = _make_intent("git commit", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:107: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\engineering\__init__.py:58: in handle
+    return await handler(raw, entities)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.engineering.DomainModule object at 0x0000026D36CE1A50>
+raw = 'git commit', entities = {}
+
+    async def _handle_git(self, raw: str, entities: dict):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+>       return TaskResult(
+            domain=Domain.ENGINEERING,
+            success=True,
+            output=f"Git operation: {raw[:150]}",
+            data={
+                "operation": self._detect_git_op(raw),
+                "safety": "check_before_push",
+            },
+            memory_keys=["engineering_git"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\engineering\__init__.py:159: TypeError
+___________________ TestEngineeringDomain.test_architecture ___________________
+
+self = <tests.test_domains.TestEngineeringDomain object at 0x0000026D36DF0AD0>
+
+    @pytest.mark.asyncio
+    async def test_architecture(self):
+        dm = _load_domain("jarvis.domains.engineering")
+        intent = _make_intent("设计微服务架构", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:115: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\engineering\__init__.py:58: in handle
+    return await handler(raw, entities)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.engineering.DomainModule object at 0x0000026D36C21E50>
+raw = '设计微服务架构', entities = {}
+
+    async def _handle_architecture(self, raw: str, entities: dict):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+>       return TaskResult(
+            domain=Domain.ENGINEERING,
+            success=True,
+            output=f"Architecture design for: {raw[:150]}",
+            data={
+                "deliverables": ["system_diagram", "component_spec", "api_contract", "data_model"],
+                "patterns": ["microservices", "event_driven", "cqrs", "hexagonal"],
+            },
+            memory_keys=["engineering_arch"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\engineering\__init__.py:145: TypeError
+_______________________ TestCreatorDomain.test_writing ________________________
+
+self = <tests.test_domains.TestCreatorDomain object at 0x0000026D36DF0710>
+
+    @pytest.mark.asyncio
+    async def test_writing(self):
+        dm = _load_domain("jarvis.domains.creator")
+        intent = _make_intent("写一篇科幻小说", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:130: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\creator\__init__.py:60: in handle
+    return await handler(raw, entities)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.creator.DomainModule object at 0x0000026D36EDD2D0>
+raw = '写一篇科幻小说', entities = {}
+
+    async def _handle_writing(self, raw: str, entities: dict):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+        genre = self._detect_genre(raw)
+>       return TaskResult(
+            domain=Domain.CREATOR,
+            success=True,
+            output=f"Writing task initialized: {raw[:150]}",
+            data={
+                "genre": genre,
+                "format": entities.get("format", "markdown"),
+                "tone": entities.get("tone", "professional"),
+                "length": entities.get("length", "medium"),
+            },
+            memory_keys=["creator_writing"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\creator\__init__.py:74: TypeError
+________________________ TestCreatorDomain.test_design ________________________
+
+self = <tests.test_domains.TestCreatorDomain object at 0x0000026D36DF1210>
+
+    @pytest.mark.asyncio
+    async def test_design(self):
+        dm = _load_domain("jarvis.domains.creator")
+        intent = _make_intent("设计一张科技峰会海报", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:138: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\creator\__init__.py:60: in handle
+    return await handler(raw, entities)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.creator.DomainModule object at 0x0000026D36E25090>
+raw = '设计一张科技峰会海报', entities = {}
+
+    async def _handle_design(self, raw: str, entities: dict):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+>       return TaskResult(
+            domain=Domain.CREATOR,
+            success=True,
+            output=f"Design task initialized: {raw[:150]}",
+            data={
+                "design_type": self._detect_design_type(raw),
+                "dimensions": entities.get("size", "1920x1080"),
+                "style": entities.get("style", "modern"),
+                "color_palette": "auto_suggest",
+            },
+            memory_keys=["creator_design"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\creator\__init__.py:104: TypeError
+_____________________ TestCreatorDomain.test_presentation _____________________
+
+self = <tests.test_domains.TestCreatorDomain object at 0x0000026D36DF0490>
+
+    @pytest.mark.asyncio
+    async def test_presentation(self):
+        dm = _load_domain("jarvis.domains.creator")
+        intent = _make_intent("做一个产品演示PPT", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:146: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\creator\__init__.py:60: in handle
+    return await handler(raw, entities)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.creator.DomainModule object at 0x0000026D15636F90>
+raw = '做一个产品演示PPT', entities = {}
+
+    async def _handle_presentation(self, raw: str, entities: dict):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+>       return TaskResult(
+            domain=Domain.CREATOR,
+            success=True,
+            output=f"Presentation ready: {raw[:150]}",
+            data={
+                "slides": entities.get("slides", 10),
+                "template": entities.get("template", "professional"),
+                "format": "pptx",
+            },
+            memory_keys=["creator_presentation"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\creator\__init__.py:120: TypeError
+_____________________ TestCreatorDomain.test_image_prompt _____________________
+
+self = <tests.test_domains.TestCreatorDomain object at 0x0000026D36DF3290>
+
+    @pytest.mark.asyncio
+    async def test_image_prompt(self):
+        dm = _load_domain("jarvis.domains.creator")
+        intent = _make_intent("画一幅星空插画", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:154: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\creator\__init__.py:60: in handle
+    return await handler(raw, entities)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.creator.DomainModule object at 0x0000026D17B7B410>
+raw = '画一幅星空插画', entities = {}
+
+    async def _handle_image(self, raw: str, entities: dict):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+>       return TaskResult(
+            domain=Domain.CREATOR,
+            success=True,
+            output=f"Image generation prompt: {raw[:150]}",
+            data={
+                "prompt_style": "detailed",
+                "aspect_ratio": entities.get("ratio", "1:1"),
+                "quality": "high",
+            },
+            memory_keys=["creator_image"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\creator\__init__.py:161: TypeError
+______________________ TestPersonalDomain.test_reminder _______________________
+
+self = <tests.test_domains.TestPersonalDomain object at 0x0000026D36DF1050>
+
+    @pytest.mark.asyncio
+    async def test_reminder(self):
+        dm = _load_domain("jarvis.domains.personal")
+        intent = _make_intent("提醒我下午3点开会", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:169: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\personal\__init__.py:61: in handle
+    return await handler(raw, entities)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.personal.DomainModule object at 0x0000026D156370D0>
+raw = '提醒我下午3点开会', entities = {}
+
+    async def _handle_reminder(self, raw: str, entities: dict):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+>       return TaskResult(
+            domain=Domain.PERSONAL,
+            success=True,
+            output=f"Reminder created: {raw[:150]}",
+            data={
+                "type": "reminder",
+                "time": entities.get("time", self._extract_time(raw)),
+                "message": self._extract_label(raw),
+                "priority": entities.get("priority", "normal"),
+            },
+            memory_keys=["personal_reminder"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\personal\__init__.py:91: TypeError
+________________________ TestPersonalDomain.test_todo _________________________
+
+self = <tests.test_domains.TestPersonalDomain object at 0x0000026D36DF0F90>
+
+    @pytest.mark.asyncio
+    async def test_todo(self):
+        dm = _load_domain("jarvis.domains.personal")
+        intent = _make_intent("添加待办：完成周报", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:177: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\personal\__init__.py:61: in handle
+    return await handler(raw, entities)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.personal.DomainModule object at 0x0000026D36C356D0>
+raw = '添加待办：完成周报', entities = {}
+
+    async def _handle_todo(self, raw: str, entities: dict):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+        task = entities.get("task", self._extract_label(raw) or raw[:80])
+>       return TaskResult(
+            domain=Domain.PERSONAL,
+            success=True,
+            output=f"Todo added: {task}",
+            data={
+                "task": task,
+                "priority": entities.get("priority", "medium"),
+                "due": entities.get("due"),
+                "status": "pending",
+            },
+            memory_keys=["personal_todo"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\personal\__init__.py:159: TypeError
+________________________ TestPersonalDomain.test_note _________________________
+
+self = <tests.test_domains.TestPersonalDomain object at 0x0000026D36DF1890>
+
+    @pytest.mark.asyncio
+    async def test_note(self):
+        dm = _load_domain("jarvis.domains.personal")
+        intent = _make_intent("记录笔记：JARVIS架构设计要点", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:185: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\personal\__init__.py:61: in handle
+    return await handler(raw, entities)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.personal.DomainModule object at 0x0000026D36EDCB10>
+raw = '记录笔记：JARVIS架构设计要点', entities = {}
+
+    async def _handle_note(self, raw: str, entities: dict):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+        note_content = entities.get("content", raw)
+        note_key = self._extract_label(raw) or "quick_note"
+        self._notes_db.setdefault(note_key, []).append({
+            "content": note_content,
+            "timestamp": self._now_iso(),
+        })
+    
+>       return TaskResult(
+            domain=Domain.PERSONAL,
+            success=True,
+            output=f"Note saved: '{note_key}'",
+            data={
+                "note_key": note_key,
+                "total_notes": len(self._notes_db.get(note_key, [])),
+                "format": "markdown",
+            },
+            memory_keys=["personal_note"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\personal\__init__.py:143: TypeError
+________________________ TestPersonalDomain.test_plan _________________________
+
+self = <tests.test_domains.TestPersonalDomain object at 0x0000026D36DDF710>
+
+    @pytest.mark.asyncio
+    async def test_plan(self):
+        dm = _load_domain("jarvis.domains.personal")
+        intent = _make_intent("制定明天的学习计划", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:193: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\personal\__init__.py:61: in handle
+    return await handler(raw, entities)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.personal.DomainModule object at 0x0000026D36DAA150>
+raw = '制定明天的学习计划', entities = {}
+
+    async def _handle_plan(self, raw: str, entities: dict):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+>       return TaskResult(
+            domain=Domain.PERSONAL,
+            success=True,
+            output=f"Daily plan generated for: {raw[:150]}",
+            data={
+                "time_blocks": ["morning_focus", "deep_work", "afternoon_tasks", "review"],
+                "method": "time_blocking",
+                "flexibility": "moderate",
+            },
+            memory_keys=["personal_plan"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\personal\__init__.py:175: TypeError
+________________________ TestPersonalDomain.test_focus ________________________
+
+self = <tests.test_domains.TestPersonalDomain object at 0x0000026D36DDF650>
+
+    @pytest.mark.asyncio
+    async def test_focus(self):
+        dm = _load_domain("jarvis.domains.personal")
+        intent = _make_intent("开始25分钟专注番茄钟", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:201: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\personal\__init__.py:61: in handle
+    return await handler(raw, entities)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.personal.DomainModule object at 0x0000026D36CDFBD0>
+raw = '开始25分钟专注番茄钟', entities = {}
+
+    async def _handle_focus(self, raw: str, entities: dict):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+>       return TaskResult(
+            domain=Domain.PERSONAL,
+            success=True,
+            output=f"Focus session: {raw[:150]}",
+            data={
+                "method": "pomodoro",
+                "work_duration": "25min",
+                "break_duration": "5min",
+                "cycles": entities.get("cycles", 4),
+            },
+            memory_keys=["personal_focus"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\personal\__init__.py:205: TypeError
+________________________ TestSecurityDomain.test_scan _________________________
+
+self = <tests.test_domains.TestSecurityDomain object at 0x0000026D36DDFF10>
+
+    @pytest.mark.asyncio
+    async def test_scan(self):
+        dm = _load_domain("jarvis.domains.security")
+        intent = _make_intent("扫描系统端口", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:216: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\security\__init__.py:51: in handle
+    return await handler(raw)
+           ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.security.DomainModule object at 0x0000026D36E907D0>
+raw = '扫描系统端口'
+
+    async def _handle_scan(self, raw):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+>       return TaskResult(
+            domain=Domain.SECURITY,
+            success=True,
+            output=f"Security scan initiated: {raw[:150]}",
+            data={
+                "scan_type": "comprehensive",
+                "targets": self._detect_scan_targets(raw),
+                "report_format": "json",
+            },
+            memory_keys=["security_scan"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\security\__init__.py:63: TypeError
+_______________________ TestSecurityDomain.test_monitor _______________________
+
+self = <tests.test_domains.TestSecurityDomain object at 0x0000026D36DDC450>
+
+    @pytest.mark.asyncio
+    async def test_monitor(self):
+        dm = _load_domain("jarvis.domains.security")
+        intent = _make_intent("开启系统监控", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:224: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\security\__init__.py:51: in handle
+    return await handler(raw)
+           ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.security.DomainModule object at 0x0000026D36CE38D0>
+raw = '开启系统监控'
+
+    async def _handle_monitor(self, raw):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+>       return TaskResult(
+            domain=Domain.SECURITY,
+            success=True,
+            output=f"Monitoring activated: {raw[:150]}",
+            data={
+                "metrics": ["cpu", "memory", "network", "disk_io", "processes"],
+                "alert_threshold": "default",
+                "interval": "30s",
+            },
+            memory_keys=["security_monitor"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\security\__init__.py:78: TypeError
+_______________________ TestSecurityDomain.test_encrypt _______________________
+
+self = <tests.test_domains.TestSecurityDomain object at 0x0000026D36DDCFD0>
+
+    @pytest.mark.asyncio
+    async def test_encrypt(self):
+        dm = _load_domain("jarvis.domains.security")
+        intent = _make_intent("加密敏感文件", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:232: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\security\__init__.py:51: in handle
+    return await handler(raw)
+           ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.security.DomainModule object at 0x0000026D36EE1510>
+raw = '加密敏感文件'
+
+    async def _handle_encrypt(self, raw):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+>       return TaskResult(
+            domain=Domain.SECURITY,
+            success=True,
+            output=f"Encryption task: {raw[:150]}",
+            data={
+                "algorithm": "AES-256-GCM",
+                "key_management": "local_secure_store",
+            },
+            memory_keys=["security_encrypt"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\security\__init__.py:93: TypeError
+________________________ TestSecurityDomain.test_vuln _________________________
+
+self = <tests.test_domains.TestSecurityDomain object at 0x0000026D36DDDD50>
+
+    @pytest.mark.asyncio
+    async def test_vuln(self):
+        dm = _load_domain("jarvis.domains.security")
+        intent = _make_intent("扫描系统漏洞", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:240: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\security\__init__.py:51: in handle
+    return await handler(raw)
+           ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.security.DomainModule object at 0x0000026D36D3D590>
+raw = '扫描系统漏洞'
+
+    async def _handle_scan(self, raw):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+>       return TaskResult(
+            domain=Domain.SECURITY,
+            success=True,
+            output=f"Security scan initiated: {raw[:150]}",
+            data={
+                "scan_type": "comprehensive",
+                "targets": self._detect_scan_targets(raw),
+                "report_format": "json",
+            },
+            memory_keys=["security_scan"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\security\__init__.py:63: TypeError
+_______________________ TestHealthDomain.test_exercise ________________________
+
+self = <tests.test_domains.TestHealthDomain object at 0x0000026D36DDDF50>
+
+    @pytest.mark.asyncio
+    async def test_exercise(self):
+        dm = _load_domain("jarvis.domains.health")
+        intent = _make_intent("制定跑步运动计划", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:255: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\health\__init__.py:51: in handle
+    return await handler(raw)
+           ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.health.DomainModule object at 0x0000026D36CCC550>
+raw = '制定跑步运动计划'
+
+    async def _handle_exercise(self, raw):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+>       return TaskResult(
+            domain=Domain.HEALTH,
+            success=True,
+            output=f"Exercise plan: {raw[:150]}",
+            data={
+                "type": self._detect_exercise_type(raw),
+                "duration": "45_minutes",
+                "equipment": "bodyweight_or_basic",
+            },
+            memory_keys=["health_exercise"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\health\__init__.py:78: TypeError
+_________________________ TestHealthDomain.test_sleep _________________________
+
+self = <tests.test_domains.TestHealthDomain object at 0x0000026D36DDE8D0>
+
+    @pytest.mark.asyncio
+    async def test_sleep(self):
+        dm = _load_domain("jarvis.domains.health")
+        intent = _make_intent("分析我的睡眠质量", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:263: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\health\__init__.py:51: in handle
+    return await handler(raw)
+           ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.health.DomainModule object at 0x0000026D36D14AD0>
+raw = '分析我的睡眠质量'
+
+    async def _handle_sleep(self, raw):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+>       return TaskResult(
+            domain=Domain.HEALTH,
+            success=True,
+            output=f"Sleep analysis: {raw[:150]}",
+            data={
+                "metrics": ["duration", "quality", "deep_sleep", "rem", "consistency"],
+                "target": "7-9_hours",
+                "recommendations": True,
+            },
+            memory_keys=["health_sleep"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\health\__init__.py:93: TypeError
+_________________________ TestHealthDomain.test_diet __________________________
+
+self = <tests.test_domains.TestHealthDomain object at 0x0000026D36DCDF10>
+
+    @pytest.mark.asyncio
+    async def test_diet(self):
+        dm = _load_domain("jarvis.domains.health")
+        intent = _make_intent("制定素食减脂食谱", self.DOMAIN)
+        result = await dm.handle(intent)
+        assert result.success
+>       assert "vegan" in result.data["restrictions"]
+                          ^^^^^^^^^^^
+E       AttributeError: 'TaskResult' object has no attribute 'data'
+
+tests\test_domains.py:273: AttributeError
+______________________ TestHealthDomain.test_meditation _______________________
+
+self = <tests.test_domains.TestHealthDomain object at 0x0000026D36DDE790>
+
+    @pytest.mark.asyncio
+    async def test_meditation(self):
+        dm = _load_domain("jarvis.domains.health")
+        intent = _make_intent("引导10分钟冥想", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:279: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\health\__init__.py:51: in handle
+    return await handler(raw)
+           ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.health.DomainModule object at 0x0000026D36F35190>
+raw = '引导10分钟冥想'
+
+    async def _handle_meditation(self, raw):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+>       return TaskResult(
+            domain=Domain.HEALTH,
+            success=True,
+            output=f"Meditation session: {raw[:150]}",
+            data={
+                "type": "guided_breathing",
+                "duration": "10_minutes",
+                "ambient": "rain_sounds",
+            },
+            memory_keys=["health_meditation"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\health\__init__.py:123: TypeError
+________________________ TestFinanceDomain.test_stock _________________________
+
+self = <tests.test_domains.TestFinanceDomain object at 0x0000026D36DDD650>
+
+    @pytest.mark.asyncio
+    async def test_stock(self):
+        dm = _load_domain("jarvis.domains.finance")
+        intent = _make_intent("分析A股市场最近走势", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:294: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\finance\__init__.py:53: in handle
+    return await handler(raw)
+           ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.finance.DomainModule object at 0x0000026D36E27650>
+raw = '分析A股市场最近走势'
+
+    async def _handle_market(self, raw):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+>       return TaskResult(
+            domain=Domain.FINANCE,
+            success=True,
+            output=f"Market analysis: {raw[:150]}",
+            data={
+                "indices": ["S&P500", "NASDAQ", "CSI300", "HSI"],
+                "sectors": "all",
+                "sentiment": True,
+            },
+            memory_keys=["finance_market"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\finance\__init__.py:182: TypeError
+________________________ TestFinanceDomain.test_budget ________________________
+
+self = <tests.test_domains.TestFinanceDomain object at 0x0000026D36DDD690>
+
+    @pytest.mark.asyncio
+    async def test_budget(self):
+        dm = _load_domain("jarvis.domains.finance")
+        intent = _make_intent("制定月度预算计划", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:302: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\finance\__init__.py:53: in handle
+    return await handler(raw)
+           ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.finance.DomainModule object at 0x0000026D36CDE590>
+raw = '制定月度预算计划'
+
+    async def _handle_budget(self, raw):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+>       return TaskResult(
+            domain=Domain.FINANCE,
+            success=True,
+            output=f"Budget plan: {raw[:150]}",
+            data={
+                "method": "50_30_20",
+                "categories": ["essentials", "wants", "savings"],
+                "tracking": "monthly",
+            },
+            memory_keys=["finance_budget"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\finance\__init__.py:110: TypeError
+________________________ TestFinanceDomain.test_crypto ________________________
+
+self = <tests.test_domains.TestFinanceDomain object at 0x0000026D36DDCB90>
+
+    @pytest.mark.asyncio
+    async def test_crypto(self):
+        dm = _load_domain("jarvis.domains.finance")
+        intent = _make_intent("查看比特币和以太坊行情", self.DOMAIN)
+        result = await dm.handle(intent)
+        assert result.success
+>       assert "bitcoin" in result.data["assets"]
+                            ^^^^^^^^^^^
+E       AttributeError: 'TaskResult' object has no attribute 'data'
+
+tests\test_domains.py:312: AttributeError
+______________________ TestFinanceDomain.test_portfolio _______________________
+
+self = <tests.test_domains.TestFinanceDomain object at 0x0000026D36DDFC10>
+
+    @pytest.mark.asyncio
+    async def test_portfolio(self):
+        dm = _load_domain("jarvis.domains.finance")
+        intent = _make_intent("分析我的投资组合", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:318: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\finance\__init__.py:53: in handle
+    return await handler(raw)
+           ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.finance.DomainModule object at 0x0000026D36E1D250>
+raw = '分析我的投资组合'
+
+    async def _handle_investment(self, raw):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+>       return TaskResult(
+            domain=Domain.FINANCE,
+            success=True,
+            output=f"Investment analysis: {raw[:150]}",
+            data={
+                "analysis_type": "fundamental",
+                "asset_classes": self._detect_asset_classes(raw),
+                "horizon": "medium_term",
+                "risk_profile": "moderate",
+            },
+            memory_keys=["finance_investment"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\finance\__init__.py:65: TypeError
+__________________________ TestHomeDomain.test_light __________________________
+
+self = <tests.test_domains.TestHomeDomain object at 0x0000026D36DF36D0>
+
+    @pytest.mark.asyncio
+    async def test_light(self):
+        dm = _load_domain("jarvis.domains.home")
+        intent = _make_intent("打开客厅灯光到50%亮度", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:333: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\home\__init__.py:54: in handle
+    return await handler(raw)
+           ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.home.DomainModule object at 0x0000026D36EA7790>
+raw = '打开客厅灯光到50%亮度'
+
+    async def _handle_light(self, raw):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+>       return TaskResult(
+            domain=Domain.HOME,
+            success=True,
+            output=f"Light control: {raw[:150]}",
+            data={
+                "device": self._detect_room(raw),
+                "action": self._detect_onoff(raw),
+                "brightness": self._detect_brightness(raw),
+                "color_temp": self._detect_color_temp(raw),
+            },
+            memory_keys=["home_light"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\home\__init__.py:66: TypeError
+_________________________ TestHomeDomain.test_climate _________________________
+
+self = <tests.test_domains.TestHomeDomain object at 0x0000026D36DCE210>
+
+    @pytest.mark.asyncio
+    async def test_climate(self):
+        dm = _load_domain("jarvis.domains.home")
+        intent = _make_intent("把卧室空调调到26度", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:342: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\home\__init__.py:54: in handle
+    return await handler(raw)
+           ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.home.DomainModule object at 0x0000026D36D0AA90>
+raw = '把卧室空调调到26度'
+
+    async def _handle_climate(self, raw):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+>       return TaskResult(
+            domain=Domain.HOME,
+            success=True,
+            output=f"Climate control: {raw[:150]}",
+            data={
+                "device": "ac_or_thermostat",
+                "mode": self._detect_climate_mode(raw),
+                "target_temp": self._detect_temperature(raw),
+                "room": self._detect_room(raw),
+            },
+            memory_keys=["home_climate"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\home\__init__.py:82: TypeError
+__________________________ TestHomeDomain.test_scene __________________________
+
+self = <tests.test_domains.TestHomeDomain object at 0x0000026D36DCE990>
+
+    @pytest.mark.asyncio
+    async def test_scene(self):
+        dm = _load_domain("jarvis.domains.home")
+        intent = _make_intent("激活睡眠模式", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:351: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\home\__init__.py:54: in handle
+    return await handler(raw)
+           ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.home.DomainModule object at 0x0000026D36D17510>
+raw = '激活睡眠模式'
+
+    async def _handle_scene(self, raw):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+>       return TaskResult(
+            domain=Domain.HOME,
+            success=True,
+            output=f"Scene activation: {raw[:150]}",
+            data={
+                "scene": self._detect_scene(raw),
+                "devices_affected": "all_rooms",
+                "transition": "smooth",
+            },
+            memory_keys=["home_scene"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\home\__init__.py:143: TypeError
+_________________________ TestHomeDomain.test_energy __________________________
+
+self = <tests.test_domains.TestHomeDomain object at 0x0000026D36DCEC90>
+
+    @pytest.mark.asyncio
+    async def test_energy(self):
+        dm = _load_domain("jarvis.domains.home")
+        intent = _make_intent("查看本月能源消耗", self.DOMAIN)
+>       result = await dm.handle(intent)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_domains.py:359: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jarvis\domains\home\__init__.py:54: in handle
+    return await handler(raw)
+           ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <jarvis.domains.home.DomainModule object at 0x0000026D36F1A710>
+raw = '查看本月能源消耗'
+
+    async def _handle_energy(self, raw):
+        from jarvis.core.orchestrator import TaskResult, Domain
+    
+>       return TaskResult(
+            domain=Domain.HOME,
+            success=True,
+            output=f"Energy monitoring: {raw[:150]}",
+            data={
+                "metrics": ["consumption", "cost", "carbon_footprint", "peak_usage"],
+                "period": "monthly",
+                "optimization_suggestions": True,
+            },
+            memory_keys=["home_energy"],
+        )
+E       TypeError: TaskResult.__init__() got an unexpected keyword argument 'data'
+
+jarvis\domains\home\__init__.py:158: TypeError
+============================== warnings summary ===============================
+D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\site-packages\fastapi\testclient.py:1
+  D:\Program Files\Tencent\Marvis\MarvisAgent\1.0.1100.310\runtime\python311\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_domains.py::TestResearchDomain::test_search - TypeError: Ta...
+FAILED tests/test_domains.py::TestResearchDomain::test_paper - TypeError: Tas...
+FAILED tests/test_domains.py::TestResearchDomain::test_trend - TypeError: Tas...
+FAILED tests/test_domains.py::TestResearchDomain::test_research_framework - T...
+FAILED tests/test_domains.py::TestEngineeringDomain::test_code_gen - TypeErro...
+FAILED tests/test_domains.py::TestEngineeringDomain::test_debug - TypeError: ...
+FAILED tests/test_domains.py::TestEngineeringDomain::test_refactor - TypeErro...
+FAILED tests/test_domains.py::TestEngineeringDomain::test_git - TypeError: Ta...
+FAILED tests/test_domains.py::TestEngineeringDomain::test_architecture - Type...
+FAILED tests/test_domains.py::TestCreatorDomain::test_writing - TypeError: Ta...
+FAILED tests/test_domains.py::TestCreatorDomain::test_design - TypeError: Tas...
+FAILED tests/test_domains.py::TestCreatorDomain::test_presentation - TypeErro...
+FAILED tests/test_domains.py::TestCreatorDomain::test_image_prompt - TypeErro...
+FAILED tests/test_domains.py::TestPersonalDomain::test_reminder - TypeError: ...
+FAILED tests/test_domains.py::TestPersonalDomain::test_todo - TypeError: Task...
+FAILED tests/test_domains.py::TestPersonalDomain::test_note - TypeError: Task...
+FAILED tests/test_domains.py::TestPersonalDomain::test_plan - TypeError: Task...
+FAILED tests/test_domains.py::TestPersonalDomain::test_focus - TypeError: Tas...
+FAILED tests/test_domains.py::TestSecurityDomain::test_scan - TypeError: Task...
+FAILED tests/test_domains.py::TestSecurityDomain::test_monitor - TypeError: T...
+FAILED tests/test_domains.py::TestSecurityDomain::test_encrypt - TypeError: T...
+FAILED tests/test_domains.py::TestSecurityDomain::test_vuln - TypeError: Task...
+FAILED tests/test_domains.py::TestHealthDomain::test_exercise - TypeError: Ta...
+FAILED tests/test_domains.py::TestHealthDomain::test_sleep - TypeError: TaskR...
+FAILED tests/test_domains.py::TestHealthDomain::test_diet - AttributeError: '...
+FAILED tests/test_domains.py::TestHealthDomain::test_meditation - TypeError: ...
+FAILED tests/test_domains.py::TestFinanceDomain::test_stock - TypeError: Task...
+FAILED tests/test_domains.py::TestFinanceDomain::test_budget - TypeError: Tas...
+FAILED tests/test_domains.py::TestFinanceDomain::test_crypto - AttributeError...
+FAILED tests/test_domains.py::TestFinanceDomain::test_portfolio - TypeError: ...
+FAILED tests/test_domains.py::TestHomeDomain::test_light - TypeError: TaskRes...
+FAILED tests/test_domains.py::TestHomeDomain::test_climate - TypeError: TaskR...
+FAILED tests/test_domains.py::TestHomeDomain::test_scene - TypeError: TaskRes...
+FAILED tests/test_domains.py::TestHomeDomain::test_energy - TypeError: TaskRe...
+================== 34 failed, 27 passed, 1 warning in 7.65s ===================

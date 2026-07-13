@@ -87,6 +87,11 @@ async def main() -> None:
     config = load_config()
     print_banner(config)
 
+    # Initialize LLM engine
+    from jarvis.core.llm import init_llm
+
+    init_llm(config)
+
     # Initialize core subsystems
     logger.info("Initializing memory engine...")
     memory = MemoryEngine(

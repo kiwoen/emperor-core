@@ -1,0 +1,144 @@
+=== domains ===
+=== creator ===
+
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\creator\__init__.py:2:Creator Domain — writing, design, presentations, image prompt
+s.
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\creator\__init__.py:8:from jarvis.core.orchestrator import Domain, DomainModule, In
+tent, TaskResult
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\creator\__init__.py:11:DOMAIN = Domain.CREATOR
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\creator\__init__.py:19:class DomainModule(DomainModule):
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\creator\__init__.py:20:    """Creator domain handler."""
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\creator\__init__.py:22:    domain = Domain.CREATOR
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\creator\__init__.py:41:        return TaskResult(domain=Domain.CREATOR, success=Tru
+e, output=f"[CREATOR] Creating: {intent.raw_text}", data=data)
+=== engineering ===
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\engineering\__init__.py:2:Engineering Domain — code generation, debugging, refactor
+ing, architecture.
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\engineering\__init__.py:8:from jarvis.core.orchestrator import Domain, DomainModule
+, Intent, TaskResult
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\engineering\__init__.py:11:DOMAIN = Domain.ENGINEERING
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\engineering\__init__.py:19:class DomainModule(DomainModule):
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\engineering\__init__.py:20:    """Engineering domain handler."""
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\engineering\__init__.py:22:    domain = Domain.ENGINEERING
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\engineering\__init__.py:44:        return TaskResult(domain=Domain.ENGINEERING, suc
+cess=True, output=f"[ENGINEERING] Processing: {intent.raw_text}", data=data)
+=== finance ===
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\finance\__init__.py:2:Finance Domain — stock analysis, budgeting, crypto tracking, 
+portfolio.
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\finance\__init__.py:8:from jarvis.core.orchestrator import Domain, DomainModule, In
+tent, TaskResult
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\finance\__init__.py:11:DOMAIN = Domain.FINANCE
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\finance\__init__.py:19:class DomainModule(DomainModule):
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\finance\__init__.py:20:    """Finance domain handler."""
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\finance\__init__.py:22:    domain = Domain.FINANCE
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\finance\__init__.py:44:        return TaskResult(domain=Domain.FINANCE, success=Tru
+e, output=f"[FINANCE] Analyzing: {intent.raw_text}", data=data)
+=== health ===
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\health\__init__.py:2:Health Domain — exercise, sleep, diet, meditation.
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\health\__init__.py:8:from jarvis.core.orchestrator import Domain, DomainModule, Int
+ent, TaskResult
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\health\__init__.py:11:DOMAIN = Domain.HEALTH
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\health\__init__.py:19:class DomainModule(DomainModule):
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\health\__init__.py:20:    """Health domain handler."""
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\health\__init__.py:22:    domain = Domain.HEALTH
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\health\__init__.py:49:        return TaskResult(domain=Domain.HEALTH, success=True,
+ output=f"[HEALTH] Processing: {intent.raw_text}", data=data)
+=== home ===
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\home\__init__.py:2:Home Domain — smart device control, climate, scenes, energy moni
+toring.
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\home\__init__.py:9:from jarvis.core.orchestrator import Domain, DomainModule, Inten
+t, TaskResult
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\home\__init__.py:12:DOMAIN = Domain.HOME
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\home\__init__.py:20:class DomainModule(DomainModule):
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\home\__init__.py:21:    """Home domain handler."""
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\home\__init__.py:23:    domain = Domain.HOME
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\home\__init__.py:62:        return TaskResult(domain=Domain.HOME, success=True, out
+put=f"[HOME] Executing: {intent.raw_text}", data=data)
+=== personal ===
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\personal\__init__.py:2:Personal Domain — reminders, todos, notes, planning, focus.
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\personal\__init__.py:8:from jarvis.core.orchestrator import Domain, DomainModule, I
+ntent, TaskResult
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\personal\__init__.py:11:DOMAIN = Domain.PERSONAL
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\personal\__init__.py:19:class DomainModule(DomainModule):
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\personal\__init__.py:20:    """Personal domain handler."""
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\personal\__init__.py:22:    domain = Domain.PERSONAL
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\personal\__init__.py:41:        return TaskResult(domain=Domain.PERSONAL, success=T
+rue, output=f"[PERSONAL] Managing: {intent.raw_text}", data=data)
+=== research ===
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\research\__init__.py:2:Research Domain — academic search, paper discovery, trend an
+alysis.
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\research\__init__.py:8:from jarvis.core.orchestrator import Domain, DomainModule, I
+ntent, TaskResult
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\research\__init__.py:11:DOMAIN = Domain.RESEARCH
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\research\__init__.py:19:class DomainModule(DomainModule):
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\research\__init__.py:20:    """Research domain handler."""
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\research\__init__.py:22:    domain = Domain.RESEARCH
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\research\__init__.py:39:        return TaskResult(domain=Domain.RESEARCH, success=T
+rue, output=f"[RESEARCH] Acknowledged: {intent.raw_text}", data=data)
+=== security ===
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\security\__init__.py:2:Security Domain — scanning, monitoring, encryption, vulnerab
+ility assessment.
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\security\__init__.py:8:from jarvis.core.orchestrator import Domain, DomainModule, I
+ntent, TaskResult
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\security\__init__.py:11:DOMAIN = Domain.SECURITY
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\security\__init__.py:19:class DomainModule(DomainModule):
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\security\__init__.py:20:    """Security domain handler."""
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\security\__init__.py:22:    domain = Domain.SECURITY
+C:\Users\yuxing\AppData\Roaming\Tencent\Marvis\User\oAN1i2XJ0jCteB-iRMmi312e9ETk\workspace\conv_19f229c319e_e9101c61321
+6\output\jarvis-core\jarvis\domains\security\__init__.py:39:        return TaskResult(domain=Domain.SECURITY, success=T
+rue, output=f"[SECURITY] Processing: {intent.raw_text}", data=data)

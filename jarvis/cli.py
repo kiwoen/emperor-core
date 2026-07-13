@@ -34,6 +34,10 @@ logger = logging.getLogger("jarvis.cli")
 
 def _build_orchestrator(config: JARVISConfig) -> Orchestrator:
     """Initialize all subsystems and return a ready Orchestrator."""
+    from jarvis.core.llm import init_llm
+
+    init_llm(config)
+
     memory = MemoryEngine(
         persist_dir=str(Path(config.data_dir) / "memory"),
         compression_threshold=getattr(config.memory, "auto_compress_threshold", 5000),
