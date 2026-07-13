@@ -7,6 +7,7 @@ from __future__ import annotations
 import re
 from typing import Any
 from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+from jarvis.core.llm import get_llm
 
 
 DOMAIN = Domain.HOME
@@ -44,7 +45,6 @@ class DomainModule(DomainModule):
                 data = {"room": "客厅"}
             else:
                 data = {"room": "全部"}
-            # Extract temperature number
             temps = re.findall(r'(\d+)\s*度', raw)
             data["target_temp"] = int(temps[0]) if temps else 24
         elif "场景" in text or "模式" in text or "scene" in text:
@@ -59,4 +59,6 @@ class DomainModule(DomainModule):
         else:
             data = {"action": "status"}
 
-        return TaskResult(domain=Domain.HOME, success=True, output=f"[HOME] Executing: {intent.raw_text}", data=data)
+        llm = get_llm()
+        output = await llm.complete(intent.raw_text, domain="home")
+        return TaskResult(domain=Domain.HOME, success=True, output=output, data=data)

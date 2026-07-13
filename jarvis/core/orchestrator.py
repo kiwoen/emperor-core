@@ -148,12 +148,16 @@ class IntentParser:
             "code", "build", "deploy", "debug", "refactor", "test", "api",
             "database", "docker", "kubernetes", "git", "compile",
             "编程", "构建", "部署", "调试", "重构", "测试", "接口",
+            "函数", "算法", "排序", "代码", "bug", "报错", "异常", "性能",
+            "write a", "implement", "library", "framework",
+            "二分", "递归", "动态规划", "数据结构", "遍历", "编译",
+            "哈希", "链表", "队列", "栈", "堆", "树", "图", "索引",
         ],
         Domain.CREATOR: [
             "write", "design", "draw", "compose", "video", "music", "image",
             "photo", "edit", "render", "animate", "story", "novel", "fiction",
             "写作", "设计", "绘画", "作曲", "视频", "音乐", "图片", "渲染",
-            "写", "小说", "故事", "创作", "写一", "写个", "画", "画一",
+            "写", "小说", "故事", "创作", "画", "画一",
         ],
         Domain.SECURITY: [
             "monitor", "scan", "alert", "threat", "firewall", "encrypt",
@@ -164,17 +168,22 @@ class IntentParser:
             "health", "fitness", "sleep", "diet", "exercise", "meditation",
             "heart rate", "calorie", "workout", "weight",
             "健康", "健身", "睡眠", "饮食", "运动", "冥想", "心率", "卡路里",
+            "跑步", "跑了", "步数", "锻炼", "血压", "血糖", "体重",
+            "喝水", "吃药", "体检", "拉伸",
         ],
         Domain.FINANCE: [
             "budget", "invest", "stock", "crypto", "tax", "expense", "income",
             "trade", "portfolio", "market", "bank", "fund", "asset",
             "预算", "投资", "股票", "加密货币", "税务", "支出", "收入", "交易",
             "投资组合", "理财", "基金", "资产", "收益率", "持仓", "盈亏",
+            "股价", "行情", "涨跌", "大盘", "证券", "汇率", "贷款",
         ],
         Domain.HOME: [
             "light", "temperature", "lock", "camera", "thermostat", "door",
             "window", "curtain", "ac", "tv", "speaker",
             "灯光", "温度", "门锁", "摄像头", "恒温器", "窗帘", "空调", "电视",
+            "客厅", "卧室", "厨房", "灯光", "风扇", "暖气", "扫地",
+            "灯", "开关", "家电", "智能家居",
         ],
     }
 
@@ -184,12 +193,16 @@ class IntentParser:
 
         for domain, keywords in self.DOMAIN_KEYWORDS.items():
             score = sum(1 for kw in keywords if kw in text_lower)
-            # Boost score if context mentions this domain
-            if context:
-                ctx_text = " ".join(context).lower()
-                score += sum(1 for kw in keywords if kw in ctx_text) * 2
             if score > 0:
                 scores[domain] = score
+
+        # Only use context as fallback when text alone yields no matches
+        if not scores and context:
+            ctx_text = " ".join(context).lower()
+            for domain, keywords in self.DOMAIN_KEYWORDS.items():
+                ctx_score = sum(1 for kw in keywords if kw in ctx_text)
+                if ctx_score > 0:
+                    scores[domain] = ctx_score
 
         if not scores:
             # Default to PERSONAL for ambiguous intents
@@ -470,10 +483,15 @@ class Orchestrator:
                 mod = importlib.import_module(name)
                 if hasattr(mod, "DomainModule"):
                     module_instance = mod.DomainModule(self)
-                    domain_str = getattr(mod, "DOMAIN", None) or "core"
-                    try:
-                        domain_enum = Domain[domain_str.upper()]
-                    except KeyError:
+                    domain_val = getattr(mod, "DOMAIN", None)
+                    if isinstance(domain_val, Domain):
+                        domain_enum = domain_val
+                    elif isinstance(domain_val, str):
+                        try:
+                            domain_enum = Domain[domain_val.upper()]
+                        except KeyError:
+                            domain_enum = Domain.CORE
+                    else:
                         domain_enum = Domain.CORE
                     self.registry.register(domain_enum, module_instance)
             except ImportError:

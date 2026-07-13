@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+from jarvis.core.llm import get_llm
 
 
 DOMAIN = Domain.PERSONAL
@@ -38,4 +39,6 @@ class DomainModule(DomainModule):
         else:
             data = {"type": "general"}
 
-        return TaskResult(domain=Domain.PERSONAL, success=True, output=f"[PERSONAL] Managing: {intent.raw_text}", data=data)
+        llm = get_llm()
+        output = await llm.complete(intent.raw_text, domain="personal")
+        return TaskResult(domain=Domain.PERSONAL, success=True, output=output, data=data)

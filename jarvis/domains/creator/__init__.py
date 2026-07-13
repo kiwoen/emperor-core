@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+from jarvis.core.llm import get_llm
 
 
 DOMAIN = Domain.CREATOR
@@ -38,4 +39,6 @@ class DomainModule(DomainModule):
         else:
             data = {"genre": "通用", "format": "text"}
 
-        return TaskResult(domain=Domain.CREATOR, success=True, output=f"[CREATOR] Creating: {intent.raw_text}", data=data)
+        llm = get_llm()
+        output = await llm.complete(intent.raw_text, domain="creator")
+        return TaskResult(domain=Domain.CREATOR, success=True, output=output, data=data)

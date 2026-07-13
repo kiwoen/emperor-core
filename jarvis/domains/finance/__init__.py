@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+from jarvis.core.llm import get_llm
 
 
 DOMAIN = Domain.FINANCE
@@ -41,4 +42,6 @@ class DomainModule(DomainModule):
         else:
             data = {"exchange": "SSE_SZSE"}
 
-        return TaskResult(domain=Domain.FINANCE, success=True, output=f"[FINANCE] Analyzing: {intent.raw_text}", data=data)
+        llm = get_llm()
+        output = await llm.complete(intent.raw_text, domain="finance")
+        return TaskResult(domain=Domain.FINANCE, success=True, output=output, data=data)

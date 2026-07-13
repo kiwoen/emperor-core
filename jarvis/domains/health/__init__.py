@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 from jarvis.core.orchestrator import Domain, DomainModule, Intent, TaskResult
+from jarvis.core.llm import get_llm
 
 
 DOMAIN = Domain.HEALTH
@@ -46,4 +47,6 @@ class DomainModule(DomainModule):
         else:
             data = {"type": "general"}
 
-        return TaskResult(domain=Domain.HEALTH, success=True, output=f"[HEALTH] Processing: {intent.raw_text}", data=data)
+        llm = get_llm()
+        output = await llm.complete(intent.raw_text, domain="health")
+        return TaskResult(domain=Domain.HEALTH, success=True, output=output, data=data)
