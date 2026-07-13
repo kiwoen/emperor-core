@@ -29,6 +29,9 @@ from jarvis.court.minister import (
     MinisterProfile,
     MinisterState,
 )
+from jarvis.court.merit_board import MeritBoard
+from jarvis.court.evolution import SurvivalMechanism
+from jarvis.court.reflection import ReflectionConsensus
 
 logger = logging.getLogger("jarvis.court.emperor")
 
@@ -84,13 +87,22 @@ class ImperialCourt:
         self,
         bus: Any = None,
         knowledge_graph: Any = None,
+        merit_board: Optional[MeritBoard] = None,
+        survival_mechanism: Optional[SurvivalMechanism] = None,
+        reflection_consensus: Optional[ReflectionConsensus] = None,
+        evolution_interval: int = 10,
     ) -> None:
         self.ministers: dict[str, Minister] = {}
         self.records: list[CourtRecord] = []
         self.bus = bus
         self.knowledge_graph = knowledge_graph
+        self.merit_board = merit_board or MeritBoard()
+        self.survival = survival_mechanism or SurvivalMechanism(self.merit_board)
+        self.reflection = reflection_consensus or ReflectionConsensus()
         self._lock = asyncio.Lock()
         self._decree_count = 0
+        self._evolution_interval = max(1, evolution_interval)
+        self._decrees_since_evolution = 0
 
     # ------------------------------------------------------------------
     # Minister management
@@ -101,6 +113,7 @@ class ImperialCourt:
         if self.knowledge_graph is not None:
             minister.set_knowledge_graph(self.knowledge_graph)
         self.ministers[minister.name] = minister
+        self.survival.register_minister(minister.name, minister.archetype)
         logger.info("[Emperor] Appointed %s (%s) to the court",
                      minister.name, minister.archetype)
 
@@ -108,6 +121,7 @@ class ImperialCourt:
         """Remove a minister from the court."""
         if name in self.ministers:
             del self.ministers[name]
+            self.merit_board.mark_eliminated(name)
             logger.info("[Emperor] Dismissed %s from the court", name)
             return True
         return False
@@ -261,6 +275,12 @@ class ImperialCourt:
         # ── Phase 6: Record for evolution ──────────────────────────
         self._archive_decree(decree)
 
+        # ── Phase 7: Record in MeritBoard ────────────────────────────
+        await self._record_merit(decree, selected)
+
+        # ── Phase 8: Auto-evolution ───────────────────────────────────
+        await self._run_evolution_if_needed()
+
         logger.info(
             "[Emperor] Decree %s issued: success=%s confidence=%.2f ministers=%d",
             decree_id, decree.success, decree.confidence,
@@ -320,8 +340,18 @@ class ImperialCourt:
         if len(successes) == 1:
             output = successes[0].output
             recommendations = successes[0].suggestions
+        elif court_session and self.reflection is not None:
+            # ── Reflection Consensus (三省合议) ────────────────────
+            reflection_result = await self.reflection.synthesize(
+                intent=intent,
+                memorials=successes,
+                censorate_reviews=[],
+            )
+            output = reflection_result.get("final_output", self._fallback_synthesis(successes))
+            recommendations = reflection_result.get("recommendations", [])
+            dissenting = reflection_result.get("dissenting", dissenting)
         else:
-            # Multi-minister synthesis
+            # Multi-minister synthesis (fallback)
             parts = []
             for i, m in enumerate(successes, 1):
                 parts.append(f"【{m.minister}】{m.output}")
@@ -391,6 +421,59 @@ class ImperialCourt:
         self.records.append(record)
 
     # ------------------------------------------------------------------
+    # Evolution integration methods
+    # ------------------------------------------------------------------
+
+    def _fallback_synthesis(self, memorials: list[Memorial]) -> str:
+        """Fallback text synthesis when reflection produces no output."""
+        parts = []
+        for m in memorials:
+            parts.append(f"【{m.minister}】{m.output}")
+        return "\n\n".join(parts)
+
+    async def _record_merit(
+        self, decree: Decree, selected_ministers: list[str]
+    ) -> None:
+        """Record decree outcome into MeritBoard for each participating minister."""
+        for name in selected_ministers:
+            was_success = (
+                decree.success
+                and any(m.minister == name and m.success for m in decree.memorials)
+            )
+            self.merit_board.record_dispatch(
+                minister=name,
+                edict_id=decree.decree_id,
+                intent=decree.intent,
+                success=was_success,
+                confidence=decree.confidence,
+                execution_time_ms=decree.execution_time_ms,
+            )
+
+    async def _run_evolution_if_needed(self) -> None:
+        """Run an evolution cycle after every N decrees.
+
+        The SurvivalMechanism evaluates ministers and may promote/demote,
+        clone top performers, or eliminate underperformers.
+        """
+        self._decrees_since_evolution += 1
+        if self._decrees_since_evolution < self._evolution_interval:
+            return
+
+        self._decrees_since_evolution = 0
+        try:
+            report = self.survival.run_evolution_cycle()
+            for event in report.actions_taken:
+                logger.info(
+                    "[Emperor] Evolution: %s → %s (merit=%.2f→%.2f)",
+                    event.minister,
+                    event.action,
+                    event.previous_merit,
+                    event.new_merit,
+                )
+        except Exception:
+            logger.debug("[Emperor] Evolution cycle skipped (non-critical)")
+
+    # ------------------------------------------------------------------
     # Feedback loop
     # ------------------------------------------------------------------
 
@@ -400,13 +483,15 @@ class ImperialCourt:
         """The Emperor (or user) provides feedback on a minister's work."""
         if minister_name in self.ministers:
             self.ministers[minister_name].record_feedback(decree_id, score)
+        # Record in MeritBoard for evolution tracking
+        self.merit_board.record_feedback(minister_name, decree_id, score)
 
     # ------------------------------------------------------------------
     # Statistics & court overview
     # ------------------------------------------------------------------
 
     def get_court_metrics(self) -> dict[str, Any]:
-        """Return a full court dashboard — every minister's evolution state."""
+        """Return a full court dashboard — evolution state + merit ranking."""
         minister_metrics = {}
         for name, minister in self.ministers.items():
             minister_metrics[name] = minister.get_evolution_metrics()
@@ -416,12 +501,28 @@ class ImperialCourt:
             sum(1 for r in recent if r.success) / max(1, len(recent))
         )
 
+        # Evolution snapshot
+        evolution_status = {
+            "active": self.survival.get_active_ministers(),
+            "shadow": self.survival.get_shadow_ministers(),
+            "eliminated": self.survival.get_eliminated_ministers(),
+        }
+        merit_ranking = self.merit_board.get_ranking()
+
         return {
             "decree_count": self._decree_count,
             "minister_count": len(self.ministers),
             "recent_success_rate": round(overall_success, 3),
             "ministers": minister_metrics,
             "top_performer": self._find_top_performer(),
+            "merit_ranking": [
+                {"name": m.minister, "merit": m.merit_score, "rank": m.rank.name}
+                for m in merit_ranking[:5]
+            ],
+            "evolution": evolution_status,
+            "decrees_until_next_evolution": (
+                self._evolution_interval - self._decrees_since_evolution
+            ),
         }
 
     def _find_top_performer(self) -> Optional[str]:
@@ -448,7 +549,7 @@ class ImperialCourt:
 
 
 class Emperor:
-    """Convenience wrapper: Emperor = ImperialCourt + auto-install.
+    """Convenience wrapper: Emperor = ImperialCourt + auto-install + evolution.
 
     Usage:
         emperor = Emperor()
@@ -459,8 +560,13 @@ class Emperor:
         self,
         bus: Any = None,
         knowledge_graph: Any = None,
+        evolution_interval: int = 10,
     ) -> None:
-        self._court = ImperialCourt(bus=bus, knowledge_graph=knowledge_graph)
+        self._court = ImperialCourt(
+            bus=bus,
+            knowledge_graph=knowledge_graph,
+            evolution_interval=evolution_interval,
+        )
         self._court.install_ministers_from_factory()
 
     async def receive_petition(self, intent: str) -> Decree:
@@ -473,3 +579,12 @@ class Emperor:
 
     def get_court_metrics(self) -> dict[str, Any]:
         return self._court.get_court_metrics()
+
+    def get_merit_board(self) -> MeritBoard:
+        return self._court.merit_board
+
+    def get_survival(self) -> SurvivalMechanism:
+        return self._court.survival
+
+    def get_reflection(self) -> ReflectionConsensus:
+        return self._court.reflection
