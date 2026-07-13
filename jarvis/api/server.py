@@ -111,6 +111,7 @@ orchestrator_ref: Any = None
 config_ref: Any = None
 _start_time: float = time.time()
 _active_connections: set[WebSocket] = set()
+stream_manager: Any = None  # EventStreamManager, injected at startup
 
 
 # ---------------------------------------------------------------------------
@@ -240,16 +241,40 @@ async def evolution_report():
 
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
-    """Real-time interactive WebSocket channel."""
+    """Real-time interactive WebSocket channel.
+
+    Supported message types:
+        command     — execute a natural language command
+        stream      — execute with streaming progress events
+        status      — get system status
+        domains     — list loaded domains
+        subscribe   — subscribe to bus event topics (e.g. "codex.*")
+        unsubscribe — unsubscribe from bus event topics
+        subscriptions — list current topic subscriptions
+        ping        — heartbeat
+    """
     await ws.accept()
     _active_connections.add(ws)
 
+    # Register with EventStreamManager if available
+    client_id = None
+    if stream_manager is not None:
+        client_id = f"ws-{id(ws)}"
+        await stream_manager.register(client_id, ws.send_json)
+        # Auto-subscribe to all bus events by default
+        await stream_manager.subscribe(client_id, "*")
+
     # Send initial greeting
+    subscribed_topics = (
+        await stream_manager.get_client_subscriptions(client_id)
+        if stream_manager and client_id
+        else []
+    )
     greeting = {
         "type": "system",
-        "message": f"Connected to JARVIS v{config_ref.version if config_ref else '0.1.0'}. "
-                    f"Send {{'type': 'command', 'data': 'your command'}} to interact.",
+        "message": f"Connected to JARVIS v{config_ref.version if config_ref else '0.1.0'}.",
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        "subscribed_topics": subscribed_topics,
     }
     await ws.send_json(greeting)
 
@@ -295,6 +320,13 @@ async def websocket_endpoint(ws: WebSocket):
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 })
 
+            elif msg_type == "stream":
+                cmd = msg.get("data", "").strip()
+                if not cmd:
+                    await ws.send_json({"type": "error", "message": "Empty stream command"})
+                    continue
+                await _run_stream(ws, cmd)
+
             elif msg_type == "status":
                 s = await status()
                 await ws.send_json({"type": "status", "data": s.model_dump()})
@@ -302,6 +334,39 @@ async def websocket_endpoint(ws: WebSocket):
             elif msg_type == "domains":
                 ds = await list_domains()
                 await ws.send_json({"type": "domains", "data": ds})
+
+            elif msg_type == "subscribe":
+                if stream_manager is not None and client_id:
+                    pattern = msg.get("pattern", "*")
+                    await stream_manager.subscribe(client_id, pattern)
+                    subs = await stream_manager.get_client_subscriptions(client_id)
+                    await ws.send_json({
+                        "type": "subscribed",
+                        "pattern": pattern,
+                        "subscriptions": subs,
+                    })
+                else:
+                    await ws.send_json({"type": "error", "message": "Event streaming not available"})
+
+            elif msg_type == "unsubscribe":
+                if stream_manager is not None and client_id:
+                    pattern = msg.get("pattern")  # None = unsubscribe all
+                    removed = await stream_manager.unsubscribe(client_id, pattern)
+                    subs = await stream_manager.get_client_subscriptions(client_id)
+                    await ws.send_json({
+                        "type": "unsubscribed",
+                        "removed": removed,
+                        "subscriptions": subs,
+                    })
+                else:
+                    await ws.send_json({"type": "error", "message": "Event streaming not available"})
+
+            elif msg_type == "subscriptions":
+                if stream_manager is not None and client_id:
+                    subs = await stream_manager.get_client_subscriptions(client_id)
+                    await ws.send_json({"type": "subscriptions", "topics": subs})
+                else:
+                    await ws.send_json({"type": "subscriptions", "topics": []})
 
             elif msg_type == "ping":
                 await ws.send_json({"type": "pong", "timestamp": datetime.now(timezone.utc).isoformat()})
@@ -313,6 +378,11 @@ async def websocket_endpoint(ws: WebSocket):
         pass
     finally:
         _active_connections.discard(ws)
+        if stream_manager is not None and client_id:
+            try:
+                await stream_manager.unregister(client_id)
+            except Exception:
+                pass
         try:
             await ws.close()
         except Exception:
@@ -353,6 +423,38 @@ async def start_server(orchestrator: Any, config: Any) -> None:
     orchestrator_ref = orchestrator
     config_ref = config
     _start_time = time.time()
+
+    import uvicorn
+
+    config_obj = uvicorn.Config(
+        app="jarvis.api.server:app",
+        host="127.0.0.1",
+        port=8000,
+        log_level="info",
+        reload=False,
+    )
+    server = uvicorn.Server(config_obj)
+    await server.serve()
+
+
+async def start_server_with_events(integration: Any, config: Any) -> None:
+    """Start the API server with EventStreamManager wired in.
+
+    Args:
+        integration: A started SystemIntegration instance.
+        config: The JARVIS config object.
+    """
+    global orchestrator_ref, config_ref, _start_time, stream_manager
+
+    orchestrator_ref = integration.orchestrator
+    config_ref = config
+    _start_time = time.time()
+
+    # Create and start EventStreamManager
+    from jarvis.events.stream import EventStreamManager
+    stream_manager = EventStreamManager(integration.bus)
+    await stream_manager.start()
+    logger.info("EventStreamManager wired to API server")
 
     import uvicorn
 
