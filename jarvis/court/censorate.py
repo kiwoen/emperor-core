@@ -219,9 +219,9 @@ class Censorate:
         # Extract bigrams from CJK text for matching
         cjk_chars = [c for c in intent_lower if '\u4e00' <= c <= '\u9fff']
         if len(cjk_chars) >= 2:
-            bigrams = {cjk_chars[i:i+2] for i in range(len(cjk_chars)-1)}
+            bigrams = {''.join(cjk_chars[i:i+2]) for i in range(len(cjk_chars)-1)}
             # Also add 3-grams for longer intents
-            trigrams = {cjk_chars[i:i+3] for i in range(len(cjk_chars)-2)}
+            trigrams = {''.join(cjk_chars[i:i+3]) for i in range(len(cjk_chars)-2)}
             all_grams = bigrams | trigrams
             if all_grams:
                 matched = sum(1 for g in all_grams if g in output_lower)

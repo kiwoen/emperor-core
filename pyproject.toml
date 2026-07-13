@@ -41,6 +41,7 @@ dev = [
 
 [project.scripts]
 jarvis = "jarvis.cli:main"
+emperor = "jarvis.emperor_cli:main"
 
 [build-system]
 requires = ["setuptools>=69.0.0", "wheel"]
