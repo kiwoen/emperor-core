@@ -1,7 +1,7 @@
 [project]
-name = "jarvis-core"
+name = "emperor-core"
 version = "0.1.0"
-description = "JARVIS — Just A Rather Very Intelligent System. Multi-domain autonomous AI orchestrator."
+description = "Emperor — Imperial Court AI Orchestrator. Multi-domain autonomous AI system with eight specialized minister agents."
 requires-python = ">=3.11"
 dependencies = [
     "chromadb>=0.5.0",
