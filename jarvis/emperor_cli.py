@@ -36,13 +36,11 @@ from rich.text import Text
 from rich.box import Box, HEAVY_EDGE, ROUNDED, SIMPLE
 from rich.align import Align
 from rich.columns import Columns
-from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.spinner import Spinner
+from rich.live import Live
 from rich.style import Style
-from rich.syntax import Syntax
 from rich import box
 
-from jarvis.court.emperor import Emperor, ImperialCourt
+from jarvis.court.emperor import CourtPhase, Emperor, ImperialCourt
 from jarvis.court.evolution import (
     EvolutionAction,
     EvolutionEvent,
@@ -359,6 +357,67 @@ def render_minister_detail(emperor: Emperor, minister_name: str) -> Optional[Pan
 # Interactive court session
 # ---------------------------------------------------------------------------
 
+PHASE_LABELS = {
+    CourtPhase.ANALYZING:    ("🔍", "分析奏章"),
+    CourtPhase.DISPATCHING:  ("📨", "发敕令"),
+    CourtPhase.DELIBERATING: ("⚡", "大臣议事"),
+    CourtPhase.SYNTHESIZING: ("⚖", "三省合议"),
+    CourtPhase.RECORDING:    ("📝", "记录功勋"),
+    CourtPhase.EVOLVING:     ("🧬", "自进化"),
+    CourtPhase.COMPLETE:     ("✓",  "退朝"),
+}
+
+MINISTER_STATUS_ICONS = {
+    "waiting":  ("○", Style(color="grey66")),
+    "started":  ("◌", Style(color="cyan")),
+    "done":     ("✓", Style(color="green")),
+    "error":    ("✗", Style(color="red")),
+}
+
+
+def _build_court_live_panel(state: dict) -> Table:
+    """Build a Rich Table showing live court deliberation progress."""
+    phase = state.get("phase", CourtPhase.ANALYZING)
+    icon, label = PHASE_LABELS.get(phase, ("?", "?"))
+
+    table = Table(
+        title=f"{icon} 朝堂议事 · {label}",
+        title_style=Style(bold=True, color="gold1"),
+        box=box.HEAVY_EDGE,
+        border_style=STYLE_BORDER,
+        show_header=True,
+        header_style=Style(bold=True, color="bright_yellow"),
+    )
+    table.add_column("大臣", style="bold")
+    table.add_column("状态", justify="center")
+    table.add_column("置信度", justify="right")
+
+    ministers_state = state.get("ministers", {})
+    if not ministers_state:
+        table.add_row(
+            "[grey66]—[/]",
+            "[cyan]遴选大臣中…[/]",
+            "[grey66]—[/]",
+        )
+    else:
+        for name, mstate in ministers_state.items():
+            icon_str, icon_style = MINISTER_STATUS_ICONS.get(
+                mstate.get("status", "waiting"),
+                ("?", Style()),
+            )
+            confidence = mstate.get("confidence")
+            conf_str = f"{confidence:.2f}" if confidence is not None else "[grey66]—[/]"
+            table.add_row(
+                name,
+                f"[{icon_style}]{icon_str} {mstate.get('status', '?')}[/]",
+                conf_str,
+            )
+
+    table.caption = state.get("caption", "")
+
+    return table
+
+
 async def interactive_court(emperor: Emperor) -> None:
     """Run the interactive court session loop."""
     print_banner()
@@ -415,30 +474,95 @@ async def interactive_court(emperor: Emperor) -> None:
                 console.print(f"[{STYLE_DIM}]未知命令: {cmd}。输入 /help 查看帮助[/]")
             continue
 
-        # Submit petition
+        # Submit petition — Rich Live real-time deliberation view
         console.print()
-        with Progress(
-            SpinnerColumn(spinner_name="dots"),
-            TextColumn("[progress.description]{task.description}"),
-            transient=True,
+
+        state: dict[str, Any] = {
+            "phase": CourtPhase.ANALYZING,
+            "ministers": {},
+            "caption": "",
+        }
+
+        # We'll hold a reference to the Live instance so the callback can
+        # call live.update() from within the async pipeline.
+        live_ref: list[Live | None] = [None]
+
+        def on_progress(phase: CourtPhase, detail: dict) -> None:
+            """Callback from Emperor pipeline — update live state + refresh."""
+            state["phase"] = phase
+
+            if phase == CourtPhase.ANALYZING:
+                scores = detail.get("scores", {})
+                for name in scores:
+                    state["ministers"].setdefault(name, {"status": "waiting"})
+                state["caption"] = f"候选大臣: {len(scores)} 名"
+
+            elif phase == CourtPhase.DISPATCHING:
+                selected = detail.get("selected", [])
+                for name in list(state["ministers"]):
+                    if name not in selected:
+                        del state["ministers"][name]
+                for name in selected:
+                    state["ministers"][name] = {"status": "waiting"}
+                state["caption"] = f"敕令已发: {len(selected)} 位大臣"
+
+            elif phase == CourtPhase.DELIBERATING:
+                minister = detail.get("minister", "")
+                status = detail.get("status", "")
+                if status == "started":
+                    state["ministers"][minister] = {"status": "started"}
+                elif status == "done":
+                    state["ministers"][minister] = {
+                        "status": "done",
+                        "confidence": detail.get("confidence"),
+                    }
+                elif status == "error":
+                    state["ministers"][minister] = {"status": "error"}
+                done_count = sum(
+                    1 for m in state["ministers"].values()
+                    if m.get("status") in ("done", "error")
+                )
+                total = detail.get("total", len(state["ministers"]))
+                state["caption"] = f"已完成: {done_count}/{total} 位大臣"
+
+            elif phase == CourtPhase.SYNTHESIZING:
+                state["caption"] = f"正在合议 {detail.get('memorial_count', 0)} 份奏疏…"
+
+            elif phase == CourtPhase.RECORDING:
+                state["caption"] = "正在记录功勋与归档…"
+
+            elif phase == CourtPhase.EVOLVING:
+                state["caption"] = f"自进化评估中… 距下次进化 {detail.get('decrees_until', '?')} 条"
+
+            elif phase == CourtPhase.COMPLETE:
+                state["caption"] = "谕旨已下。"
+
+            # Refresh the terminal
+            if live_ref[0] is not None:
+                live_ref[0].update(_build_court_live_panel(state))
+
+        start_time = time.monotonic()
+
+        with Live(
+            _build_court_live_panel(state),
             console=console,
-        ) as progress:
-            task = progress.add_task(
-                f"[cyan]朝堂议事中… 「{user_input[:40]}…」[/]", total=None
-            )
-            start_time = time.monotonic()
+            refresh_per_second=10,
+            transient=False,
+            vertical_overflow="visible",
+        ) as live:
+            live_ref[0] = live
 
             try:
-                decree = await emperor.receive_petition(user_input)
+                decree = await emperor.receive_petition(
+                    user_input, on_progress=on_progress,
+                )
             except Exception as e:
-                progress.stop()
                 console.print(f"[{STYLE_FAILURE}]朝议失败: {e}[/]")
                 continue
 
-            elapsed = (time.monotonic() - start_time) * 1000
-            progress.update(task, completed=True)
+        elapsed = (time.monotonic() - start_time) * 1000
 
-        # Display decree
+        # Display decree after live panel
         _display_decree(decree, elapsed)
         console.print()
 

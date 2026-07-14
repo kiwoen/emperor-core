@@ -20,7 +20,8 @@ import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Optional
+from enum import Enum, auto
+from typing import Any, Callable, Optional
 
 from jarvis.court.minister import (
     Edict,
@@ -34,6 +35,17 @@ from jarvis.court.evolution import SurvivalMechanism
 from jarvis.court.reflection import ReflectionConsensus
 
 logger = logging.getLogger("jarvis.court.emperor")
+
+
+class CourtPhase(Enum):
+    """Pipeline phases emitted via progress callback for live UIs."""
+    ANALYZING = auto()       # Scoring minister suitability
+    DISPATCHING = auto()     # Routing to selected ministers
+    DELIBERATING = auto()    # Ministers processing (per-minister granularity)
+    SYNTHESIZING = auto()    # Emperor weighing all memorials
+    RECORDING = auto()       # Archiving & merit updates
+    EVOLVING = auto()        # Auto-evolution cycle
+    COMPLETE = auto()        # Decree issued
 
 
 @dataclass
@@ -197,6 +209,7 @@ class ImperialCourt:
         self,
         intent: str,
         context: Optional[dict[str, Any]] = None,
+        on_progress: Optional[Callable[[CourtPhase, dict[str, Any]], None]] = None,
     ) -> Decree:
         """The Emperor receives a petition (user request) and returns a decree.
 
@@ -206,10 +219,22 @@ class ImperialCourt:
             3. Deliberate — ministers process independently (parallel)
             4. Synthesize — Emperor weighs all memorials and decides
             5. Record — archive for evolution tracking
+            6. MeritBoard update
+            7. Auto-evolution cycle
+
+        on_progress: optional callback for live UIs, receives (phase, detail).
+                     Called per-minister during DELIBERATING phase.
         """
         self._decree_count += 1
         decree_id = f"decree_{self._decree_count}_{uuid.uuid4().hex[:8]}"
         start = time.monotonic()
+
+        def _emit(phase: CourtPhase, **detail: Any) -> None:
+            if on_progress:
+                try:
+                    on_progress(phase, detail)
+                except Exception:
+                    pass
 
         logger.info(
             "[Emperor] Receiving petition: decree=%s intent='%s'",
@@ -218,7 +243,10 @@ class ImperialCourt:
 
         # ── Phase 1: Analyze ─────────────────────────────────────────
         scores = self.analyze_petition(intent)
+        _emit(CourtPhase.ANALYZING, scores=scores)
+
         if not scores:
+            _emit(CourtPhase.COMPLETE, decree_id=decree_id, success=False)
             return Decree(
                 decree_id=decree_id,
                 intent=intent,
@@ -245,9 +273,41 @@ class ImperialCourt:
             )
             edicts.append(edict)
 
-        # ── Phase 3: Parallel deliberation ───────────────────────────
+        _emit(CourtPhase.DISPATCHING, selected=selected, total=len(edicts))
+
+        # ── Phase 3: Parallel deliberation with per-minister reporting ─
+
+        async def _deliberate_one(edict: Edict) -> Memorial:
+            minister = self.ministers[edict.minister]
+            _emit(
+                CourtPhase.DELIBERATING,
+                minister=edict.minister,
+                status="started",
+                total=len(edicts),
+            )
+            try:
+                result = await minister.receive_edict(edict)
+            except Exception:
+                _emit(
+                    CourtPhase.DELIBERATING,
+                    minister=edict.minister,
+                    status="error",
+                    total=len(edicts),
+                )
+                raise
+            if isinstance(result, Memorial):
+                _emit(
+                    CourtPhase.DELIBERATING,
+                    minister=edict.minister,
+                    status="done",
+                    success=result.success,
+                    confidence=result.confidence,
+                    total=len(edicts),
+                )
+            return result
+
         memorials = await asyncio.gather(
-            *[self.ministers[e.minister].receive_edict(e) for e in edicts],
+            *[_deliberate_one(e) for e in edicts],
             return_exceptions=True,
         )
 
@@ -260,6 +320,11 @@ class ImperialCourt:
                 logger.warning("[Emperor] A minister failed: %s", m)
 
         # ── Phase 4: Synthesize decree ───────────────────────────────
+        _emit(
+            CourtPhase.SYNTHESIZING,
+            memorial_count=len(valid_memorials),
+            court_session=len(selected) > 1,
+        )
         decree = await self._synthesize(
             decree_id=decree_id,
             intent=intent,
@@ -268,18 +333,27 @@ class ImperialCourt:
             start_time=start,
         )
 
-        # ── Phase 5: Auto-ingest into KnowledgeGraph ─────────────────
+        # ── Phase 5-7: Record ─────────────────────────────────────────
         if self.knowledge_graph:
             await self._ingest_into_kg(decree)
 
-        # ── Phase 6: Record for evolution ──────────────────────────
         self._archive_decree(decree)
-
-        # ── Phase 7: Record in MeritBoard ────────────────────────────
         await self._record_merit(decree, selected)
 
+        _emit(
+            CourtPhase.RECORDING,
+            decree_id=decree_id,
+            ministers=selected,
+        )
+
         # ── Phase 8: Auto-evolution ───────────────────────────────────
+        _emit(CourtPhase.EVOLVING, decrees_until=(
+            self._evolution_interval - self._decrees_since_evolution
+        ))
         await self._run_evolution_if_needed()
+
+        # ── Complete ──────────────────────────────────────────────────
+        _emit(CourtPhase.COMPLETE, decree_id=decree_id, success=decree.success)
 
         logger.info(
             "[Emperor] Decree %s issued: success=%s confidence=%.2f ministers=%d",
