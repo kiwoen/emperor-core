@@ -27,7 +27,7 @@ from typing import Any, Optional
 # Add project root to path when running as module
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from rich.console import Console
+from rich.console import Console, Group
 from rich.table import Table
 from rich.panel import Panel
 from rich.layout import Layout
@@ -418,18 +418,32 @@ def _build_court_live_panel(state: dict) -> Table:
     return table
 
 
-async def interactive_court(emperor: Emperor) -> None:
-    """Run the interactive court session loop."""
-    print_banner()
-    console.print()
-    console.print(render_court_status(emperor))
-    console.print()
+def _print_mini_header(emperor: Emperor) -> None:
+    """Print a compact one-line header with key stats for the court loop."""
+    metrics = emperor.get_court_metrics() if emperor else {}
+
+    total = metrics.get("minister_count", 0)
+    active = len(metrics.get("evolution", {}).get("active", []))
+    decrees = metrics.get("decree_count", 0)
+
+    header_text = Text()
+    header_text.append("天子殿", style=Style(color="gold1", bold=True))
+    header_text.append("  |  ", style=STYLE_DIM)
+    header_text.append(f"大臣 {active}/{total}", style=Style(color="bright_magenta"))
+    header_text.append("  |  ", style=STYLE_DIM)
+    header_text.append(f"奏章 {decrees}", style=Style(color="bright_cyan"))
+    header_text.append("  |  ", style=STYLE_DIM)
+    header_text.append("/help 查看命令", style=STYLE_DIM)
 
     console.print(
-        "[bold]上奏规则:[/bold] 直接输入任务内容，或输入 [cyan]/help[/] 查看命令",
-        style=STYLE_DIM,
+        Panel(header_text, border_style=STYLE_BORDER, box=box.HEAVY_EDGE, padding=(0, 2))
     )
     console.print()
+
+
+async def interactive_court(emperor: Emperor) -> None:
+    """Run the interactive court session loop."""
+    _print_mini_header(emperor)
 
     while True:
         try:
@@ -461,6 +475,8 @@ async def interactive_court(emperor: Emperor) -> None:
                 console.print()
             elif cmd in ("help", "帮助"):
                 _print_help()
+            elif cmd in ("clear", "清屏", "cls"):
+                console.clear()
             elif cmd.startswith("info ") or cmd.startswith("详情 "):
                 name = cmd.split(maxsplit=1)[1] if " " in cmd else ""
                 panel = render_minister_detail(emperor, name)
@@ -568,37 +584,100 @@ async def interactive_court(emperor: Emperor) -> None:
 
 
 def _display_decree(decree, elapsed_ms: float) -> None:
-    """Render a decree result card."""
-    success_style = STYLE_SUCCESS if decree.success else STYLE_FAILURE
-    status_text = "✓ 准奏" if decree.success else "✗ 驳回"
+    """Render a decree with imperial-court aesthetic.
 
-    # Header
-    console.print(
-        Panel.fit(
-            f"[bold]{status_text}[/] · {decree.decree_id} "
-            f"[{STYLE_DIM}]耗时 {elapsed_ms:.0f}ms · 置信度 {decree.confidence:.1%}[/]",
-            border_style=success_style,
-            box=ROUNDED,
-        )
+    Uses classical Chinese court language: 准奏/驳回, 钦此, 议事大臣 titles.
+    """
+    success_style = STYLE_SUCCESS if decree.success else STYLE_FAILURE
+    verdict = "准奏" if decree.success else "驳回"
+
+    # ── Header: vermilion-seal style ────────────────────────────────
+    now = datetime.now(timezone.utc)
+    # Fictional reign year: 天演 (Celestial Evolution)
+    reign_year = now.year - 2024  # project started 2024
+    month_cn = f"{now.month:02d}"
+    day_cn = f"{now.day:02d}"
+
+    header_text = Text()
+    header_text.append(" 【", style=STYLE_DIM)
+    header_text.append("御批", style=Style(color="red", bold=True))
+    header_text.append("】", style=STYLE_DIM)
+    header_text.append(f" · {verdict}", style=success_style)
+    header_text.append(
+        f"    {decree.decree_id}",
+        style=Style(color="grey50"),
     )
 
-    # Output
+    sub_text = Text()
+    sub_text.append(
+        f"承奏于 天演{reign_year}年{month_cn}月{day_cn}日",
+        style=STYLE_DIM,
+    )
+    sub_text.append(
+        f"    用时 {elapsed_ms:.0f}ms · 信度 {decree.confidence:.1%}",
+        style=Style(color="grey66"),
+    )
+
+    header_panel = Panel(
+        Group(header_text, sub_text),
+        border_style=success_style,
+        box=box.HEAVY_EDGE,
+        padding=(0, 1),
+    )
+    console.print(header_panel)
+
+    # ── Body: the decree content ─────────────────────────────────────
     if decree.output:
-        console.print(Panel(decree.output, title="[bold]谕旨[/]", border_style=STYLE_BORDER))
+        # Build the decree body with "钦此" closing
+        body_lines: list[Text] = []
+        for line in decree.output.strip().split("\n"):
+            body_lines.append(Text(line))
 
-    # Ministers consulted
+        body_lines.append(Text(""))  # spacer
+        closing = Text()
+        closing.append("钦此", style=Style(color="gold1", italic=True))
+        closing.align("right", width=None)
+        body_lines.append(closing)
+
+        body_panel = Panel(
+            Group(*body_lines),
+            title=Text("【谕旨】", style=Style(color="bright_yellow", bold=True)),
+            title_align="center",
+            border_style=STYLE_BORDER,
+            box=box.HEAVY_EDGE,
+            padding=(1, 2),
+        )
+        console.print(body_panel)
+
+    # ── Footer: ministers + metadata ─────────────────────────────────
+    footer_items: list[Text] = []
+
     if decree.ministers_consulted:
-        minister_list = " · ".join(decree.ministers_consulted)
-        console.print(f"[{STYLE_DIM}]议事大臣: {minister_list}[/]")
+        # Use classical title format: 丞相·司徒, 工部尚书·司空
+        titled = "   ·   ".join(decree.ministers_consulted)
+        minister_line = Text()
+        minister_line.append("议事大臣：", style=Style(color="grey66"))
+        minister_line.append(titled, style=STYLE_INFO)
+        footer_items.append(minister_line)
 
-    # Dissenting opinions
-    if decree.dissenting_opinions:
-        console.print(f"[{STYLE_WARNING}]异议: {'; '.join(decree.dissenting_opinions)}[/]")
-
-    # Court session indicator
     if decree.court_session:
-        console.print(f"[{STYLE_INFO}]⚖ 朝堂合议 (三省合议)[/]")
+        cs_line = Text()
+        cs_line.append("⚖  ", style=Style(color="bright_magenta"))
+        cs_line.append("朝堂合议（三省合议）", style=Style(color="bright_magenta"))
+        footer_items.append(cs_line)
 
+    if decree.dissenting_opinions:
+        dissent_line = Text()
+        dissent_line.append("⚠  ", style=STYLE_WARNING)
+        dissent_line.append("异议：", style=STYLE_WARNING)
+        dissent_line.append("；".join(decree.dissenting_opinions), style=STYLE_WARNING)
+        footer_items.append(dissent_line)
+
+    for item in footer_items:
+        console.print(item)
+
+    # ── Closing rule ─────────────────────────────────────────────────
+    console.print("─" * 60, style=STYLE_DIM)
     console.print()
 
 
@@ -612,6 +691,7 @@ def _print_help() -> None:
     help_table.add_row("/ranking 或 /功勋榜", "显示功勋排行")
     help_table.add_row("/history 或 /进化", "显示进化历史记录")
     help_table.add_row("/info <大臣名> 或 /详情", "查看某大臣详细信息")
+    help_table.add_row("/clear 或 /清屏", "清空屏幕")
     help_table.add_row("/quit 或 /退朝", "退出朝堂")
     help_table.add_row("[直接输入任务]", "向天子递交奏章，启动大臣议事")
 
