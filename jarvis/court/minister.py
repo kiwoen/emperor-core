@@ -130,6 +130,9 @@ class Minister:
         self._knowledge_graph: Optional[Any] = knowledge_graph
         # Transient KG context for current dispatch
         self._kg_context: str = ""
+        # Genome-injection: evolvable genome + injector bridge
+        self._genome: Optional[Any] = None       # MinisterGenome 实例或 dict
+        self._genome_injector: Optional[Any] = None  # GenomeInjector 实例
 
     def set_provider(self, provider: Any) -> None:
         """Inject a real model provider (called by ProviderRegistry)."""
@@ -138,6 +141,28 @@ class Minister:
     def set_knowledge_graph(self, kg: Any) -> None:
         """Inject a KnowledgeGraph for context-aware reasoning."""
         self._knowledge_graph = kg
+
+    def set_genome(self, genome: Any) -> None:
+        """Set the evolvable genome for LLM parameter injection.
+
+        genome can be a MinisterGenome instance or a dict with keys:
+        temperature, confidence_baseline, exploration_rate, conservatism,
+        specialization_weight, prompt_mutation_rate.
+        """
+        self._genome = genome
+
+    def set_genome_injector(self, injector: Any) -> None:
+        """Set the GenomeInjector that maps genome → GenerationParams.
+
+        The injector is called within _try_real_model() to transform
+        genome traits into provider-level parameters.
+        """
+        self._genome_injector = injector
+
+    @property
+    def genome(self) -> Optional[Any]:
+        """Return the current genome (MinisterGenome or dict)."""
+        return self._genome
 
     @property
     def has_real_model(self) -> bool:
@@ -165,6 +190,11 @@ class Minister:
         """Attempt to use the real model provider.
 
         Returns (output, confidence) on success, None if unavailable or error.
+
+        When both _genome and _genome_injector are set, genome traits
+        (temperature, exploration_rate, conservatism, etc.) are mapped
+        into GenerationParams before the call, and confidence_baseline
+        is applied as a post-call modifier.
         """
         if self._provider is None:
             return None
@@ -177,9 +207,35 @@ class Minister:
                 system_prompt=system,
                 temperature=self._current_temperature,
             )
+
+            # ── Genome injection ──────────────────────────────────
+            injection_result = None
+            if self._genome is not None and self._genome_injector is not None:
+                try:
+                    injection_result = self._genome_injector.inject(
+                        self._genome, base_params=params,
+                    )
+                    params = injection_result.params
+                    logger.debug(
+                        "[%s] Genome injected: T=%.3f top_p=%.3f "
+                        "freq_pen=%.3f pres_pen=%.3f max_tok=%d",
+                        self.name,
+                        params.temperature,
+                        params.extra.get("top_p", -1),
+                        params.extra.get("frequency_penalty", 0),
+                        params.extra.get("presence_penalty", 0),
+                        params.max_tokens,
+                    )
+                except Exception as e:
+                    logger.debug("[%s] Genome injection skipped: %s", self.name, e)
+
             response = await self._provider.generate(edict.intent, params)
             if response is not None:
-                return response.text, response.confidence
+                # Apply genome confidence modifier
+                confidence = response.confidence
+                if injection_result is not None:
+                    confidence = min(1.0, confidence * injection_result.confidence_modifier)
+                return response.text, confidence
         except Exception as e:
             logger.warning(
                 "[%s] Real model call failed, falling back to mock: %s",
