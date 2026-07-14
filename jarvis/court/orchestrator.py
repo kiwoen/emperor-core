@@ -55,6 +55,13 @@ from jarvis.court.emperor import (
     ImperialCourt,
     Memorial,
 )
+from jarvis.court.evolution import (
+    EliteTurnoverMode,
+    EvolutionRateMode,
+    SurvivalMechanism as Survival,
+    TaskContext,
+    TaskDifficulty,
+)
 from jarvis.court.routing import IntelligentRouter, RoutingStrategy
 from jarvis.court.calibration import ConfidenceCalibrator
 from jarvis.court.memory import CourtMemory, QueryResult, memory_from_memorial
@@ -177,6 +184,17 @@ class CourtOrchestrator(ImperialCourt):
             lambda m: self._compute_memory_boost(m, domain)
         )
 
+        # Inject task context into evolution engine for adaptive rates
+        difficulty = self._infer_difficulty(domain, self._last_intent or "")
+        if hasattr(self.survival, "set_task_context"):
+            self.survival.set_task_context(
+                TaskContext(
+                    difficulty=difficulty,
+                    domain=domain,
+                    intent=self._last_intent or "",
+                )
+            )
+
         # Use router for selection
         count = min(top_n, len(available))
         plan = self.router.route(
@@ -216,6 +234,58 @@ class CourtOrchestrator(ImperialCourt):
         }
         top = max(scores, key=scores.get)
         return domain_map.get(top, "general")
+
+    def _infer_difficulty(self, domain: str, intent: str) -> TaskDifficulty:
+        """Infer task difficulty from domain, intent, and memory hits.
+
+        Signals:
+            - Novel domain (no memory) → HARD (exploration needed)
+            - Complex intent keywords → HARD
+            - Memory hit rate > 0.6 → EASY (well-trodden path)
+            - Default → MODERATE
+        """
+        intent_lower = (intent or "").lower()
+
+        # Check memory hit rate for this domain+intent
+        hit_rate = 0.0
+        if self.memory is not None:
+            try:
+                results = self.memory.query(
+                    domain=domain, intent=intent, top_k=5,
+                )
+                if results:
+                    success_rate = sum(
+                        1 for r in results if r.entry.success
+                    ) / len(results)
+                    hit_rate = min(len(results) / 5.0, 1.0) * success_rate
+            except Exception:
+                pass
+
+        # Complex intent keywords → HARD
+        complex_keywords = [
+            "分析", "优化", "重构", "漏洞", "安全审计", "架构",
+            "迁移", "调试", "反编译", "逆向", "对比", "多维度",
+            "analyze", "optimize", "refactor", "audit", "migrate",
+        ]
+        is_complex = any(kw in intent_lower for kw in complex_keywords)
+
+        # Novel domain (no memory at all) → HARD
+        novel_domain = False
+        if self.memory is not None and domain not in self.memory.domains:
+            novel_domain = True
+
+        if novel_domain and is_complex:
+            return TaskDifficulty.HARD
+        elif novel_domain or is_complex:
+            return TaskDifficulty.HARD
+        elif hit_rate > 0.7:
+            return TaskDifficulty.TRIVIAL
+        elif hit_rate > 0.4:
+            return TaskDifficulty.EASY
+        elif hit_rate > 0.15:
+            return TaskDifficulty.MODERATE
+        else:
+            return TaskDifficulty.HARD
 
     def _ensure_router_providers(self) -> None:
         """Wire router providers from current court state.

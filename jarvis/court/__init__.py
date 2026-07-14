@@ -39,25 +39,33 @@ from jarvis.court.diversity import (
     DiversitySnapshot,
 )
 from jarvis.court.evolution import (
+    AdaptiveRateConfig,
     CrossoverMode,
+    EliteTurnoverMode,
     EvolutionAction,
     EvolutionEvent,
+    EvolutionRateMode,
     EvolutionReport,
     MinisterGenome,
     MinisterStatus,
     SurvivalMechanism,
+    TaskContext,
+    TaskDifficulty,
 )
 
 __all__ = [
+    "AdaptiveRateConfig",
     "CatastropheReport",
     "CourtPhase",
     "Decree",
     "DiversityMonitor",
     "DiversitySnapshot",
     "Edict",
+    "EliteTurnoverMode",
     "Emperor",
     "EvolutionAction",
     "EvolutionEvent",
+    "EvolutionRateMode",
     "EvolutionReport",
     "ImperialCourt",
     "CourtRecord",
@@ -70,5 +78,7 @@ __all__ = [
     "MinisterStatus",
     "ExperienceRecord",
     "SurvivalMechanism",
+    "TaskContext",
+    "TaskDifficulty",
     "create_ministers",
 ]

@@ -76,6 +76,71 @@ class EliteTurnoverMode(Enum):
     ADAPTIVE = auto()
 
 
+class TaskDifficulty(Enum):
+    """Task difficulty tiers driving adaptive evolution rates.
+
+    Higher difficulty → more aggressive exploration (higher mutation,
+    lower crossover η).  The orchestrator infers difficulty from
+    intent complexity, domain novelty, and memory hit rate.
+    """
+    TRIVIAL = auto()   # 已知领域、已有记忆 → 几乎不变异
+    EASY = auto()      # 常规任务 → 低变异高保守
+    MODERATE = auto()  # 默认平衡
+    HARD = auto()      # 复杂意图/新领域 → 高探索
+    CRISIS = auto()    # 种群多样性崩溃后 → 极限探索
+
+
+class EvolutionRateMode(Enum):
+    """How mutation scale and crossover η are determined each cycle.
+
+    FIXED:     Use constant MUTATION_SCALE and SBX_ETA.
+    ADAPTIVE:  Compute rates from TaskDifficulty + diversity signal.
+    """
+    FIXED = auto()
+    ADAPTIVE = auto()
+
+
+@dataclass
+class TaskContext:
+    """Context passed from orchestrator to evolution engine per cycle.
+
+    Used in ADAPTIVE rate mode to bias exploration/exploitation.
+    """
+    difficulty: TaskDifficulty = TaskDifficulty.MODERATE
+    domain: str = ""
+    intent: str = ""
+
+
+@dataclass
+class AdaptiveRateConfig:
+    """Maps TaskDifficulty → (mutation_scale, sbx_eta) base values.
+
+    These are blended with the diversity signal in ADAPTIVE mode.
+    The effective rate = difficulty_base × diversity_factor.
+    """
+    mutation_scales: dict[TaskDifficulty, float] = field(default_factory=lambda: {
+        TaskDifficulty.TRIVIAL:  0.15,
+        TaskDifficulty.EASY:     0.40,
+        TaskDifficulty.MODERATE: 1.00,
+        TaskDifficulty.HARD:     2.20,
+        TaskDifficulty.CRISIS:   4.00,
+    })
+    crossover_etas: dict[TaskDifficulty, float] = field(default_factory=lambda: {
+        TaskDifficulty.TRIVIAL:  60.0,
+        TaskDifficulty.EASY:     40.0,
+        TaskDifficulty.MODERATE: 15.0,
+        TaskDifficulty.HARD:     6.0,
+        TaskDifficulty.CRISIS:   2.5,
+    })
+    # Diversity blend weight: 0 = pure task difficulty, 1 = pure diversity
+    diversity_blend: float = 0.30
+    # Clamp ranges
+    min_mutation_scale: float = 0.05
+    max_mutation_scale: float = 6.00
+    min_crossover_eta: float = 2.0
+    max_crossover_eta: float = 100.0
+
+
 @dataclass
 class EvolutionEvent:
     """A recorded evolution action for audit trail."""
@@ -163,6 +228,13 @@ class SurvivalMechanism:
     MAX_ELITES = 5          # Absolute ceiling — never protect more than 5
     # ─────────────────────────────────────────────────────────────────
 
+    # ── Adaptive Evolution Rate ─────────────────────────────────────
+    # When RATE_MODE is ADAPTIVE, mutation_scale and sbx_eta are computed
+    # per cycle from TaskDifficulty + diversity blend.  When FIXED, the
+    # classic MUTATION_SCALE / SBX_ETA constants are used.
+    RATE_MODE: EvolutionRateMode = EvolutionRateMode.ADAPTIVE
+    # ─────────────────────────────────────────────────────────────────
+
     # Probability of using crossover (vs clone-mutate) when filling vacancies
     CROSSOVER_RATE = 0.6
 
@@ -184,6 +256,8 @@ class SurvivalMechanism:
         turnover_mode: EliteTurnoverMode = TURNOVER_MODE,
         min_elites: int = MIN_ELITES,
         max_elites: int = MAX_ELITES,
+        rate_mode: EvolutionRateMode = RATE_MODE,
+        rate_config: Optional[AdaptiveRateConfig] = None,
     ) -> None:
         self._merit_board = merit_board
         self._registry = minister_registry or {}
@@ -208,6 +282,13 @@ class SurvivalMechanism:
         # Diversity monitoring — detects population monoculture
         self.diversity = DiversityMonitor()
         self._catastrophe_cooldown_cycles = 0
+
+        # Adaptive evolution rate
+        self._rate_mode = rate_mode
+        self._rate_config = rate_config or AdaptiveRateConfig()
+        self._task_context = TaskContext()  # updated per cycle by orchestrator
+        self._effective_mutation_scale = self._mutation_scale
+        self._effective_sbx_eta = self._sbx_eta
 
     # ------------------------------------------------------------------
     # Registration
@@ -244,6 +325,64 @@ class SurvivalMechanism:
     # Evolution cycle
     # ------------------------------------------------------------------
 
+    def set_task_context(self, ctx: TaskContext) -> None:
+        """Update the task context for the upcoming evolution cycle.
+
+        Called by CourtOrchestrator before each dispatch to inject
+        intent-level difficulty signals into the evolution engine.
+        """
+        self._task_context = ctx
+
+    def _compute_adaptive_rates(self) -> None:
+        """Compute effective mutation_scale and sbx_eta for this cycle.
+
+        ADAPTIVE mode blends two signals:
+            1. TaskDifficulty → base (mutation_scale, sbx_eta) from config
+            2. Diversity → factor that pushes toward exploration when
+               diversity is low, conservatism when high.
+
+        FIXED mode: no-op, keeps the classic constants.
+        """
+        if self._rate_mode != EvolutionRateMode.ADAPTIVE:
+            return
+
+        cfg = self._rate_config
+        diff = self._task_context.difficulty
+        base_mut = cfg.mutation_scales.get(diff, 1.0)
+        base_eta = cfg.crossover_etas.get(diff, 15.0)
+
+        # Diversity blend: low diversity → more exploration
+        try:
+            d_score = self.diversity.get_latest_score()
+        except Exception:
+            d_score = 0.5
+
+        # d_factor ∈ [0.3, 1.7]:  low diversity pushes factor > 1
+        # (multiplies mutation, divides eta), high diversity pulls < 1
+        d_factor = max(0.3, min(1.7, 1.0 + (0.3 - d_score) * 1.4))
+        blend = cfg.diversity_blend
+        blended = 1.0 + (d_factor - 1.0) * blend
+
+        eff_mut = base_mut * blended
+        eff_eta = base_eta / max(0.3, blended)
+
+        self._effective_mutation_scale = max(
+            cfg.min_mutation_scale,
+            min(cfg.max_mutation_scale, eff_mut),
+        )
+        self._effective_sbx_eta = max(
+            cfg.min_crossover_eta,
+            min(cfg.max_crossover_eta, eff_eta),
+        )
+
+        logger.debug(
+            "Adaptive rates — difficulty=%s, diversity=%.3f, "
+            "eff_mut=%.3f, eff_eta=%.1f",
+            diff.name, d_score,
+            self._effective_mutation_scale,
+            self._effective_sbx_eta,
+        )
+
     def run_evolution_cycle(self) -> EvolutionReport:
         """Execute one complete evolution cycle.
 
@@ -253,6 +392,9 @@ class SurvivalMechanism:
         actions: list[EvolutionEvent] = []
         systemic_issues: list[str] = []
         recommendations: list[str] = []
+
+        # Compute adaptive evolution rates before any genomic ops
+        self._compute_adaptive_rates()
 
         if self._turnover_mode == EliteTurnoverMode.ADAPTIVE:
             self._current_elite_count = self._adaptive_elite_count()
@@ -934,8 +1076,8 @@ class SurvivalMechanism:
 
         domain = better_parent.domain
 
-        temp_jitter = random.uniform(-0.05, 0.05) * self._mutation_scale
-        conf_jitter = random.uniform(-0.03, 0.03) * self._mutation_scale
+        temp_jitter = random.uniform(-0.05, 0.05) * self._effective_mutation_scale
+        conf_jitter = random.uniform(-0.03, 0.03) * self._effective_mutation_scale
 
         return MinisterGenome(
             name=child_name,
@@ -965,7 +1107,7 @@ class SurvivalMechanism:
         Produces offspring that is a smooth blend between parents,
         with higher η_c → offspring closer to parents.
         """
-        eta = self._sbx_eta
+        eta = self._effective_sbx_eta
 
         def _sbx_gene(v1: float, v2: float, lo: float, hi: float) -> float:
             """Apply SBX to a single gene value."""
@@ -1035,7 +1177,7 @@ class SurvivalMechanism:
         - Exploration rate: flip with 30% chance
         - Prompt mutation rate: slight increase each generation
         """
-        scale = self._mutation_scale
+        scale = self._effective_mutation_scale
         temp_delta = random.uniform(-0.15, 0.15) * scale
         conf_delta = random.uniform(-0.08, 0.08) * scale
 
@@ -1131,7 +1273,7 @@ class SurvivalMechanism:
 
         # ── Signal 1: Diversity ──────────────────────────────────────
         try:
-            d_score = self.diversity.get_diversity_score()
+            d_score = self.diversity.get_latest_score()
         except Exception:
             d_score = 0.5
         # When diversity is low (<0.3), we want MORE elite protection.
