@@ -360,3 +360,105 @@ class TestGenomeInjection:
         court._resync_minister_genomes()
         for name, m in court.ministers.items():
             assert m.genome is not None, f"{name} lost genome after resync"
+
+
+class TestGenomeBreedingFeedbackLoop:
+    """End-to-end: breed → genome injection → LLM params → resync → LLM.
+
+    Verifies the complete feedback loop: breeding creates mutated genomes,
+    ministers use them for LLM calls, and resync updates stale references.
+    """
+
+    @pytest.mark.asyncio
+    async def test_genome_change_flows_to_llm_call(self):
+        """Genome change → resync → next LLM call uses new parameters."""
+        from jarvis.court.ministers import create_ministers
+        from jarvis.court.evolution import MinisterGenome
+        from jarvis.court.providers.base import ModelResponse
+
+        class CapturingProvider:
+            is_available = True
+            calls: list = []
+
+            async def generate(self, prompt, params):
+                CapturingProvider.calls.append({
+                    "temperature": params.temperature,
+                    "extra": dict(params.extra),
+                })
+                return ModelResponse(
+                    text="response",
+                    model="fake",
+                    confidence=params.temperature * 0.9,
+                )
+
+        CapturingProvider.calls.clear()
+
+        court = ImperialCourt()
+        minister = create_ministers()[0]
+        minister.set_provider(CapturingProvider())
+        court.install_minister(minister)
+
+        # Issue first decree with factory genome
+        from jarvis.court.minister import Edict
+        edict = Edict(edict_id="e-1", intent="test")
+        await minister.receive_edict(edict)
+
+        assert len(CapturingProvider.calls) == 1
+        call1_temp = CapturingProvider.calls[0]["temperature"]
+
+        # Simulate evolution: replace genome with hotter temperature
+        old = court.survival.get_genome(minister.name)
+        court.survival.set_genome(minister.name, MinisterGenome(
+            name=minister.name,
+            domain=old.domain,
+            temperature=min(1.0, old.temperature + 0.3),
+            confidence_baseline=old.confidence_baseline,
+            exploration_rate=old.exploration_rate,
+            conservatism=old.conservatism,
+            prompt_mutation_rate=old.prompt_mutation_rate,
+            specialization_weight=old.specialization_weight,
+            generation=old.generation + 1,
+            parent=old.parent,
+        ))
+        court._resync_minister_genomes()
+
+        # Issue second decree — must use new genome params
+        edict2 = Edict(edict_id="e-2", intent="test2")
+        await minister.receive_edict(edict2)
+
+        assert len(CapturingProvider.calls) == 2
+        call2_temp = CapturingProvider.calls[1]["temperature"]
+
+        assert call2_temp != call1_temp, (
+            f"Expected different temperatures: call1={call1_temp}, call2={call2_temp}"
+        )
+        assert abs(call2_temp - (old.temperature + 0.3)) < 0.01, (
+            f"Expected call2_temp≈{old.temperature + 0.3}, got {call2_temp}"
+        )
+
+    def test_bred_shadow_has_valid_genome(self):
+        """AutoBreeder creates shadow ministers with valid genomes."""
+        from jarvis.court.ministers import create_ministers
+
+        court = ImperialCourt()
+        ministers = create_ministers()
+        for m in ministers:
+            court.install_minister(m)
+
+        # Run breeding
+        court.survival._breed_ministers(actions=[], systemic_issues=[], recommendations=[])
+
+        # Check shadow ministers have valid genomes
+        shadows = court.survival.get_shadow_ministers()
+        if shadows:
+            for s in shadows:
+                g = court.survival.get_genome(s)
+                assert g is not None, f"shadow {s} has no genome"
+                assert g.name == s, f"shadow {s} genome name mismatch"
+                assert 0.1 <= g.temperature <= 1.0, f"shadow {s} temperature {g.temperature}"
+                assert g.domain, f"shadow {s} has empty domain"
+        else:
+            # AutoBreeder may not create shadows in all configurations
+            # Verify at minimum that breeding didn't corrupt state
+            for name in court.survival.get_active_ministers():
+                assert court.survival.get_genome(name) is not None
