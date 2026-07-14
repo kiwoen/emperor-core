@@ -540,6 +540,9 @@ class ImperialCourt:
 
         The SurvivalMechanism evaluates ministers and may promote/demote,
         clone top performers, or eliminate underperformers.
+
+        After the cycle, re-injects updated genomes into Minister objects
+        so that mutations/breeding actually affect the next LLM call.
         """
         self._decrees_since_evolution += 1
         if self._decrees_since_evolution < self._evolution_interval:
@@ -556,8 +559,25 @@ class ImperialCourt:
                     event.previous_merit,
                     event.new_merit,
                 )
+
+            # Re-sync: evolution may have mutated/cloned/replaced genomes.
+            # Push the latest genome back into each active Minister object.
+            self._resync_minister_genomes()
         except Exception:
             logger.debug("[Emperor] Evolution cycle skipped (non-critical)")
+
+    def _resync_minister_genomes(self) -> None:
+        """Push the latest genome from SurvivalMechanism to each Minister.
+
+        Evolution creates new genome objects（mutation, crossover, breeding）
+        and replaces them in SurvivalMechanism._genomes. Without re-injection,
+        the Minister holds a stale reference and the next LLM call uses the
+        old genome parameters.
+        """
+        for name, minister in self.ministers.items():
+            genome = self.survival.get_genome(name)
+            if genome is not None:
+                self.survival.apply_genome_to_minister(minister, genome)
 
     # ------------------------------------------------------------------
     # Feedback loop

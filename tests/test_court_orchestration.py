@@ -311,3 +311,52 @@ class TestGenomeInjection:
         assert g2 is not None
         # Same minister, same genome reference after re-registration
         assert g2.name == first.name
+
+    def test_resync_after_evolution_mutation(self):
+        """After evolution mutates genomes, resync pushes updated values to minister."""
+        from jarvis.court.ministers import create_ministers
+        from jarvis.court.evolution import MinisterGenome
+
+        court = ImperialCourt()
+        minister = create_ministers()[0]
+        court.install_minister(minister)
+
+        original_temp = minister.genome.temperature
+
+        # Simulate evolution: replace genome with a mutated copy (higher temp)
+        old_genome = court.survival.get_genome(minister.name)
+        mutated = MinisterGenome(
+            name=minister.name,
+            domain=old_genome.domain,
+            temperature=min(1.0, original_temp + 0.2),
+            confidence_baseline=old_genome.confidence_baseline,
+            exploration_rate=old_genome.exploration_rate,
+            conservatism=old_genome.conservatism,
+            prompt_mutation_rate=old_genome.prompt_mutation_rate,
+            specialization_weight=old_genome.specialization_weight,
+            generation=old_genome.generation + 1,
+            parent=old_genome.parent,
+        )
+        court.survival._genomes[minister.name] = mutated
+
+        # Before resync, minister still holds old genome
+        assert minister.genome.temperature == original_temp
+
+        # After resync, minister gets the mutated genome
+        court._resync_minister_genomes()
+        assert minister.genome.temperature == mutated.temperature
+        assert minister.genome.temperature != original_temp
+
+    def test_resync_only_updates_minister_with_genome(self):
+        """resync skips ministers without genomes in SurvivalMechanism."""
+        from jarvis.court.ministers import create_ministers
+
+        court = ImperialCourt()
+        ministers = create_ministers()
+        for m in ministers:
+            court.install_minister(m)
+
+        # All ministers have genomes after install
+        court._resync_minister_genomes()
+        for name, m in court.ministers.items():
+            assert m.genome is not None, f"{name} lost genome after resync"
