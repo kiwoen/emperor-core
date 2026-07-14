@@ -30,6 +30,10 @@ This is the "master controller" that wires all intelligence modules together:
       └─ Phase 7: Evolution ──────────────────────────────────
           same as ImperialCourt (DiversityMonitor, SBX, etc.)
 
+      └─ Phase 8: Memory ────────────────────────────────────
+          CourtMemory.record() each memorial outcome
+          CourtMemory.apply_decay() periodically
+
 Usage:
     court = CourtOrchestrator()
     court.install_ministers_from_factory()
@@ -53,6 +57,7 @@ from jarvis.court.emperor import (
 )
 from jarvis.court.routing import IntelligentRouter, RoutingStrategy
 from jarvis.court.calibration import ConfidenceCalibrator
+from jarvis.court.memory import CourtMemory, memory_from_memorial
 from jarvis.court.merit_board import MeritBoard
 from jarvis.court.evolution import SurvivalMechanism
 from jarvis.court.reflection import ReflectionConsensus
@@ -73,6 +78,7 @@ class CourtOrchestrator(ImperialCourt):
     New public API:
         get_calibrator()        → ConfidenceCalibrator instance
         get_router()            → IntelligentRouter instance
+        get_memory()            → CourtMemory instance
         get_domain_expertise()  → minister → domain mapping
     """
 
@@ -100,6 +106,7 @@ class CourtOrchestrator(ImperialCourt):
         # ── New intelligence modules ──
         self.calibrator = ConfidenceCalibrator()
         self.router = IntelligentRouter(strategy=routing_strategy)
+        self.memory = CourtMemory()
 
         # Routed plan for current decree (kept for feedback)
         self._current_routing_plan = None
@@ -117,6 +124,10 @@ class CourtOrchestrator(ImperialCourt):
     def get_router(self) -> IntelligentRouter:
         """Access the IntelligentRouter for inspection/testing."""
         return self.router
+
+    def get_memory(self) -> CourtMemory:
+        """Access the CourtMemory for inspection/testing."""
+        return self.memory
 
     def set_routing_strategy(self, strategy: RoutingStrategy) -> None:
         """Change the routing strategy dynamically."""
@@ -341,6 +352,9 @@ class CourtOrchestrator(ImperialCourt):
         # ── Step 3: Router usage age ──
         self._router_post_cycle()
 
+        # ── Step 4: Memory recording (Phase 8) ──
+        self._record_to_memory(decree, selected_ministers)
+
     def _record_calibration_feedback(
         self, decree: Decree, selected_ministers: list[str]
     ) -> None:
@@ -388,6 +402,44 @@ class CourtOrchestrator(ImperialCourt):
         self.router.reset_usage()
 
     # ------------------------------------------------------------------
+    # Phase 8: Memory Recording
+    # ------------------------------------------------------------------
+
+    def _record_to_memory(
+        self, decree: Decree, selected_ministers: list[str]
+    ) -> None:
+        """Record each memorial outcome to CourtMemory.
+
+        Creates a MemoryEntry per minister selected for this decree,
+        tagging the domain and outcome for future similarity queries.
+        """
+        domain = self._current_domain
+        intent = self._last_intent or ""
+
+        for name in selected_ministers:
+            matching = [
+                m for m in decree.memorials
+                if m.minister == name
+            ]
+            if not matching:
+                continue
+
+            memorial = matching[0]
+            merit = 0.0
+
+            entry = memory_from_memorial(
+                minister_name=name,
+                edict_id=memorial.edict_id,
+                domain=domain,
+                intent=intent,
+                success=memorial.success,
+                confidence=memorial.confidence,
+                execution_time_ms=memorial.execution_time_ms,
+                merit=merit,
+            )
+            self.memory.record(entry)
+
+    # ------------------------------------------------------------------
     # Override: pass intent to orchestrator
     # ------------------------------------------------------------------
 
@@ -422,6 +474,8 @@ class CourtOrchestrator(ImperialCourt):
         base["calibration"] = cal_summary
         base["router_usage"] = router_stats
         base["routing_strategy"] = self.router.strategy.name
+        base["memory_entries"] = self.memory.entry_count
+        base["memory_domains"] = self.memory.domains
 
         return base
 
@@ -470,6 +524,9 @@ class SmartEmperor:
 
     def get_router(self) -> IntelligentRouter:
         return self._court.router
+
+    def get_memory(self) -> CourtMemory:
+        return self._court.memory
 
     def set_routing_strategy(self, strategy: RoutingStrategy) -> None:
         self._court.set_routing_strategy(strategy)
