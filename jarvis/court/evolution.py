@@ -35,6 +35,11 @@ from jarvis.court.diversity import (  # noqa: E402
     DiversityMonitor,
     DiversitySnapshot,
 )
+from jarvis.court.sliding_merit import (  # noqa: E402
+    SlidingMeritBoard,
+    WindowMode,
+)
+from jarvis.court.merit_board import MeritBoard  # noqa: E402
 
 
 class MinisterStatus(Enum):
@@ -235,6 +240,16 @@ class SurvivalMechanism:
     RATE_MODE: EvolutionRateMode = EvolutionRateMode.ADAPTIVE
     # ─────────────────────────────────────────────────────────────────
 
+    # ── Sliding Merit Window ────────────────────────────────────────
+    # When ENABLE_SLIDING_MERIT is True and merit_board is a MeritBoard
+    # (not already a SlidingMeritBoard), the SurvivalMechanism auto-wraps
+    # it in SlidingMeritBoard on startup.  This makes merit evaluation
+    # responsive to RECENT performance instead of lifetime averages.
+    ENABLE_SLIDING_MERIT = True
+    SLIDING_WINDOW_SIZE = 50       # dispatches to consider
+    SLIDING_WINDOW_MODE: WindowMode = WindowMode.HARD_CUTOFF
+    # ─────────────────────────────────────────────────────────────────
+
     # Probability of using crossover (vs clone-mutate) when filling vacancies
     CROSSOVER_RATE = 0.6
 
@@ -258,7 +273,27 @@ class SurvivalMechanism:
         max_elites: int = MAX_ELITES,
         rate_mode: EvolutionRateMode = RATE_MODE,
         rate_config: Optional[AdaptiveRateConfig] = None,
+        enable_sliding_merit: bool = ENABLE_SLIDING_MERIT,
+        sliding_window_size: int = SLIDING_WINDOW_SIZE,
+        sliding_window_mode: WindowMode = SLIDING_WINDOW_MODE,
     ) -> None:
+        # ── Sliding merit: auto-wrap if enabled and board is plain MeritBoard ──
+        if (
+            enable_sliding_merit
+            and isinstance(merit_board, MeritBoard)
+            and not isinstance(merit_board, SlidingMeritBoard)
+        ):
+            logger.info(
+                "Wrapping MeritBoard in SlidingMeritBoard "
+                "(window=%d, mode=%s)",
+                sliding_window_size, sliding_window_mode.name,
+            )
+            merit_board = SlidingMeritBoard(
+                merit_board,
+                window_size=sliding_window_size,
+                mode=sliding_window_mode,
+            )
+
         self._merit_board = merit_board
         self._registry = minister_registry or {}
         self._statuses: dict[str, MinisterStatus] = {}
@@ -1391,6 +1426,18 @@ class SurvivalMechanism:
     def get_turnover_mode(self) -> EliteTurnoverMode:
         """Return the current elite turnover strategy."""
         return self._turnover_mode
+
+    def get_sliding_merit_board(self) -> Optional[Any]:
+        """Return the SlidingMeritBoard if active, else None."""
+        if isinstance(self._merit_board, SlidingMeritBoard):
+            return self._merit_board
+        return None
+
+    def get_raw_merit_board(self) -> Optional[Any]:
+        """Return the underlying MeritBoard (unwraps SlidingMeritBoard if present)."""
+        if isinstance(self._merit_board, SlidingMeritBoard):
+            return self._merit_board.board
+        return self._merit_board
 
     def apply_genome_to_minister(self, minister: Any, genome: MinisterGenome) -> None:
         """Apply genome parameters to an actual Minister instance.

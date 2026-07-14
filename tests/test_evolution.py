@@ -103,9 +103,16 @@ class TestProbation:
     """Probation identification and escalation."""
 
     def test_low_merit_enters_probation(self):
+        """With SlidingMeritBoard default, very low merit (<20) → SHADOW.
+
+        The sliding window (50 entries) properly weights recent failures,
+        so 8/9 failures yield ~19.45 merit — below the 20-point SHADOW
+        threshold.  This is CORRECT: the minister shouldn't coast on
+        cumulative history when recent performance is terrible.
+        """
         mb = MeritBoard()
-        # 丞相: 9 entries — 8 fails at 0.15 + 1 success at 0.30 — merit ≈ 21.8
-        # merit 20-30 is the probation window (too low for active, not critically bad)
+        # 丞相: 9 entries — 8 fails at 0.15 + 1 success at 0.30
+        # SlidingMeritBoard 测算: success_rate=1/9, conf=0.167, merit≈19.45
         for i in range(8):
             mb.record_dispatch("丞相", f"e{i}", "task", False, 0.15)
         mb.record_dispatch("丞相", "e8", "task", True, 0.30)
@@ -113,6 +120,34 @@ class TestProbation:
         mb.record_dispatch("工部尚书", "b1", "task", True, 0.90)
         mb.record_dispatch("工部尚书", "b2", "task", True, 0.85)
         mb.record_dispatch("太史令", "c1", "task", True, 0.88)
+        mb.record_dispatch("太卜", "d1", "task", True, 0.82)
+        mb.record_dispatch("卫尉", "f1", "task", True, 0.80)
+        sm = SurvivalMechanism(merit_board=mb)
+        sm.register_minister("丞相", "writing")
+        sm.register_minister("工部尚书", "code")
+        sm.register_minister("太史令", "search")
+        sm.register_minister("太卜", "science")
+        sm.register_minister("卫尉", "security")
+        report = sm.run_evolution_cycle()
+        # Sliding window merit < 20 → SHADOW (not probation)
+        assert sm.get_status("丞相") == MinisterStatus.SHADOW
+        assert any(
+            a.action == EvolutionAction.DEMOTE
+            for a in report.actions_taken
+        )
+
+    def test_borderline_merit_probation_sliding(self):
+        """Merit 20-30 with sliding window → PROBATION.
+
+        7 fails + 3 successes yields ~27.9 merit in the probation window."
+        """
+        mb = MeritBoard()
+        for i in range(7):
+            mb.record_dispatch("丞相", f"e{i}", "task", False, 0.18)
+        for i in range(7, 10):
+            mb.record_dispatch("丞相", f"e{i}", "task", True, 0.32)
+        mb.record_dispatch("工部尚书", "b1", "task", True, 0.90)
+        mb.record_dispatch("太史令", "c1", "task", True, 0.85)
         mb.record_dispatch("太卜", "d1", "task", True, 0.82)
         mb.record_dispatch("卫尉", "f1", "task", True, 0.80)
         sm = SurvivalMechanism(merit_board=mb)
@@ -913,3 +948,93 @@ class TestAdaptiveEliteTurnover:
         elites = sm._get_elite_set()
         assert len(elites) == 3
         assert {"A", "B", "C"} == elites
+
+
+# ── SlidingMeritBoard Integration ───────────────────────────────────
+
+
+class TestSlidingMeritIntegration:
+    """SurvivalMechanism with SlidingMeritBoard auto-wrapping."""
+
+    def test_auto_wrap_on_by_default(self):
+        """MeritBoard passed → auto-wrapped in SlidingMeritBoard."""
+        mb = MeritBoard()
+        sm = SurvivalMechanism(merit_board=mb)
+        from jarvis.court.sliding_merit import SlidingMeritBoard as SMB
+        assert sm.get_sliding_merit_board() is not None
+        assert isinstance(sm.get_sliding_merit_board(), SMB)
+        assert sm.get_raw_merit_board() is mb
+
+    def test_opt_out_sliding_merit(self):
+        """enable_sliding_merit=False → no wrapping."""
+        mb = MeritBoard()
+        sm = SurvivalMechanism(merit_board=mb, enable_sliding_merit=False)
+        assert sm.get_sliding_merit_board() is None
+        assert sm.get_raw_merit_board() is mb
+
+    def test_preserve_existing_sliding_board(self):
+        """Already a SlidingMeritBoard → not double-wrapped."""
+        from jarvis.court.sliding_merit import SlidingMeritBoard as SMB
+        mb = MeritBoard()
+        existing = SMB(mb, window_size=30)
+        sm = SurvivalMechanism(merit_board=existing)
+        sliding = sm.get_sliding_merit_board()
+        assert sliding is existing
+        assert sliding.window_size == 30  # preserved, not reset
+
+    def test_custom_window_size(self):
+        """Custom sliding_window_size propagates."""
+        mb = MeritBoard()
+        sm = SurvivalMechanism(
+            merit_board=mb, sliding_window_size=100,
+        )
+        sliding = sm.get_sliding_merit_board()
+        assert sliding is not None
+        assert sliding.window_size == 100
+
+    def test_custom_window_mode_exp_decay(self):
+        """EXP_DECAY mode propagates."""
+        from jarvis.court.sliding_merit import WindowMode
+        mb = MeritBoard()
+        sm = SurvivalMechanism(
+            merit_board=mb,
+            sliding_window_mode=WindowMode.EXP_DECAY,
+        )
+        sliding = sm.get_sliding_merit_board()
+        assert sliding.mode == WindowMode.EXP_DECAY
+
+    def test_sliding_merit_reports_accessible(self):
+        """SlidingMeritBoard.get_leaderboard() works through survival."""
+        mb = MeritBoard()
+        mb.record_dispatch("丞相", "e1", "task", True, 0.90)
+        mb.record_dispatch("丞相", "e2", "task", True, 0.85)
+        mb.record_dispatch("太史令", "c1", "task", True, 0.80)
+        sm = SurvivalMechanism(merit_board=mb)
+        sm.register_minister("丞相", "writing")
+        sm.register_minister("太史令", "search")
+        sliding = sm.get_sliding_merit_board()
+        assert sliding is not None
+        lb = sliding.get_leaderboard()
+        assert lb["total_ministers"] >= 2
+        assert lb["window_size"] == 50
+
+    def test_merit_recent_sensitive(self):
+        """Sliding window (size=10) is more sensitive to recent failures.
+
+        20 old successes + 5 recent failures, window covers only last 10.
+        """
+        mb = MeritBoard()
+        # 20 historical successes
+        for i in range(20):
+            mb.record_dispatch("丞相", f"good_{i}", "task", True, 0.90)
+        # 5 recent failures
+        for i in range(5):
+            mb.record_dispatch("丞相", f"bad_{i}", "task", False, 0.10)
+        sm = SurvivalMechanism(
+            merit_board=mb, sliding_window_size=10,
+        )
+        sm.register_minister("丞相", "writing")
+        # Window covers: 5 old successes + 5 recent failures
+        # success_rate = 5/10 = 0.5 → merit ≈ 46.2, well below full-history 64.2
+        merit = sm.get_sliding_merit_board().compute_merit("丞相")
+        assert merit < 50, f"Expected low merit with recent failures, got {merit}"

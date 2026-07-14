@@ -110,6 +110,23 @@ class SlidingMeritBoard:
             5, int(self.window_size * self.DECAY_HALF_LIFE_FRACTION)
         )
 
+    # ── Properties: transparent access to underlying board internals ─
+
+    @property
+    def _ledger(self) -> dict:
+        """Passthrough to underlying MeritBoard._ledger.
+
+        Enables SurvivalMechanism to iterate dispatch entries for
+        confidence baseline tracking without knowing which board type
+        is backing the merit evaluation.
+        """
+        return self.board._ledger
+
+    @property
+    def _eliminated(self) -> set:
+        """Passthrough to underlying MeritBoard._eliminated."""
+        return self.board._eliminated
+
     # ── Passthrough: writes go to underlying board ──────────────────
 
     def record_dispatch(
