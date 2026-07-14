@@ -57,7 +57,7 @@ from jarvis.court.emperor import (
 )
 from jarvis.court.routing import IntelligentRouter, RoutingStrategy
 from jarvis.court.calibration import ConfidenceCalibrator
-from jarvis.court.memory import CourtMemory, memory_from_memorial
+from jarvis.court.memory import CourtMemory, QueryResult, memory_from_memorial
 from jarvis.court.merit_board import MeritBoard
 from jarvis.court.evolution import SurvivalMechanism
 from jarvis.court.reflection import ReflectionConsensus
@@ -172,6 +172,11 @@ class CourtOrchestrator(ImperialCourt):
         # Connect router providers if not yet connected
         self._ensure_router_providers()
 
+        # Wire memory provider (domain+intent change per request)
+        self.router.set_memory_provider(
+            lambda m: self._compute_memory_boost(m, domain)
+        )
+
         # Use router for selection
         count = min(top_n, len(available))
         plan = self.router.route(
@@ -263,6 +268,59 @@ class CourtOrchestrator(ImperialCourt):
             return 0.5
         except Exception:
             return 0.5
+
+    def _compute_memory_boost(self, minister: str, domain: str) -> float:
+        """Compute memory-based routing boost for a minister.
+
+        Queries CourtMemory for similar past tasks and returns
+        0-1 boost: higher when this minister succeeded on matching tasks.
+
+        Returns 0.0 if memory is empty (cold start) or no similar tasks found.
+        """
+        if self.memory is None:
+            return 0.0
+
+        try:
+            intent = (self._last_intent or "").strip()
+            if not intent or not minister:
+                return 0.0
+
+            # Query memory for records matching this domain + intent
+            results = self.memory.query(
+                domain=domain,
+                intent=intent,
+                top_k=10,
+            )
+
+            if not results:
+                return 0.0
+
+            # Compute boost: fraction of success over total similar entries
+            total = len(results)
+            successes = sum(1 for r in results if r.entry.success)
+            success_rate = successes / total if total > 0 else 0.0
+
+            # Minister-specific boost: only entries from this minister
+            minister_entries = [
+                r for r in results if r.entry.minister_name == minister
+            ]
+            if not minister_entries:
+                return 0.0  # No personal track record
+
+            minister_total = len(minister_entries)
+            minister_successes = sum(
+                1 for r in minister_entries if r.entry.success
+            )
+            minister_rate = minister_successes / minister_total
+
+            # Combine: overall relevance × minister track record
+            # Scale: 0.0 → 0.15 (cap at max memory weight)
+            boost = success_rate * minister_rate * 0.15
+
+            return min(0.15, boost)
+
+        except Exception:
+            return 0.0
 
     # ------------------------------------------------------------------
     # Override: synthesis with calibrated confidence

@@ -1,10 +1,11 @@
 """
-tests/test_routing.py — 38 tests for IntelligentRouter
+tests/test_routing.py — 45 tests for IntelligentRouter
 
 Coverage:
 - Basic routing (BALANCED, EXPLOIT, EXPLORE, PURE_FITNESS, CALIBRATED)
 - Signal computation (domain match, fitness, calibration, diversity, workload)
-- Provider integration (fitness, calibration, diversity, genotype, merit)
+- Provider integration (fitness, calibration, diversity, genotype, merit, memory)
+- Memory boost (provider wiring, ranking impact, default zero, reasoning, safety)
 - Edge cases (empty ministers, forced minister, single candidate)
 - History and usage tracking
 - Reset and state management
@@ -461,3 +462,158 @@ class TestProviderIntegration:
             count=1,
         )
         assert len(plan.selected_ministers) == 1
+
+
+# ──────────────────────────────────────────────
+# Test: Memory Boost Routing
+# ──────────────────────────────────────────────
+
+
+class TestMemoryBoostRouting:
+    """Routing with memory-based boost signal."""
+
+    def test_memory_provider_set_and_used(self):
+        router = IntelligentRouter(strategy=RoutingStrategy.BALANCED)
+
+        def mem_b(m: str) -> float:
+            return {"chancellor": 0.12, "censor": 0.05}.get(m, 0.0)
+
+        router.set_memory_provider(mem_b)
+
+        plan = router.route(
+            task="分析代码",
+            domain="engineering",
+            available_ministers=["chancellor", "censor", "guard"],
+            count=2,
+        )
+
+        assert len(plan.selected_ministers) == 2
+        # chancellor should have a memory boost
+        assert "chancellor" in plan.signal_map
+        assert plan.signal_map["chancellor"].memory_boost == 0.12
+        assert plan.signal_map["censor"].memory_boost == 0.05
+        # guard has no special memory
+        if "guard" in plan.signal_map:
+            assert plan.signal_map["guard"].memory_boost == 0.0
+
+    def test_memory_boost_affects_ranking(self):
+        """Memory boost should push a minister ahead when scores are close."""
+        router = IntelligentRouter(strategy=RoutingStrategy.BALANCED)
+
+        # chancellor and censor have identical domain match and no fitness bias
+        # except chancellor gets a strong memory boost
+        def mem_b(m: str) -> float:
+            return {"chancellor": 0.15, "censor": 0.0}.get(m, 0.0)
+
+        router.set_memory_provider(mem_b)
+
+        plan = router.route(
+            task="写代码",
+            domain="engineering",
+            available_ministers=["chancellor", "censor"],
+            count=1,
+        )
+
+        assert len(plan.selected_ministers) == 1
+        # chancellor should win due to memory boost
+        assert plan.selected_ministers[0] == "chancellor"
+
+    def test_no_memory_provider_defaults_to_zero(self):
+        router = IntelligentRouter()
+        plan = router.route(
+            task="任意任务",
+            domain="engineering",
+            available_ministers=["chancellor"],
+            count=1,
+        )
+        assert plan.signal_map["chancellor"].memory_boost == 0.0
+
+    def test_memory_boost_in_reasoning_string(self):
+        router = IntelligentRouter()
+
+        def mem_b(m: str) -> float:
+            return 0.10
+
+        router.set_memory_provider(mem_b)
+
+        plan = router.route(
+            task="分析代码",
+            domain="engineering",
+            available_ministers=["chancellor", "censor", "guard"],
+            count=1,
+        )
+        assert "记忆=0.10" in plan.reasoning
+
+    def test_memory_provider_exception_is_safe(self):
+        router = IntelligentRouter()
+
+        def broken_mem(m: str) -> float:
+            raise RuntimeError("memory unavailable")
+
+        router.set_memory_provider(broken_mem)
+
+        plan = router.route(
+            task="任务",
+            domain="general",
+            available_ministers=["chancellor"],
+            count=1,
+        )
+        assert len(plan.selected_ministers) == 1
+        assert plan.signal_map["chancellor"].memory_boost == 0.0
+
+    def test_memory_boost_persists_across_calls(self):
+        router = IntelligentRouter()
+
+        call_count = [0]
+
+        def mem_b(m: str) -> float:
+            call_count[0] += 1
+            return 0.08
+
+        router.set_memory_provider(mem_b)
+
+        router.route(
+            task="任务1",
+            domain="engineering",
+            available_ministers=["chancellor", "censor", "guard"],
+            count=1,
+        )
+        router.route(
+            task="任务2",
+            domain="security",
+            available_ministers=["censor", "guard", "chancellor"],
+            count=1,
+        )
+
+        # provider was called for each minister across both calls
+        assert call_count[0] == 6  # 3 + 3
+
+    def test_memory_boost_weight_configurable(self):
+        router = IntelligentRouter()
+        assert "memory_boost" in router.weights
+        assert router.weights["memory_boost"] == 0.15
+
+        router.weights["memory_boost"] = 0.30
+        assert router.weights["memory_boost"] == 0.30
+
+    def test_composite_includes_memory_boost(self):
+        """Verify memory_boost is factored into composite score."""
+        router = IntelligentRouter(strategy=RoutingStrategy.BALANCED)
+
+        def mem_b(m: str) -> float:
+            return {"chancellor": 0.15, "guard": 0.0}.get(m, 0.0)
+
+        router.set_memory_provider(mem_b)
+
+        # Both ministers, same fitness → chancellor should score higher
+        plan = router.route(
+            task="写代码",
+            domain="engineering",
+            available_ministers=["chancellor", "guard"],
+            count=2,
+        )
+
+        chancellor_score = plan.signal_map["chancellor"].composite_score
+        guard_score = plan.signal_map["guard"].composite_score
+        # chancellor has memory boost → higher composite
+        assert chancellor_score > guard_score

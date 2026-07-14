@@ -14,6 +14,7 @@ decision per task:
     3. Calibration Trust — learned reliability from ConfidenceCalibrator
     4. Diversity Boost — bonus for underrepresented genotypes
     5. Workload Balance — penalty for recently overused ministers
+    6. Memory Boost — bonus for ministers who succeeded on similar past tasks
 
 The result: the best ministers for each task, with controlled exploration.
 """
@@ -45,6 +46,7 @@ class RoutingSignal:
     calibration_trust: float    # 0-1, from ConfidenceCalibrator
     diversity_bonus: float      # 0-1, bonus for rare genotypes
     workload_penalty: float     # 0-1, penalty for recent usage
+    memory_boost: float = 0.0   # 0-1, bonus from similar past successes
     composite_score: float = 0.0  # Computed
 
 
@@ -80,11 +82,12 @@ class IntelligentRouter:
 
     # Routing weights (configurable)
     DEFAULT_WEIGHTS = {
-        "domain_match": 0.30,
-        "genetic_fitness": 0.25,
-        "calibration_trust": 0.25,
-        "diversity_bonus": 0.10,
+        "domain_match": 0.25,
+        "genetic_fitness": 0.20,
+        "calibration_trust": 0.18,
+        "diversity_bonus": 0.07,
         "workload_penalty": -0.10,
+        "memory_boost": 0.15,
     }
 
     MIN_DIVERSITY_THRESHOLD = 0.2    # Diversity boost below this
@@ -103,6 +106,7 @@ class IntelligentRouter:
         self._diversity_provider: Optional[Callable[[], float]] = None
         self._genotype_provider: Optional[Callable[[str], str]] = None
         self._merit_provider: Optional[Callable[[str], float]] = None
+        self._memory_provider: Optional[Callable[[str], float]] = None
 
         # Internal state
         self._usage_counter: dict[str, int] = defaultdict(int)
@@ -135,6 +139,15 @@ class IntelligentRouter:
     def set_merit_provider(self, provider: Callable[[str], float]) -> None:
         """Set provider for minister merit scores."""
         self._merit_provider = provider
+
+    def set_memory_provider(self, provider: Callable[[str], float]) -> None:
+        """Set provider for memory-based boost.
+
+        Provider receives minister name and returns a 0-1 boost
+        based on how well this minister performed on similar past tasks.
+        The caller should pre-bind the current domain and intent.
+        """
+        self._memory_provider = provider
 
     # ------------------------------------------------------------------
     # Main routing API
@@ -292,6 +305,11 @@ class IntelligentRouter:
             # 5. Workload penalty
             workload_penalty = self._compute_workload_penalty(minister)
 
+            # 6. Memory boost
+            memory_boost = self._safe_provider(
+                self._memory_provider, minister, default=0.0
+            )
+
             # ── Compute composite based on strategy ──
             composite = self._compute_composite(
                 domain_match=domain_match,
@@ -299,6 +317,7 @@ class IntelligentRouter:
                 calibration_trust=calibration_trust,
                 diversity_bonus=diversity_bonus,
                 workload_penalty=workload_penalty,
+                memory_boost=memory_boost,
                 strategy=strategy,
             )
 
@@ -309,6 +328,7 @@ class IntelligentRouter:
                 calibration_trust=calibration_trust,
                 diversity_bonus=diversity_bonus,
                 workload_penalty=workload_penalty,
+                memory_boost=memory_boost,
                 composite_score=composite,
             )
 
@@ -417,6 +437,7 @@ class IntelligentRouter:
         calibration_trust: float,
         diversity_bonus: float,
         workload_penalty: float,
+        memory_boost: float,
         strategy: RoutingStrategy,
     ) -> float:
         """Compute composite score based on strategy weights."""
@@ -459,6 +480,7 @@ class IntelligentRouter:
             + calibration_trust * w["calibration_trust"]
             + diversity_bonus * w["diversity_bonus"]
             + workload_penalty * w["workload_penalty"]
+            + memory_boost * w["memory_boost"]
         )
 
     # ------------------------------------------------------------------
@@ -521,6 +543,7 @@ class IntelligentRouter:
                 f"适应度={sig.genetic_fitness:.2f} "
                 f"信任={sig.calibration_trust:.2f} "
                 f"多样性={sig.diversity_bonus:.2f} "
+                f"记忆={sig.memory_boost:.2f} "
                 f"负载={sig.workload_penalty:.2f})"
             )
         return " | ".join(parts)

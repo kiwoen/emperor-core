@@ -435,6 +435,144 @@ class TestLegacyCompatibility:
 
 
 # ──────────────────────────────────────────────
+# Test: Memory-Enhanced Routing in Orchestrator
+# ──────────────────────────────────────────────
+
+
+class TestMemoryEnhancedRouting:
+    """Verify _compute_memory_boost integration in CourtOrchestrator."""
+
+    def test_cold_start_returns_zero(self, orchestrator):
+        """No memories recorded → boost is 0.0."""
+        boost = orchestrator._compute_memory_boost("chancellor", "engineering")
+        assert boost == 0.0
+
+    def test_empty_intent_returns_zero(self, orchestrator):
+        """Empty intent → no query possible → boost is 0.0."""
+        orchestrator._last_intent = ""
+        boost = orchestrator._compute_memory_boost("chancellor", "engineering")
+        assert boost == 0.0
+
+    def test_successful_memory_gives_boost(self, orchestrator):
+        """Record a successful memory → query returns positive boost."""
+        from jarvis.court.memory import MemoryEntry
+
+        entry = MemoryEntry(
+            id="mem-test-001",
+            domain="engineering",
+            minister_name="chancellor",
+            intent="分析代码安全漏洞",
+            intent_keywords=["代码", "安全", "漏洞", "分析"],
+            success=True,
+            confidence=0.90,
+            execution_time_ms=150.0,
+            timestamp=0.0,
+        )
+        orchestrator.memory.record(entry)
+        orchestrator._last_intent = "分析代码安全漏洞"
+
+        boost = orchestrator._compute_memory_boost("chancellor", "engineering")
+        assert boost > 0.0
+
+    def test_failed_memory_gives_lower_boost(self, orchestrator):
+        """Failed memory → lower boost compared to successes."""
+        from jarvis.court.memory import MemoryEntry
+
+        # Record 1 success + 2 failures for chancellor
+        for i, success in enumerate([True, False, False]):
+            entry = MemoryEntry(
+                id=f"mem-test-{i}",
+                domain="engineering",
+                minister_name="chancellor",
+                intent="代码审查任务",
+                intent_keywords=["代码", "审查"],
+                success=success,
+                confidence=0.80,
+                execution_time_ms=100.0,
+                timestamp=float(i),
+            )
+            orchestrator.memory.record(entry)
+
+        orchestrator._last_intent = "代码审查任务"
+
+        boost = orchestrator._compute_memory_boost("chancellor", "engineering")
+        # 1/3 success × 1/3 minister = 0.33 × 0.33 × 0.15 ≈ 0.017
+        assert 0.0 < boost < 0.15
+
+    def test_no_matching_minister_returns_zero(self, orchestrator):
+        """Memories exist but for a different minister → boost is 0.0."""
+        from jarvis.court.memory import MemoryEntry
+
+        entry = MemoryEntry(
+            id="mem-test-censor",
+            domain="security",
+            minister_name="censor",
+            intent="安全审查",
+            intent_keywords=["安全", "审查"],
+            success=True,
+            confidence=0.95,
+            execution_time_ms=200.0,
+            timestamp=0.0,
+        )
+        orchestrator.memory.record(entry)
+        orchestrator._last_intent = "安全审查"
+
+        # chancellor has no record in security domain
+        boost = orchestrator._compute_memory_boost("chancellor", "security")
+        assert boost == 0.0
+
+    def test_boost_capped_at_max(self, orchestrator):
+        """Memory boost must not exceed 0.15 (the weight cap)."""
+        from jarvis.court.memory import MemoryEntry
+
+        # Create perfect track record for chancellor
+        for i in range(10):
+            entry = MemoryEntry(
+                id=f"mem-perfect-{i}",
+                domain="engineering",
+                minister_name="chancellor",
+                intent=f"编写单元测试第{i}次",
+                intent_keywords=["单元测试", "编写", f"第{i}"],
+                success=True,
+                confidence=0.99,
+                execution_time_ms=50.0,
+                timestamp=float(i),
+            )
+            orchestrator.memory.record(entry)
+
+        orchestrator._last_intent = "编写单元测试"
+
+        boost = orchestrator._compute_memory_boost("chancellor", "engineering")
+        assert 0.0 <= boost <= 0.15
+
+    def test_memory_provider_wired_in_select_ministers(self, orchestrator):
+        """After _ensure_router_providers + select, memory provider is set."""
+        from jarvis.court.memory import MemoryEntry
+
+        # Record a memory
+        entry = MemoryEntry(
+            id="mem-wired-001",
+            domain="engineering",
+            minister_name="chancellor",
+            intent="写Python代码",
+            intent_keywords=["Python", "代码", "编写"],
+            success=True,
+            confidence=0.92,
+            execution_time_ms=120.0,
+            timestamp=0.0,
+        )
+        orchestrator.memory.record(entry)
+        orchestrator._last_intent = "写Python代码"
+
+        # Simulate selection (forces provider wiring)
+        scores = {"chancellor": 0.85, "censor": 0.60}
+        orchestrator._select_ministers(scores, top_n=2)
+
+        # Memory provider should now be set
+        assert orchestrator.router._memory_provider is not None
+
+
+# ──────────────────────────────────────────────
 # Test: SmartEmperor convenience wrapper
 # ──────────────────────────────────────────────
 
