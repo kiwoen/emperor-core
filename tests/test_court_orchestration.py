@@ -337,7 +337,7 @@ class TestGenomeInjection:
             generation=old_genome.generation + 1,
             parent=old_genome.parent,
         )
-        court.survival._genomes[minister.name] = mutated
+        court.survival.set_genome(minister.name, mutated)
 
         # Before resync, minister still holds old genome
         assert minister.genome.temperature == original_temp

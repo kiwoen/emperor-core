@@ -385,15 +385,15 @@ class SurvivalMechanism:
             confidence_baseline=confidence_baseline,
             generation=0,
         )
-        self._genomes[name] = genome
+        self.set_genome(name, genome)
 
     def register_shadow(self, name: str, domain: str = "") -> None:
         """Register a shadow minister (trains but doesn't vote)."""
         self._statuses[name] = MinisterStatus.SHADOW
         self._probation_cycles[name] = 0
-        self._genomes[name] = MinisterGenome(
+        self.set_genome(name, MinisterGenome(
             name=name, domain=domain, generation=0,
-        )
+        ))
 
     # ------------------------------------------------------------------
     # Evolution cycle
@@ -605,7 +605,7 @@ class SurvivalMechanism:
 
         self._statuses[name] = MinisterStatus.SHADOW
         self._probation_cycles[name] = 0
-        self._genomes[name] = MinisterGenome(
+        self.set_genome(name, MinisterGenome(
             name=name,
             domain=domain,
             temperature=genome.get("temperature", 0.5),
@@ -615,7 +615,7 @@ class SurvivalMechanism:
             specialization_weight=1.0,
             generation=generation,
             parent=parent,
-        )
+        ))
         logger.info(
             "AutoBreeder registered shadow minister '%s' "
             "domain=%s strategy=%s gen=%d parent=%s",
@@ -1013,7 +1013,7 @@ class SurvivalMechanism:
             if parent1 and parent2 and parent1.domain != parent2.domain:
                 new_name = self._generate_clone_name(parent1.name)
                 crossed = self._crossover_genome(parent1, parent2, new_name)
-                self._genomes[new_name] = crossed
+                self.set_genome(new_name, crossed)
                 self._statuses[new_name] = MinisterStatus.SHADOW
                 self._probation_cycles[new_name] = 0
 
@@ -1050,7 +1050,7 @@ class SurvivalMechanism:
 
         new_name = self._generate_clone_name(top_name)
         mutated = self._mutate_genome(parent_genome, new_name)
-        self._genomes[new_name] = mutated
+        self.set_genome(new_name, mutated)
         self._statuses[new_name] = MinisterStatus.SHADOW
         self._probation_cycles[new_name] = 0
 
@@ -1254,7 +1254,7 @@ class SurvivalMechanism:
                     break
                 parent = random.choice(survivor_genomes)
                 mutated = self._mutate_genome(parent, clone_name)
-                self._genomes[clone_name] = mutated
+                self.set_genome(clone_name, mutated)
                 self._statuses[clone_name] = MinisterStatus.SHADOW
                 self._probation_cycles[clone_name] = 0
                 actions.append(EvolutionEvent(
@@ -1292,7 +1292,7 @@ class SurvivalMechanism:
                 generation=1,
                 parent="catastrophe",
             )
-            self._genomes[spec_name] = specialist_genome
+            self.set_genome(spec_name, specialist_genome)
             self._statuses[spec_name] = MinisterStatus.ACTIVE
             self._probation_cycles[spec_name] = 0
             actions.append(EvolutionEvent(
@@ -1689,6 +1689,15 @@ class SurvivalMechanism:
     def get_genome(self, minister: str) -> Optional[MinisterGenome]:
         """Get the evolvable genome of a minister."""
         return self._genomes.get(minister)
+
+    def set_genome(self, name: str, genome: MinisterGenome) -> None:
+        """Replace a minister's genome (e.g. after mutation/breeding).
+
+        Unlike internal _genomes[name] = ..., this is the public API for
+        genome replacement. Use this whenever an external actor (Emperor,
+        tests, breeding loop) needs to update a genome.
+        """
+        self._genomes[name] = genome
 
     def get_active_ministers(self) -> list[str]:
         """Return list of currently active ministers."""
