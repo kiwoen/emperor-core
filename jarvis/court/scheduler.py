@@ -325,6 +325,29 @@ class Scheduler:
                 self._state = SchedulerState.RUNNING
                 logger.info("[Scheduler] resumed")
 
+    def update_config(
+        self,
+        task_interval_seconds: Optional[float] = None,
+        evolve_interval_seconds: Optional[float] = None,
+    ) -> None:
+        """Dynamically update job intervals.
+
+        Args:
+            task_interval_seconds: New interval for _auto_tasks job.
+            evolve_interval_seconds: New interval for _auto_evolution job.
+        """
+        with self._lock:
+            if task_interval_seconds is not None:
+                entry = self._entries.get("_auto_tasks")
+                if entry is not None:
+                    entry.interval_seconds = task_interval_seconds
+                    logger.info("[Scheduler] task interval → %.0fs", task_interval_seconds)
+            if evolve_interval_seconds is not None:
+                entry = self._entries.get("_auto_evolution")
+                if entry is not None:
+                    entry.interval_seconds = evolve_interval_seconds
+                    logger.info("[Scheduler] evolve interval → %.0fs", evolve_interval_seconds)
+
     # ── Report ─────────────────────────────────────────────────────
 
     def report(self) -> SchedulerReport:

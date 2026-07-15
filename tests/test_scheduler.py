@@ -347,3 +347,100 @@ class TestThreadSafety:
             time.sleep(0.15)
             scheduler.stop(timeout=2)
         assert scheduler.state in (SchedulerState.STOPPED, SchedulerState.STOPPING)
+
+
+# ══════════════════════════════════════════════════════════════════
+# Pause / Resume
+# ══════════════════════════════════════════════════════════════════
+
+
+class TestPauseResume:
+    def test_pause_stops_ticking(self, scheduler):
+        """After pause, _tick does not execute jobs."""
+        counter = [0]
+
+        def inc():
+            counter[0] += 1
+
+        scheduler.add_job("inc", inc, 0.1)
+        scheduler.start()
+        time.sleep(0.6)  # let it run ~1 tick
+        scheduler.pause()
+        before = counter[0]
+        time.sleep(1.0)  # wait, should NOT increase
+        after = counter[0]
+        scheduler.stop(timeout=1)
+
+        assert after == before
+
+    def test_resume_restores_ticking(self, scheduler):
+        """After resume, _tick resumes executing jobs."""
+        counter = [0]
+
+        def inc():
+            counter[0] += 1
+
+        scheduler.add_job("inc", inc, 0.1)
+        scheduler.start()
+        time.sleep(0.6)  # let it run ~1 tick
+        scheduler.pause()
+        paused_count = counter[0]
+        time.sleep(0.8)  # paused, shouldn't change
+        assert counter[0] == paused_count
+
+        scheduler.resume()
+        time.sleep(1.2)  # resumed, should get 1-2 more ticks
+        after_resume = counter[0]
+        scheduler.stop(timeout=1)
+
+        assert after_resume > paused_count
+
+    def test_pause_idempotent(self, scheduler):
+        """Pausing when already paused is safe."""
+        scheduler.start()
+        scheduler.pause()
+        scheduler.pause()
+        assert scheduler.state == SchedulerState.PAUSED
+        scheduler.stop(timeout=1)
+
+    def test_resume_idempotent(self, scheduler):
+        """Resuming when already running is safe."""
+        scheduler.resume()
+        assert scheduler.state == SchedulerState.IDLE
+
+
+# ══════════════════════════════════════════════════════════════════
+# Update Config
+# ══════════════════════════════════════════════════════════════════
+
+
+class TestUpdateConfig:
+    def test_update_task_interval(self, scheduler):
+        """update_config adjusts _auto_tasks interval."""
+        scheduler.add_job("_auto_tasks", lambda: None, 180)
+        scheduler.update_config(task_interval_seconds=300)
+        job = scheduler.get_job("_auto_tasks")
+        assert job.interval_seconds == 300
+
+    def test_update_evolve_interval(self, scheduler):
+        """update_config adjusts _auto_evolution interval."""
+        scheduler.add_job("_auto_evolution", lambda: None, 300)
+        scheduler.update_config(evolve_interval_seconds=600)
+        job = scheduler.get_job("_auto_evolution")
+        assert job.interval_seconds == 600
+
+    def test_update_both(self, scheduler):
+        """update_config adjusts both intervals simultaneously."""
+        scheduler.add_job("_auto_tasks", lambda: None, 180)
+        scheduler.add_job("_auto_evolution", lambda: None, 300)
+        scheduler.update_config(
+            task_interval_seconds=120,
+            evolve_interval_seconds=900,
+        )
+        assert scheduler.get_job("_auto_tasks").interval_seconds == 120
+        assert scheduler.get_job("_auto_evolution").interval_seconds == 900
+
+    def test_update_nonexistent_job_no_error(self, scheduler):
+        """update_config on missing jobs should not raise."""
+        scheduler.update_config(task_interval_seconds=60)
+        # Should not raise

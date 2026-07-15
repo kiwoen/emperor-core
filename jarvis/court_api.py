@@ -99,6 +99,23 @@ class MinisterUpdateRequest(BaseModel):
     stability: Optional[float] = None
 
 
+class SchedulerConfigRequest(BaseModel):
+    evolve_interval_minutes: Optional[float] = Field(default=None, ge=1, le=1440)
+    task_interval_minutes: Optional[float] = Field(default=None, ge=1, le=1440)
+    auto_schedule: Optional[bool] = None
+
+
+# ══════════════════════════════════════════════════════════════════
+# Module-level scheduler state (shared with Emperor.serve)
+# ══════════════════════════════════════════════════════════════════
+
+_scheduler_config: dict = {
+    "evolve_interval_minutes": 5.0,
+    "task_interval_minutes": 3.0,
+    "auto_schedule": True,
+}
+
+
 # ══════════════════════════════════════════════════════════════════
 # Factory
 # ══════════════════════════════════════════════════════════════════
@@ -672,6 +689,69 @@ def create_app(
             del court._sm._statuses[name]
 
         return {"message": f"大臣 {name} 已删除"}
+
+    @app.get("/api/scheduler/config")
+    def api_get_scheduler_config():
+        """Return current scheduler configuration."""
+        return {
+            "evolve_interval_minutes": _scheduler_config["evolve_interval_minutes"],
+            "task_interval_minutes": _scheduler_config["task_interval_minutes"],
+            "auto_schedule": _scheduler_config["auto_schedule"],
+        }
+
+    @app.put("/api/scheduler/config")
+    def api_put_scheduler_config(req: SchedulerConfigRequest):
+        """Update scheduler configuration in real-time."""
+        updated_fields: list[str] = []
+
+        # Validate and update evolve_interval
+        if req.evolve_interval_minutes is not None:
+            val = float(req.evolve_interval_minutes)
+            if val != int(val):
+                raise HTTPException(400, "进化间隔必须为整数分钟")
+            _scheduler_config["evolve_interval_minutes"] = val
+            updated_fields.append("evolve_interval_minutes")
+
+        # Validate and update task_interval
+        if req.task_interval_minutes is not None:
+            val = float(req.task_interval_minutes)
+            if val != int(val):
+                raise HTTPException(400, "任务间隔必须为整数分钟")
+            _scheduler_config["task_interval_minutes"] = val
+            updated_fields.append("task_interval_minutes")
+
+        # Handle auto_schedule toggle
+        if req.auto_schedule is not None:
+            prev = _scheduler_config["auto_schedule"]
+            _scheduler_config["auto_schedule"] = req.auto_schedule
+            updated_fields.append("auto_schedule")
+
+            # Apply to live scheduler if available
+            sched = getattr(court, "scheduler", None)
+            if sched is not None:
+                if req.auto_schedule and not prev:
+                    sched.resume()
+                elif not req.auto_schedule and prev:
+                    sched.pause()
+
+        # Apply interval updates to live scheduler
+        if ("evolve_interval_minutes" in updated_fields or
+                "task_interval_minutes" in updated_fields):
+            sched = getattr(court, "scheduler", None)
+            if sched is not None:
+                sched.update_config(
+                    task_interval_seconds=(
+                        _scheduler_config["task_interval_minutes"] * 60
+                    ),
+                    evolve_interval_seconds=(
+                        _scheduler_config["evolve_interval_minutes"] * 60
+                    ),
+                )
+
+        return {
+            "config": dict(_scheduler_config),
+            "updated": updated_fields,
+        }
 
     return app
 

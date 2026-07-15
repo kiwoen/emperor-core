@@ -268,6 +268,22 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   .confirm-actions button { padding: 8px 24px; border-radius: 6px; font-family: inherit; font-size: 0.85rem; cursor: pointer; border: none; }
   .confirm-actions .btn-confirm-yes { background: #e94560; color: #fff; font-weight: bold; }
   .confirm-actions .btn-confirm-no { background: #2a2a4a; color: #8892b0; }
+
+  /* ── Scheduler config panel ── */
+  .scheduler-config-panel { background: #1a1a2e; border-radius: 8px; padding: 20px; margin-top: 16px; }
+  .scheduler-config-panel h3 { margin: 0 0 16px 0; color: #e2e2e2; }
+  .config-row { display: flex; align-items: center; margin-bottom: 12px; gap: 12px; }
+  .config-row label { color: #8892b0; font-size: 14px; min-width: 80px; }
+  .config-row input[type="number"] { background: #0f0f23; color: #ccd6f6; border: 1px solid #2a2a4a; border-radius: 4px; padding: 6px 10px; width: 80px; }
+  .config-hint { color: #5a6a8a; font-size: 12px; }
+  .toggle-switch { position: relative; width: 48px; height: 24px; cursor: pointer; display: inline-block; }
+  .toggle-switch input { display: none; }
+  .toggle-slider { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #3a3a5a; border-radius: 24px; transition: 0.3s; }
+  .toggle-slider::before { content: ''; position: absolute; height: 18px; width: 18px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: 0.3s; }
+  .toggle-switch input:checked + .toggle-slider { background: #66bb6a; }
+  .toggle-switch input:checked + .toggle-slider::before { transform: translateX(24px); }
+  .save-btn { background: #4fc3f7; color: #0f0f23; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 8px; }
+  .save-success { color: #66bb6a; font-size: 13px; margin-left: 12px; display: none; }
 </style>
 </head>
 <body>
@@ -325,6 +341,37 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     </thead>
     <tbody id="ministers-tbody"></tbody>
   </table>
+</div>
+
+<!-- Scheduler Config Panel -->
+<div class="scheduler-config-panel">
+  <h3>调度配置</h3>
+
+  <div class="config-row">
+    <label for="evolve-interval">进化间隔</label>
+    <input type="number" id="evolve-interval" min="1" max="1440" value="5">
+    <span class="config-hint">分钟 (1-1440)</span>
+  </div>
+
+  <div class="config-row">
+    <label for="task-interval">任务间隔</label>
+    <input type="number" id="task-interval" min="1" max="1440" value="3">
+    <span class="config-hint">分钟 (1-1440)</span>
+  </div>
+
+  <div class="config-row">
+    <label>自动调度</label>
+    <label class="toggle-switch">
+      <input type="checkbox" id="auto-schedule-toggle" onchange="updateToggleLabel()">
+      <span class="toggle-slider"></span>
+    </label>
+    <span id="toggle-label" style="font-size:14px;">关</span>
+  </div>
+
+  <div style="display:flex;align-items:center;">
+    <button class="save-btn" onclick="saveSchedulerConfig()">保存配置</button>
+    <span class="save-success" id="save-success">✓ 配置已保存</span>
+  </div>
 </div>
 
 <!-- Time-series charts row -->
@@ -1180,6 +1227,58 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   // Load ministers on page load and periodic refresh
   loadMinisters();
   setInterval(loadMinisters, 30000);
+
+  // ── Scheduler configuration ──
+  async function loadSchedulerConfig() {
+    try {
+      var res = await fetch(API + '/api/scheduler/config');
+      if (!res.ok) return;
+      var cfg = await res.json();
+      document.getElementById('evolve-interval').value = cfg.evolve_interval_minutes;
+      document.getElementById('task-interval').value = cfg.task_interval_minutes;
+      document.getElementById('auto-schedule-toggle').checked = cfg.auto_schedule;
+      updateToggleLabel();
+    } catch(e) {}
+  }
+
+  async function saveSchedulerConfig() {
+    var ei = document.getElementById('evolve-interval');
+    var ti = document.getElementById('task-interval');
+    var cfg = {
+      evolve_interval_minutes: parseInt(ei.value),
+      task_interval_minutes: parseInt(ti.value),
+      auto_schedule: document.getElementById('auto-schedule-toggle').checked
+    };
+
+    try {
+      var res = await fetch(API + '/api/scheduler/config', {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(cfg)
+      });
+      if (!res.ok) {
+        var data = await res.json();
+        alert('保存失败: ' + (data.detail || '未知错误'));
+        // Revert to current API values
+        loadSchedulerConfig();
+        return;
+      }
+      var success = document.getElementById('save-success');
+      success.style.display = 'inline';
+      setTimeout(function() { success.style.display = 'none'; }, 3000);
+    } catch(e) {
+      alert('保存失败: ' + e.message);
+    }
+  }
+
+  function updateToggleLabel() {
+    var checked = document.getElementById('auto-schedule-toggle').checked;
+    var label = document.getElementById('toggle-label');
+    label.textContent = checked ? '开' : '关';
+    label.style.color = checked ? '#66bb6a' : '#888';
+  }
+
+  loadSchedulerConfig();
 
   fetchStatus();
   setInterval(fetchStatus, 3000);
