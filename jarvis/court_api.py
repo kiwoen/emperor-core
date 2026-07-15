@@ -78,6 +78,11 @@ class ConfigLoadRequest(BaseModel):
     path: str
 
 
+class DashboardExecuteRequest(BaseModel):
+    prompt: str
+    domain: Optional[str] = None
+
+
 # ══════════════════════════════════════════════════════════════════
 # Factory
 # ══════════════════════════════════════════════════════════════════
@@ -349,6 +354,71 @@ def create_app(
             },
             "tasks": tasks,
             "evolutions": evos,
+        }
+
+    # ── Dashboard control panel endpoints ──────────────────────────
+
+    @app.post("/dashboard/evolve")
+    def dashboard_evolve():
+        """Manually trigger evolution cycles."""
+        emperor = app.extra.get("emperor")
+        if emperor is None:
+            raise HTTPException(503, "Emperor not available")
+        try:
+            result = emperor.evolve(cycles=1)
+        except Exception as e:
+            raise HTTPException(500, f"Evolution failed: {e}")
+        return {
+            "ok": True,
+            "generation": result.get("generation", 0),
+            "count": result.get("count", 0),
+        }
+
+    @app.post("/dashboard/execute")
+    def dashboard_execute(req: DashboardExecuteRequest):
+        """Manually execute a task."""
+        emperor = app.extra.get("emperor")
+        if emperor is None:
+            raise HTTPException(503, "Emperor not available")
+        prompt = req.prompt
+        domain = req.domain or "general"
+        if not prompt:
+            raise HTTPException(400, "prompt is required")
+        try:
+            result = emperor.execute_task(prompt, domain=domain)
+        except Exception as e:
+            raise HTTPException(500, f"Task execution failed: {e}")
+        return {
+            "ok": True,
+            "task_id": result.get("task_id", ""),
+            "minister": result.get("minister", ""),
+            "confidence": result.get("confidence", 0.0),
+        }
+
+    @app.post("/dashboard/heal")
+    def dashboard_heal():
+        """Manually trigger self-healing check on recent alerts."""
+        emperor = app.extra.get("emperor")
+        if emperor is None:
+            raise HTTPException(503, "Emperor not available")
+        try:
+            # Collect unique alert rule names from recent alert history
+            alert_mgr = emperor.alerts
+            rule_names = list({a.rule_name for a in alert_mgr.history(limit=50)})
+            records = emperor.healing.handle_batch(rule_names)
+        except Exception as e:
+            raise HTTPException(500, f"Healing check failed: {e}")
+        return {
+            "ok": True,
+            "actions": [
+                {
+                    "action_name": r.action_name,
+                    "alert_rule": r.alert_rule,
+                    "success": r.success,
+                    "error": r.error,
+                }
+                for r in records
+            ],
         }
 
     return app

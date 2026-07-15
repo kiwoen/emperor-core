@@ -188,6 +188,16 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 <!-- Top stat cards -->
 <div class="grid grid-stats" id="statCards"></div>
 
+<!-- Control Panel -->
+<div class="card" style="background:#16213e;border:1px solid #0f3460;margin-bottom:var(--gap);">
+  <div class="card-label" style="font-size:0.78rem;text-transform:uppercase;color:var(--text-dim);letter-spacing:1px;margin-bottom:12px;">Control Panel</div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;">
+    <button id="btnEvolve" onclick="triggerEvolve()" style="background:#e94560;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-family:inherit;font-size:0.85rem;cursor:pointer;transition:filter 0.2s;">进化</button>
+    <button id="btnExecute" onclick="triggerExecute()" style="background:#e94560;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-family:inherit;font-size:0.85rem;cursor:pointer;transition:filter 0.2s;">执行任务</button>
+    <button id="btnHeal" onclick="triggerHeal()" style="background:#e94560;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-family:inherit;font-size:0.85rem;cursor:pointer;transition:filter 0.2s;">自愈检查</button>
+  </div>
+</div>
+
 <!-- Time-series charts row -->
 <div class="grid grid-charts" id="chartsRow">
   <div class="card">
@@ -516,6 +526,58 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       .then(function(r) { return r.json(); })
       .then(function(d) { renderAlerts(d); })
       .catch(function() {});
+  }
+
+  // ── Control Panel actions ──
+  function triggerEvolve() {
+    fetch(API + '/dashboard/evolve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cycles: 1 })
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.ok) { location.reload(); }
+        else { alert('Evolution failed'); }
+      })
+      .catch(function() { alert('Evolution request failed'); });
+  }
+
+  function triggerExecute() {
+    var prompt = window.prompt('Enter task prompt:');
+    if (prompt === null || prompt.trim() === '') return;
+    var domain = window.prompt('Enter domain (optional, default: general):', 'general');
+    if (domain === null) domain = 'general';
+    fetch(API + '/dashboard/execute', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: prompt, domain: domain })
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.ok) { location.reload(); }
+        else { alert('Task execution failed'); }
+      })
+      .catch(function() { alert('Task execution request failed'); });
+  }
+
+  function triggerHeal() {
+    fetch(API + '/dashboard/heal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.ok) {
+          var n = (d.actions || []).length;
+          alert('Healing check complete — ' + n + ' action(s) executed');
+          location.reload();
+        } else {
+          alert('Healing check failed');
+        }
+      })
+      .catch(function() { alert('Healing request failed'); });
   }
 
   fetchStatus();

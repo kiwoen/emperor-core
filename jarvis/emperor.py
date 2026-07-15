@@ -272,6 +272,7 @@ class Emperor:
         app = create_app(court=self._court)
         app.extra["host"] = host
         app.extra["port"] = port
+        app.extra["emperor"] = self
 
         # Inject scheduler state if running
         if self._scheduler is not None:
