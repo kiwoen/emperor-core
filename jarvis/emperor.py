@@ -49,6 +49,13 @@ class EmperorConfig:
     api_port: int = 9020
     enable_api: bool = False
 
+    # Auto-start (serve() one-command live dashboard)
+    auto_schedule: bool = True
+    auto_seed_ministers: bool = True
+    auto_evolve_interval_minutes: float = 5.0
+    auto_evolve_cycles: int = 1
+    auto_tasks_interval_minutes: float = 3.0
+
     # Persistence
     data_dir: str = ""
 
@@ -241,6 +248,10 @@ class Emperor:
     def serve(self, port: int = 0, host: str = "") -> None:
         """Start the REST API server (blocking).
 
+        One-command live dashboard — by default this will:
+          1. Auto-register a default minister lineup (if none exist).
+          2. Auto-start the Scheduler with periodic evolution + tasks.
+
         Args:
             port: Port to listen on (uses config.api_port if 0).
             host: Host to bind (uses config.api_host if empty).
@@ -249,6 +260,12 @@ class Emperor:
             port = self.config.api_port or 9020
         if not host:
             host = self.config.api_host or "127.0.0.1"
+
+        # One-command live dashboard: seed ministers + start scheduler
+        if self.config.auto_seed_ministers:
+            self._ensure_default_ministers()
+        if self.config.auto_schedule:
+            self._auto_start_scheduler()
 
         from jarvis.court_api import create_app
 
@@ -282,7 +299,87 @@ class Emperor:
 
         logger.info("[Emperor] API + Dashboard → http://%s:%d", host, port)
         logger.info("[Emperor] Dashboard → http://%s:%d/dashboard", host, port)
+        if self._scheduler is not None and self._scheduler.state.name == "RUNNING":
+            r = self._scheduler.report()
+            logger.info(
+                "[Emperor] Scheduler RUNNING — %d jobs, evolution every %s min, tasks every %s min",
+                len(r.entries),
+                self.config.auto_evolve_interval_minutes,
+                self.config.auto_tasks_interval_minutes,
+            )
         uvicorn.run(app, host=host, port=port)
+
+    # ── One-command live dashboard helpers ────────────────────────
+
+    # Default minister lineup — one per major domain, ready for live
+    # evolution on first `serve()`. Names follow the classical
+    # Imperial Court theme.
+    DEFAULT_MINISTERS: list[tuple[str, str]] = [
+        ("turing",   "math"),
+        ("curie",    "science"),
+        ("hinton",   "code"),
+        ("hippocrates", "medicine"),
+        ("confucius",   "language"),
+        ("tesla",    "engineering"),
+        ("franklin", "research"),
+        ("lovelace", "general"),
+    ]
+
+    def _ensure_default_ministers(self) -> int:
+        """Auto-register a default minister lineup if the court is empty.
+
+        Returns:
+            Number of new ministers actually registered (0 if court
+            was already populated).
+        """
+        existing = set(self._court.active_ministers)
+        seeded: list[str] = []
+        for name, domain in self.DEFAULT_MINISTERS:
+            if name not in existing and len(self._court.active_ministers) < self.config.max_ministers:
+                try:
+                    self.register(name, domain=domain, temperature=0.7)
+                    seeded.append(name)
+                except Exception as e:  # pragma: no cover - safety net
+                    logger.warning("[Emperor] seed register %s failed: %s", name, e)
+        if seeded:
+            logger.info("[Emperor] auto-seeded %d ministers: %s",
+                        len(seeded), ", ".join(seeded))
+        return len(seeded)
+
+    def _auto_start_scheduler(self) -> bool:
+        """Start the Scheduler with periodic evolution + tasks.
+
+        No-op if the scheduler is already running or no ministers exist.
+
+        Returns:
+            True if scheduler was started, False otherwise.
+        """
+        sched = self.scheduler
+        if sched.state.name == "RUNNING":
+            return False
+        if not self._court.active_ministers:
+            return False
+        # Schedule periodic evolution + lightweight demo tasks.
+        # Use internal API so we control cadence from config.
+        sched.schedule_evolution(
+            interval_minutes=self.config.auto_evolve_interval_minutes,
+            cycles=self.config.auto_evolve_cycles,
+        )
+        sched.schedule_tasks(
+            interval_minutes=self.config.auto_tasks_interval_minutes,
+            templates=[
+                {"prompt": "Summarize today's key events.", "domain": "general"},
+                {"prompt": "Compute 17 * 23 quickly.", "domain": "math"},
+                {"prompt": "Suggest a refactor for a 200-line file.", "domain": "code"},
+            ],
+        )
+        sched.start()
+        logger.info(
+            "[Emperor] auto-scheduler started: evolve every %.1f min, tasks every %.1f min",
+            self.config.auto_evolve_interval_minutes,
+            self.config.auto_tasks_interval_minutes,
+        )
+        return True
 
     @property
     def app(self):
