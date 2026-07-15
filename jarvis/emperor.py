@@ -395,4 +395,52 @@ class Emperor:
         if self._healing_engine is None:
             from jarvis.healing import HealingEngine
             self._healing_engine = HealingEngine()
+            self._register_default_healing_actions()
         return self._healing_engine
+
+    def _register_default_healing_actions(self) -> None:
+        """Register pre‑baked healing actions on first access."""
+        from jarvis.healing import HealingAction
+        from jarvis.healing_actions import (
+            emergency_evolve, flush_logs, gc_collect,
+            replenish_ministers, reset_task_engine,
+            restart_scheduler, silence_alert_rule, stop_scheduler,
+        )
+        engine = self._healing_engine
+        engine.register(HealingAction(
+            name="restart_scheduler_if_stopped",
+            alert_rule="scheduler_down",
+            action=lambda: restart_scheduler(),
+            cooldown_seconds=60,
+            tags=["scheduler"],
+        ))
+        engine.register(HealingAction(
+            name="emergency_evolve_on_minister_loss",
+            alert_rule="low_ministers",
+            action=lambda: replenish_ministers(min_count=self.config.min_ministers),
+            cooldown_seconds=120,
+            tags=["court"],
+        ))
+        engine.register(HealingAction(
+            name="reset_task_engine_on_stall",
+            alert_rule="task_stall",
+            action=lambda: reset_task_engine(),
+            cooldown_seconds=300,
+            tags=["task_engine"],
+        ))
+        engine.register(HealingAction(
+            name="silence_flooding_alerts",
+            alert_rule="alert_flood",
+            action=lambda: silence_alert_rule("alert_flood", duration_seconds=600),
+            cooldown_seconds=900,
+            tags=["alerts"],
+        ))
+        engine.register(HealingAction(
+            name="periodic_gc_collect",
+            alert_rule="high_memory",
+            action=lambda: gc_collect(),
+            cooldown_seconds=60,
+            tags=["system"],
+        ))
+        logger.info("[Emperor] Registered %d default healing actions",
+                    len(engine.list_actions()))
