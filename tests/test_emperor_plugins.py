@@ -55,14 +55,17 @@ class _FailingPlugin(Plugin):
 
 
 class TestEmperorPluginIntegration:
-    def test_plugins_property_empty(self):
+    def test_plugins_property_has_metrics_plugin(self):
         emp = Emperor()
-        assert emp.plugins.count() == 0
+        # Emperor now eagerly registers a MetricsPlugin on init
+        assert emp.plugins.count() == 1
+        assert any(p.name == "MetricsPlugin" for p in emp.plugins._plugins)
 
     def test_register_plugin(self):
         emp = Emperor()
         emp.plugins.register(_Tracker())
-        assert emp.plugins.count() == 1
+        # MetricsPlugin + our tracker = 2
+        assert emp.plugins.count() == 2
 
     def test_init_dispatched_to_plugin(self):
         emp = Emperor()

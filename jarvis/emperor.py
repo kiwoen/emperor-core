@@ -102,6 +102,13 @@ class Emperor:
         # Plugin system
         from jarvis.plugin import LifecycleEvent, PluginManager
         self._plugin_manager: Any = PluginManager()
+
+        # Eagerly register MetricsPlugin so every event from the very
+        # first dispatch is captured.
+        from jarvis.plugins import MetricsPlugin
+        self._metrics_plugin: Any = MetricsPlugin()
+        self._plugin_manager.register(self._metrics_plugin)
+
         self._dispatch(LifecycleEvent.ON_INIT, emperor=self)
 
         # Load persisted state if data_dir set
@@ -265,6 +272,9 @@ class Emperor:
 
         # Store alert_manager on app for dashboard access
         app.extra["alert_manager"] = self.alerts
+        # Touch metrics so the plugin is registered before serving
+        _ = self.metrics
+        app.extra["metrics_plugin"] = self._metrics_plugin
 
         self._app = app
 
@@ -433,6 +443,16 @@ class Emperor:
             from jarvis.alerts import AlertManager
             self._alert_manager = AlertManager()
         return self._alert_manager
+
+    @property
+    def metrics(self):
+        """MetricsPlugin for performance telemetry (auto-registered on init)."""
+        if self._metrics_plugin is None:
+            # Should never happen — registered in __init__
+            from jarvis.plugins import MetricsPlugin
+            self._metrics_plugin = MetricsPlugin()
+            self._plugin_manager.register(self._metrics_plugin)
+        return self._metrics_plugin
 
     @property
     def healing(self):

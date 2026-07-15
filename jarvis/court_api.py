@@ -302,6 +302,55 @@ def create_app(
             ],
         }
 
+    @app.get("/dashboard/metrics")
+    def dashboard_metrics():
+        """Performance metrics for the dashboard timeseries."""
+        mp = app.extra.get("metrics_plugin")
+        if mp is None:
+            return {"summary": {}, "tasks": [], "evolutions": []}
+
+        active = snap.active_count if mp is None else 0
+        s = mp.summary(active_ministers=active)
+
+        tasks = []
+        for t in mp.task_history(limit=100):
+            tasks.append({
+                "task_id": t.task_id,
+                "timestamp": t.timestamp,
+                "success": t.success,
+                "confidence": t.confidence,
+                "execution_time_ms": t.execution_time_ms,
+                "domain": t.domain,
+                "error": t.error,
+            })
+
+        evos = []
+        for e in mp.evolution_history(limit=50):
+            evos.append({
+                "timestamp": e.timestamp,
+                "cycles": e.cycles,
+                "active_ministers": e.active_ministers,
+                "avg_merit": e.avg_merit,
+            })
+
+        return {
+            "summary": {
+                "total_tasks": s.total_tasks,
+                "successful_tasks": s.successful_tasks,
+                "failed_tasks": s.failed_tasks,
+                "success_rate": s.success_rate,
+                "avg_confidence": s.avg_confidence,
+                "avg_execution_time_ms": s.avg_execution_time_ms,
+                "total_evolutions": s.total_evolutions,
+                "total_evolution_cycles": s.total_evolution_cycles,
+                "active_ministers": s.active_ministers,
+                "time_window_seconds": s.time_window_seconds,
+                "samples_in_buffer": s.samples_in_buffer,
+            },
+            "tasks": tasks,
+            "evolutions": evos,
+        }
+
     return app
 
 
