@@ -17,6 +17,8 @@ from jarvis.capability import (
     _handle_random,
     _handle_text,
     _handle_uuid_gen,
+    _web_fetch_handler,
+    _web_search_handler,
     _safe_eval_math,
     create_default_registry,
 )
@@ -262,9 +264,9 @@ class TestCapabilityRegistry:
 
     def test_list_all(self):
         reg = create_default_registry()
-        assert reg.count == 8
+        assert reg.count == 10
         names = {c.name for c in reg.list_all()}
-        assert names == {"datetime", "math", "random", "text", "file_info", "hash", "json_tool", "uuid_gen"}
+        assert names == {"datetime", "math", "random", "text", "file_info", "hash", "json_tool", "uuid_gen", "web_search", "web_fetch"}
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -353,7 +355,7 @@ class TestCourtIntegration:
         from jarvis.emperor import Emperor
         emp = Emperor()
         assert emp.capability_registry is not None
-        assert emp.capability_registry.count == 8
+        assert emp.capability_registry.count == 10
 
     def test_task_result_contains_capability_output(self):
         """When prompt matches a capability, result should contain capability output."""
@@ -493,9 +495,9 @@ class TestSafeEvalMath:
 
 
 class TestDefaultRegistry:
-    def test_has_all_eight(self):
+    def test_has_all_ten(self):
         reg = create_default_registry()
-        assert reg.count == 8
+        assert reg.count == 10
 
     def test_each_capability_executable(self):
         reg = create_default_registry()
@@ -507,3 +509,81 @@ class TestDefaultRegistry:
                 result = reg.execute(cap_name, f"test prompt for {cap_name}")
             assert "result" in result
             assert "data" in result
+
+
+# ══════════════════════════════════════════════════════════════════
+# _web_search_handler
+# ══════════════════════════════════════════════════════════════════
+
+
+class TestWebSearchHandler:
+    def test_returns_result(self):
+        r = _web_search_handler("Python programming language")
+        assert "result" in r
+        assert "data" in r
+
+    def test_contains_data_abstract_topics_url(self):
+        r = _web_search_handler("Python programming language")
+        assert "abstract" in r["data"]
+        assert "topics" in r["data"]
+        assert "url" in r["data"]
+        assert isinstance(r["data"]["topics"], list)
+
+    def test_empty_query(self):
+        r = _web_search_handler("")
+        assert "result" in r
+        assert "data" in r
+
+    def test_chinese_query(self):
+        r = _web_search_handler("Python 编程语言入门")
+        assert "result" in r
+        assert "data" in r
+
+    def test_no_network_graceful(self, monkeypatch):
+        import urllib.request
+
+        def mock_urlopen(*args, **kwargs):
+            raise OSError("Network unreachable")
+
+        monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+        r = _web_search_handler("test")
+        assert "搜索失败" in r["result"] or "fail" in r["result"].lower()
+        assert r["data"]["topics"] == []
+
+
+# ══════════════════════════════════════════════════════════════════
+# _web_fetch_handler
+# ══════════════════════════════════════════════════════════════════
+
+
+class TestWebFetchHandler:
+    def test_extracts_url(self):
+        r = _web_fetch_handler("抓取 https://example.com 的内容")
+        assert "result" in r
+        assert "data" in r
+        assert r["data"].get("url") == "https://example.com"
+
+    def test_no_url(self):
+        r = _web_fetch_handler("没有链接的普通文本")
+        assert "未在任务描述中找到 URL" in r["result"]
+        assert r["data"] == {}
+
+    @pytest.mark.network
+    def test_fetch_content(self):
+        r = _web_fetch_handler("https://example.com")
+        assert "result" in r
+        assert "Example Domain" in r["result"] or len(r["result"]) > 0
+
+    def test_invalid_url(self):
+        r = _web_fetch_handler("https://this-domain-does-not-exist-12345.com")
+        assert "网页抓取失败" in r["result"] or "fail" in r["result"].lower()
+
+    def test_timeout(self, monkeypatch):
+        import urllib.request
+
+        def mock_urlopen(*args, **kwargs):
+            raise TimeoutError("Connection timed out")
+
+        monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
+        r = _web_fetch_handler("https://example.com")
+        assert "网页抓取失败" in r["result"] or "fail" in r["result"].lower()

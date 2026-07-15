@@ -420,6 +420,8 @@ class Emperor:
             {"prompt": "掷一个1到100的骰子，再生成3个0-1之间的随机小数", "domain": "general"},  # → random
             {"prompt": "把 'Hello Emperor Core' 反转并统计字符数", "domain": "general"},     # → text
             {"prompt": "查看 jarvis/emperor.py 文件的行数和文件大小", "domain": "code"},      # → file_info
+            {"prompt": "搜索一下 Python 3.12 的新特性", "domain": "general"},                      # → web_search
+            {"prompt": "搜索天气预报相关的新闻", "domain": "general"},                             # → web_search
         ]
         sched.schedule_tasks(
             interval_minutes=self.config.auto_tasks_interval_minutes,

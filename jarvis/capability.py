@@ -21,7 +21,11 @@ import logging
 import operator
 import random as _random
 import uuid as _uuid
+import urllib.error
+import urllib.parse
+import urllib.request
 from dataclasses import dataclass, field
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -152,6 +156,16 @@ class CapabilityRegistry:
         # uuid_gen
         "uuid": "uuid_gen", "唯一id": "uuid_gen", "guid": "uuid_gen",
         "生成id": "uuid_gen", "唯一标识": "uuid_gen",
+
+        # web_search
+        "搜索": "web_search", "查一下": "web_search", "网上": "web_search",
+        "互联网": "web_search", "search": "web_search", "web": "web_search",
+        "搜": "web_search", "查查看": "web_search",
+
+        # web_fetch
+        "抓取": "web_fetch", "网页": "web_fetch", "链接": "web_fetch",
+        "http": "web_fetch", "网站": "web_fetch", "fetch": "web_fetch",
+        "爬": "web_fetch", "提取网页": "web_fetch",
     }
 
     # If prompt matches any of these negative keywords for a capability,
@@ -669,6 +683,154 @@ def _handle_uuid_gen(prompt: str, **kwargs: Any) -> dict:
     }
 
 
+def _web_search_handler(prompt: str, **kwargs: Any) -> dict:
+    """Search the web using DuckDuckGo Instant Answer API (no API key required)."""
+    if not prompt or not prompt.strip():
+        return {
+            "result": "未提供搜索查询词",
+            "data": {"abstract": "", "url": "", "topics": []},
+        }
+
+    # Extract query: take everything before the first ? or 。as the search query
+    query = prompt.strip()
+    for sep in ("？", "?", "。", "."):
+        idx = query.find(sep)
+        if idx > 0:
+            query = query[:idx]
+            break
+
+    encoded_query = urllib.parse.quote(query)
+    url = f"https://api.duckduckgo.com/?q={encoded_query}&format=json&no_html=1&skip_disambig=1"
+
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "EmperorCore/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = _json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, urllib.error.HTTPError, OSError, ValueError) as exc:
+        logger.warning("web_search failed for query=%r: %s", query, exc)
+        return {
+            "result": f"搜索失败: {exc}",
+            "data": {"abstract": "", "url": "", "topics": []},
+        }
+
+    abstract = data.get("Abstract", "") or ""
+    abstract_url = data.get("AbstractURL", "") or ""
+    related = data.get("RelatedTopics", []) or []
+    topics: list[str] = []
+    for item in related[:5]:
+        if isinstance(item, dict) and item.get("Text"):
+            topics.append(item["Text"])
+        elif isinstance(item, str):
+            topics.append(item)
+
+    lines: list[str] = []
+    if abstract:
+        lines.append(f"摘要: {abstract}")
+        if abstract_url:
+            lines.append(f"来源: {abstract_url}")
+    else:
+        lines.append("未找到相关摘要")
+
+    if topics:
+        lines.append("\n相关话题:")
+        for i, t in enumerate(topics, 1):
+            lines.append(f"  {i}. {t}")
+
+    return {
+        "result": "\n".join(lines),
+        "data": {"abstract": abstract, "url": abstract_url, "topics": topics},
+    }
+
+
+def _web_fetch_handler(prompt: str, **kwargs: Any) -> dict:
+    """Fetch and extract text content from a URL mentioned in the prompt."""
+    # Find URL in prompt
+    import re
+
+    url_match = re.search(r"https?://\S+", prompt)
+    if not url_match:
+        return {
+            "result": "未在任务描述中找到 URL，请提供有效的 http/https 链接",
+            "data": {},
+        }
+
+    url = url_match.group(0).rstrip(".,;:!?\"'）)】』」》")
+    logger.info("web_fetch: fetching %s", url)
+
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "EmperorCore/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            content_type = resp.headers.get("Content-Type", "")
+            raw = resp.read()
+
+            # Try to decode
+            charset = "utf-8"
+            if "charset=" in content_type:
+                charset = content_type.split("charset=")[-1].split(";")[0].strip().lower()
+                if charset not in ("utf-8", "utf8", "latin-1", "iso-8859-1", "windows-1252"):
+                    charset = "utf-8"
+
+            html_text = raw.decode(charset, errors="replace")
+    except (urllib.error.URLError, urllib.error.HTTPError, OSError, ValueError) as exc:
+        logger.warning("web_fetch failed for %s: %s", url, exc)
+        return {"result": f"网页抓取失败: {exc}", "data": {}}
+
+    # Strip script and style content, extract text
+    text = _html_to_text(html_text)
+    if len(text) > 2000:
+        text = text[:2000] + "...\n\n[内容已截断至 2000 字符]"
+
+    return {
+        "result": text,
+        "data": {"url": url, "length": len(text), "truncated": len(text) >= 2000},
+    }
+
+
+class _HTMLTextExtractor(HTMLParser):
+    """Simple HTML parser that extracts visible text, skipping scripts/styles."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.text_parts: list[str] = []
+        self._skip = False
+        self._skip_tags = {"script", "style", "noscript", "head", "meta", "link", "title"}
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag in self._skip_tags:
+            self._skip = True
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in self._skip_tags:
+            self._skip = False
+        # Add newline after block-level elements
+        if tag in ("div", "p", "br", "li", "h1", "h2", "h3", "h4", "h5", "h6", "tr"):
+            self.text_parts.append("\n")
+
+    def handle_data(self, data: str) -> None:
+        if self._skip:
+            return
+        text = data.strip()
+        if text:
+            self.text_parts.append(text)
+            self.text_parts.append(" ")
+
+
+def _html_to_text(html: str) -> str:
+    """Extract plain text from HTML, removing scripts and styles."""
+    parser = _HTMLTextExtractor()
+    try:
+        parser.feed(html)
+    except Exception:
+        pass
+    raw = "".join(parser.text_parts)
+    # Collapse whitespace
+    import re
+
+    raw = re.sub(r"[ \t]+", " ", raw)
+    raw = re.sub(r"\n{3,}", "\n\n", raw)
+    return raw.strip()
+
+
 # ══════════════════════════════════════════════════════════════════
 # Factory: create a registry with all built-in capabilities
 # ══════════════════════════════════════════════════════════════════
@@ -725,6 +887,18 @@ def create_default_registry() -> CapabilityRegistry:
         description="生成 UUID4 唯一标识符",
         domains=["code", "general"],
         handler=_handle_uuid_gen,
+    ))
+    registry.register(Capability(
+        name="web_search",
+        description="搜索互联网信息（通过 DuckDuckGo）",
+        domains=["general", "data"],
+        handler=_web_search_handler,
+    ))
+    registry.register(Capability(
+        name="web_fetch",
+        description="抓取指定网页的内容",
+        domains=["general", "data", "code"],
+        handler=_web_fetch_handler,
     ))
 
     return registry

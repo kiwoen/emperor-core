@@ -795,7 +795,9 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     // 计算类 → 绿色
     math: '#66bb6a', random: '#66bb6a',
     // 文本类 → 橙色
-    text: '#ffa726', datetime: '#ffa726'
+    text: '#ffa726', datetime: '#ffa726',
+    // 网络类 → 深橙色
+    web_search: '#ff6d00', web_fetch: '#ff6d00'
   };
 
   function filterTasks() {
@@ -991,10 +993,10 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     var hint = document.getElementById('cap-hint');
     // Map capabilities by domain using CAP_COLORS keys
     var domainCaps = {
-      general: ['datetime', 'text', 'uuid_gen'],
+      general: ['datetime', 'text', 'uuid_gen', 'web_search', 'web_fetch'],
       math: ['math', 'random'],
-      data: ['json_tool', 'hash'],
-      code: ['file_info', 'hash', 'json_tool', 'uuid_gen'],
+      data: ['json_tool', 'hash', 'web_search', 'web_fetch'],
+      code: ['file_info', 'hash', 'json_tool', 'uuid_gen', 'web_fetch'],
       legal: [],
       science: [],
       creative: []
