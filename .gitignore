@@ -67,6 +67,11 @@ logs/
 jarvis.log
 *.log
 
+# SQLite databases
+*.db
+*.db-shm
+*.db-wal
+
 # Sandbox
 sandbox_workspace/
 

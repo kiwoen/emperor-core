@@ -92,7 +92,8 @@ AlertHandler = Callable[[Alert], None]
 class AlertManager:
     """Manages alert rules, evaluates state, dispatches to handlers."""
 
-    def __init__(self) -> None:
+    def __init__(self, db: Any = None) -> None:
+        self._db = db
         self._rules: dict[str, AlertRule] = {}
         self._handlers: list[AlertHandler] = []
         self._fired_history: list[Alert] = []  # capped at 200
@@ -328,6 +329,18 @@ class AlertManager:
             self._fired_history = self._fired_history[-100:]
 
         logger.info("[Alerts] Built-in rule '%s' fired: %s", rule_name, message)
+
+        # Persist alert to database
+        if self._db is not None:
+            try:
+                self._db.save_alert(
+                    rule_name=alert.rule_name,
+                    level=alert.severity,
+                    message=alert.message,
+                )
+            except Exception:
+                logger.exception("[Alerts] Failed to persist alert to database")
+
         return alert
 
     def list_builtin_rules(self) -> list[str]:

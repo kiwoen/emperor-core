@@ -264,6 +264,20 @@ class Emperor:
         # One-command live dashboard: seed ministers + start scheduler
         if self.config.auto_seed_ministers:
             self._ensure_default_ministers()
+
+        # ── Initialize database persistence ────────────────────────
+        import os
+        from jarvis.database import Database
+
+        db_path = os.path.join(
+            self.config.court_path
+            if hasattr(self.config, 'court_path') and self.config.court_path
+            else os.getcwd(),
+            "jarvis.db",
+        )
+        db = Database(db_path)
+        self._court.db = db
+
         if self.config.auto_schedule:
             self._auto_start_scheduler()
 
@@ -273,6 +287,7 @@ class Emperor:
         app.extra["host"] = host
         app.extra["port"] = port
         app.extra["emperor"] = self
+        app.extra["db"] = db
 
         # Inject scheduler state if running
         if self._scheduler is not None:
@@ -537,7 +552,8 @@ class Emperor:
         """Lazy-loaded scheduler for periodic automation."""
         if self._scheduler is None:
             from jarvis.court.scheduler import Scheduler
-            self._scheduler = Scheduler(self)
+            db = getattr(self, '_db', None)
+            self._scheduler = Scheduler(self, db=db)
         return self._scheduler
 
     def start_auto_evolve(self, every_minutes: float = 30,

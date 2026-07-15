@@ -207,6 +207,15 @@ class Court:
     def crossover_rate(self) -> float:
         return self._config.crossover_rate
 
+    @property
+    def db(self) -> Optional[Any]:
+        """The Database instance (may be None if not injected)."""
+        return self._db
+
+    @db.setter
+    def db(self, value: Optional[Any]) -> None:
+        self._db = value
+
     # ── Persistence ───────────────────────────────────────────────
 
     def save_genomes(self) -> Optional[str]:

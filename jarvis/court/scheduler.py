@@ -82,14 +82,16 @@ class SchedulerReport:
 class Scheduler:
     """Background scheduler for periodic evolution and tasks."""
 
-    def __init__(self, emperor: Any = None) -> None:
+    def __init__(self, emperor: Any = None, db: Any = None) -> None:
         """Create a scheduler.
 
         Args:
             emperor: Optional Emperor instance. If not provided,
                      use add_job() to add jobs manually.
+            db: Optional Database instance for task persistence.
         """
         self._emperor = emperor
+        self._db = db
         self._entries: dict[str, ScheduleEntry] = {}
         self._state = SchedulerState.IDLE
         self._lock = threading.RLock()

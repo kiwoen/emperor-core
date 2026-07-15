@@ -421,6 +421,42 @@ def create_app(
             ],
         }
 
+    @app.get("/dashboard/task-history")
+    def dashboard_task_history():
+        """Return recent task history from the database (newest first)."""
+        db = app.extra.get("db")
+        if db is None:
+            return {"history": [], "note": "Database not initialized"}
+        try:
+            rows = db.get_task_history(limit=50)
+            return {"history": rows, "count": len(rows)}
+        except Exception as e:
+            raise HTTPException(500, f"Failed to read task history: {e}")
+
+    @app.get("/dashboard/evolution-history")
+    def dashboard_evolution_history():
+        """Return recent evolution history from the database (newest first)."""
+        db = app.extra.get("db")
+        if db is None:
+            return {"history": [], "note": "Database not initialized"}
+        try:
+            rows = db.get_evolution_history(limit=100)
+            return {"history": rows, "count": len(rows)}
+        except Exception as e:
+            raise HTTPException(500, f"Failed to read evolution history: {e}")
+
+    @app.get("/dashboard/alert-history")
+    def dashboard_alert_history():
+        """Return recent alert history from the database (newest first)."""
+        db = app.extra.get("db")
+        if db is None:
+            return {"history": [], "note": "Database not initialized"}
+        try:
+            rows = db.get_alert_history(limit=50)
+            return {"history": rows, "count": len(rows)}
+        except Exception as e:
+            raise HTTPException(500, f"Failed to read alert history: {e}")
+
     return app
 
 
