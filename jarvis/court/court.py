@@ -195,3 +195,16 @@ class Court:
             self._sm._genomes[g.name] = g
             self._sm._statuses[g.name] = MinisterStatus.ACTIVE
         return genomes, meta
+
+    def save_history(self, path: str) -> None:
+        """Save evolution history to JSON file."""
+        import json
+        from pathlib import Path
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(self.history.to_json(), encoding="utf-8")
+
+    def load_history(self, path: str) -> None:
+        """Load evolution history from JSON file."""
+        self.history._records.clear()
+        self.history._read_from_json(path)

@@ -236,3 +236,27 @@ class EvolutionHistory:
             "temperature_variance": r.temperature_variance,
             "domain_count": r.domain_count,
         }
+
+    def _read_from_json(self, path: str) -> None:
+        """Load records from a JSON file (inverse of to_json)."""
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.loads(f.read())
+        for d in data:
+            self._records.append(CycleRecord(
+                cycle=d["cycle"],
+                active_count=d["active_count"],
+                shadow_count=d.get("shadow_count", 0),
+                probation_count=d.get("probation_count", 0),
+                eliminated_count=d.get("eliminated_count", 0),
+                total_ministers=d.get("total_ministers", 0),
+                new_spawns=d.get("new_spawns", 0),
+                actions_taken=d.get("actions_taken", []),
+                systemic_issues=d.get("systemic_issues", []),
+                recommendations=d.get("recommendations", []),
+                merit_mean=d.get("merit_mean", 0.0),
+                merit_median=d.get("merit_median", 0.0),
+                merit_max=d.get("merit_max", 0.0),
+                merit_min=d.get("merit_min", 0.0),
+                temperature_variance=d.get("temperature_variance", 0.0),
+                domain_count=d.get("domain_count", 0),
+            ))

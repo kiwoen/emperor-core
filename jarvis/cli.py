@@ -1,329 +1,303 @@
-"""
-JARVIS CLI — Command-line entry point with subcommands.
+"""Emperor CLI — one command to rule the evolutionary court.
 
 Usage:
-    jarvis run         Start full system (Hermes + Codex + VSCode + MCP + Orchestrator)
-    jarvis serve       Start the API server
-    jarvis chat        Quick chat (Orchestrator-only, no Hermes)
-    jarvis status      Display system status
+    emperor init [--path DIR]              Create a new court with default config
+    emperor status [--json] [--path DIR]   Show court state summary
+    emperor register [--name NAME] ...     Register a minister
+    emperor evolve [--cycles N]            Run evolution cycles
+    emperor serve [--port PORT]            Start REST API server
+    emperor config [show|init]             View or scaffold config
+    emperor list                           List all ministers
+    emperor history [--limit N]            Show evolution history
+
+Examples:
+    emperor init --path ./my_court
+    emperor register --domain math --name turing
+    emperor evolve --cycles 5
+    emperor serve --port 9000
 """
 
 from __future__ import annotations
 
-import argparse
-import asyncio
-import logging
+import json
 import sys
 from pathlib import Path
+from typing import Optional
 
-# Add project root to path when running as module
-sys.path.insert(0, str(Path(__file__).parent.parent))
+import click
 
-from jarvis.core.config import JARVISConfig, load_config
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
+# ══════════════════════════════════════════════════════════════════
+# Helpers
+# ══════════════════════════════════════════════════════════════════
+
+def _load_or_create_court(court_dir: Path):
+    """Load genomes from court_dir if they exist, otherwise create fresh."""
+    from jarvis.court.court import Court
+
+    court = Court()
+    genome_file = court_dir / "genomes.json"
+    genome_file.parent.mkdir(parents=True, exist_ok=True)
+    court._sm._genome_path = str(genome_file)
+
+    if genome_file.exists():
+        try:
+            court.load_genomes(str(genome_file))
+        except Exception:
+            click.echo(
+                f"Warning: failed to load genomes from {genome_file}",
+                err=True,
+            )
+
+    history_file = court_dir / "history.json"
+    if history_file.exists():
+        try:
+            court.load_history(str(history_file))
+        except Exception:
+            pass
+
+    return court
+
+
+def _save_court(court, court_dir: Optional[Path] = None):
+    """Persist genomes and history if paths configured."""
+    court.save_genomes()
+
+    if court_dir:
+        history_file = court_dir / "history.json"
+        court.save_history(str(history_file))
+
+
+# ══════════════════════════════════════════════════════════════════
+# CLI
+# ══════════════════════════════════════════════════════════════════
+
+@click.group()
+@click.version_option(version="0.1.0", prog_name="emperor")
+@click.pass_context
+def cli(ctx: click.Context):
+    """Emperor — evolutionary AI court management CLI."""
+    ctx.ensure_object(dict)
+
+
+@cli.command()
+@click.option(
+    "--path", "-p", type=click.Path(), default="./court",
+    help="Court directory path",
 )
-logger = logging.getLogger("jarvis.cli")
+def init(path: str):
+    """Initialize a new court directory with default config and founder genome."""
+    court_dir = Path(path).resolve()
+    court_dir.mkdir(parents=True, exist_ok=True)
 
-
-# ---------------------------------------------------------------------------
-# Build helpers
-# ---------------------------------------------------------------------------
-
-def _build_subsystems(config: JARVISConfig):
-    """Create MemoryEngine, SandboxManager, EvolutionController.
-
-    Returns a dict ready for SystemIntegration.start(**kwargs).
-    """
-    from jarvis.core.llm import init_llm
-    from jarvis.memory.engine import MemoryEngine
-    from jarvis.sandbox import SandboxManager
-    from jarvis.evolution.controller import EvolutionController
-
-    init_llm(config)
-
-    memory = MemoryEngine(
-        persist_dir=str(Path(config.data_dir) / "memory"),
-        compression_threshold=getattr(config.memory, "auto_compress_threshold", 5000),
-    )
-
-    sandbox = SandboxManager(
-        engine=getattr(config.sandbox, "engine", "direct"),
-        memory_limit=getattr(config.sandbox, "memory_limit", 512),
-        cpu_limit=getattr(config.sandbox, "cpu_limit", 1.0),
-        timeout_seconds=getattr(config.sandbox, "timeout_seconds", 30),
-        network_enabled=getattr(config.sandbox, "network_enabled", False),
-    )
-
-    evolution = EvolutionController(data_dir=Path(config.data_dir), config=config)
-
-    return {
-        "memory_engine": memory,
-        "sandbox_manager": sandbox,
-        "evolution_controller": evolution,
-    }, (memory, sandbox, evolution)
-
-
-async def _start_integration(config: JARVISConfig) -> "SystemIntegration":
-    """Build subsystems and start SystemIntegration."""
-    from jarvis.core.integration import SystemIntegration
-
-    subsystems, (memory, sandbox, evolution) = _build_subsystems(config)
-
-    integration = SystemIntegration()
-    await integration.start(**subsystems)
-
-    loaded = integration.orchestrator.registry.list_domains()
-    logger.info("Loaded %d domains: %s", len(loaded), [d.name for d in loaded])
-
-    return integration, (memory, sandbox, evolution)
-
-
-# ---------------------------------------------------------------------------
-# jarvis run — Full system startup
-# ---------------------------------------------------------------------------
-
-def cmd_run(args: argparse.Namespace) -> None:
-    """Start the full JARVIS system (Hermes + Codex + VSCode + MCP + Orchestrator)."""
-
-    async def _run() -> None:
-        config = load_config()
-        integration, subsystems = await _start_integration(config)
-        _, (_, _, evolution) = subsystems
-
-        banner = f"""
-╔══════════════════════════════════════════════════════════════╗
-║     JARVIS v{config.version:<47}║
-║     Full System — Hermes + Codex + VSCode + MCP              ║
-║     "At your service, sir."                                  ║
-╚══════════════════════════════════════════════════════════════╝
-"""
-        print(banner)
-        print(f"Bus subscribers: {integration.bus.subscriber_count}")
-        status = integration.status()
-        print(f"Domains loaded:  {status['orchestrator']['domains']}")
-        print(f"Codex:           {'✓' if status['codex'] else '✗'}")
-        print(f"VSCode:          {'✓' if status['vscode'] else '✗'}")
-        print(f"MCP Server:      {'✓' if status['hermes_server'] else '✗'}")
-        print(f"MCP Client:      {'✓' if status['hermes_client'] else '✗'}")
-        print("\nType 'exit' or 'quit' to stop.\n")
-
-        # Interactive loop
-        while True:
-            try:
-                user_input = input("You > ").strip()
-            except (KeyboardInterrupt, EOFError):
-                print("\nShutting down...")
-                break
-
-            if not user_input:
-                continue
-            if user_input.lower() in ("exit", "quit", "bye"):
-                print("Goodbye, sir.")
-                break
-
-            result = await integration.execute(user_input)
-            if result["success"]:
-                output = result.get("output", "")
-                domain = result.get("domain", "core")
-                print(f"JARVIS [{domain}] > {output}")
-            else:
-                error = result.get("error", "Unknown error")
-                print(f"JARVIS > [ERROR] {error}")
-
-        await integration.shutdown()
-        evolution.save_state()
-        subsystems[1][1].cleanup()  # sandbox.cleanup()
-
-    asyncio.run(_run())
-
-
-# ---------------------------------------------------------------------------
-# jarvis serve — API server
-# ---------------------------------------------------------------------------
-
-def cmd_serve(args: argparse.Namespace) -> None:
-    """Start the JARVIS API server with full SystemIntegration."""
-
-    async def _serve() -> None:
-        config = load_config()
-        integration, _ = await _start_integration(config)
-
-        import jarvis.api.server as api_server
-        api_server.orchestrator_ref = integration.orchestrator
-        api_server.config_ref = config
-        api_server._start_time = __import__("time").time()
-
-        import uvicorn
-        uvicorn_config = uvicorn.Config(
-            app="jarvis.api.server:app",
-            host=args.host,
-            port=args.port,
-            log_level="info",
-            reload=args.reload,
+    # Seed default config
+    config_file = court_dir / "config.yaml"
+    if not config_file.exists():
+        config_file.write_text(
+            "elitism_count: 2\n"
+            "crossover_rate: 0.3\n"
+            "mutation_rate: 0.05\n"
+            "shadow_count: 3\n"
+            "cycle_limit: 50\n"
+            "task_difficulty: 0.5\n"
+            "diversity_weight: 0.3\n"
+            "stability_blend: 0.2\n",
+            encoding="utf-8",
         )
-        server = uvicorn.Server(uvicorn_config)
-        await server.serve()
+        click.echo(f"Default config written to {config_file}")
 
-    try:
-        asyncio.run(_serve())
-    except KeyboardInterrupt:
-        print("\nServer stopped.")
+    click.echo(f"Court initialized at {court_dir}")
+    click.echo("Next: emperor register --name turing --domain math")
 
 
-# ---------------------------------------------------------------------------
-# jarvis chat — Quick chat (Orchestrator-only)
-# ---------------------------------------------------------------------------
-
-def cmd_chat(args: argparse.Namespace) -> None:
-    """Run JARVIS in quick-chat mode (Orchestrator-only, no Hermes wiring)."""
-    config = load_config()
-
-    from jarvis.core.llm import init_llm
-    from jarvis.memory.engine import MemoryEngine
-    from jarvis.sandbox import SandboxManager
-    from jarvis.evolution.controller import EvolutionController
-    from jarvis.core.orchestrator import Orchestrator
-
-    init_llm(config)
-
-    memory = MemoryEngine(
-        persist_dir=str(Path(config.data_dir) / "memory"),
-        compression_threshold=getattr(config.memory, "auto_compress_threshold", 5000),
-    )
-    sandbox = SandboxManager(
-        engine=getattr(config.sandbox, "engine", "direct"),
-        memory_limit=getattr(config.sandbox, "memory_limit", 512),
-        cpu_limit=getattr(config.sandbox, "cpu_limit", 1.0),
-        timeout_seconds=getattr(config.sandbox, "timeout_seconds", 30),
-        network_enabled=getattr(config.sandbox, "network_enabled", False),
-    )
-    evolution = EvolutionController(data_dir=Path(config.data_dir), config=config)
-
-    orchestrator = Orchestrator(
-        memory_engine=memory,
-        evolution_controller=evolution,
-        sandbox_manager=sandbox,
-    )
-    orchestrator.load_all_domains()
-    loaded = orchestrator.registry.list_domains()
-    logger.info("Loaded %d domains: %s", len(loaded), [d.name for d in loaded])
-
-    banner = f"""
-╔══════════════════════════════════════════════════════════════╗
-║     JARVIS v{config.version:<47}║
-║     Quick Chat — Orchestrator-only                           ║
-║     "At your service, sir."                                  ║
-╚══════════════════════════════════════════════════════════════╝
-"""
-    print(banner)
-    print("Type 'exit' or 'quit' to stop.\n")
-
-    async def _chat() -> None:
-        while True:
-            try:
-                user_input = input("You > ").strip()
-            except (KeyboardInterrupt, EOFError):
-                print("\nShutting down...")
-                break
-
-            if not user_input:
-                continue
-            if user_input.lower() in ("exit", "quit", "bye"):
-                print("Goodbye, sir.")
-                break
-
-            result = await orchestrator.execute(user_input)
-            if result.success:
-                print(f"JARVIS > {result.output}")
-            else:
-                print(f"JARVIS > [ERROR] {result.error}")
-
-    try:
-        asyncio.run(_chat())
-    except KeyboardInterrupt:
-        print("\nGoodbye.")
+@cli.command()
+@click.option(
+    "--path", "-p", type=click.Path(), default="./court",
+    help="Court directory path",
+)
+@click.option(
+    "--fmt", "output_format", type=click.Choice(["text", "json"]),
+    default="text", help="Output format"
+)
+def status(path: str, output_format: str):
+    """Show court state summary."""
+    court = _load_or_create_court(Path(path))
+    if output_format == "json":
+        snap = court.inspect.snapshot()
+        click.echo(json.dumps(
+            {"total_ministers": snap.total_ministers,
+             "active_count": snap.active_count},
+            indent=2, default=str,
+        ))
+    else:
+        click.echo(court.summary())
 
 
-# ---------------------------------------------------------------------------
-# jarvis status — System status
-# ---------------------------------------------------------------------------
-
-def cmd_status(args: argparse.Namespace) -> None:
-    """Display JARVIS system status via SystemIntegration."""
-
-    async def _status() -> None:
-        config = load_config()
-        integration, (memory, sandbox, evolution) = await _start_integration(config)
-
-        status = integration.status()
-        mem_stats = await integration.orchestrator.memory.get_stats()
-        domains = integration.orchestrator.registry.list_domains()
-        topics = integration.topic_summary()
-
-        print(f"JARVIS Core v{config.version}")
-        print(f"  Running         : {'yes' if status['running'] else 'no'}")
-        print(f"  Domains loaded  : {len(domains)} ({', '.join(d.name for d in domains)})")
-        print(f"  Memory entries  : {mem_stats['episodic_count']} episodic + {mem_stats['semantic_count']} semantic")
-        print(f"  ChromaDB        : {'enabled' if mem_stats['chromadb_enabled'] else 'disabled'}")
-        print(f"  Evolution       : {evolution.total_cycles} cycles, {evolution.average_score:.1%} success rate")
-        print(f"  Sandbox engine  : {config.sandbox.engine}")
-        print(f"  Bus subscribers : {status['bus']['subscribers']}")
-        print(f"  Bus messages    : {status['bus']['messages']}")
-        print(f"  Codex           : {'✓' if status['codex'] else '✗'}")
-        print(f"  VSCode          : {'✓' if status['vscode'] else '✗'}")
-        print(f"  MCP Server      : {'✓' if status['hermes_server'] else '✗'}")
-        print(f"  MCP Client      : {'✓' if status['hermes_client'] else '✗'}")
-        print(f"  Hermes topics   : {len(topics)} ({', '.join(topics.keys())})")
-
-        await integration.shutdown()
-        evolution.save_state()
-        sandbox.cleanup()
-
-    asyncio.run(_status())
+@cli.command()
+@click.option(
+    "--path", "-p", type=click.Path(), default="./court",
+    help="Court directory path",
+)
+@click.option("--name", "-n", default=None, help="Minister name (auto if omitted)")
+@click.option("--domain", "-d", default="general",
+              help="Domain: general, math, code, etc.")
+@click.option("--temperature", "-t", type=float, default=0.7,
+              help="Temperature (0.0-2.0)")
+def register(path: str, name: Optional[str], domain: str, temperature: float):
+    """Register a new minister into the court."""
+    court = _load_or_create_court(Path(path))
+    result = court.register(name=name, domain=domain, temperature=temperature)
+    click.echo(f"Registered minister: {result}")
+    _save_court(court, Path(path))
 
 
-# ---------------------------------------------------------------------------
-# CLI entry point
-# ---------------------------------------------------------------------------
+@cli.command()
+@click.option(
+    "--path", "-p", type=click.Path(), default="./court",
+    help="Court directory path",
+)
+@click.option("--cycles", "-c", type=int, default=1, help="Number of cycles")
+def evolve(path: str, cycles: int):
+    """Run evolution cycles on the court."""
+    court = _load_or_create_court(Path(path))
 
-def main() -> None:
-    """CLI entry point — registered in pyproject.toml [project.scripts]."""
-    parser = argparse.ArgumentParser(
-        prog="jarvis",
-        description="JARVIS — Just A Rather Very Intelligent System",
-    )
-    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    if not court.active_ministers:
+        click.echo(
+            "No active ministers. Register one first: emperor register"
+        )
+        raise SystemExit(1)
 
-    # jarvis run
-    run_parser = subparsers.add_parser("run", help="Start full JARVIS system (Hermes + Codex + VSCode + MCP)")
-    run_parser.set_defaults(func=cmd_run)
+    if cycles > 100:
+        click.echo(
+            "Warning: large cycle count; "
+            "consider --cycles 10-20 for initial runs"
+        )
 
-    # jarvis serve
-    serve_parser = subparsers.add_parser("serve", help="Start the API server")
-    serve_parser.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)")
-    serve_parser.add_argument("--port", type=int, default=8000, help="Bind port (default: 8000)")
-    serve_parser.add_argument("--reload", action="store_true", help="Enable auto-reload for development")
-    serve_parser.set_defaults(func=cmd_serve)
+    result = court.evolve(cycles)
+    click.echo(json.dumps(result, indent=2, default=str))
+    _save_court(court, Path(path))
 
-    # jarvis chat
-    chat_parser = subparsers.add_parser("chat", help="Quick chat mode (Orchestrator-only)")
-    chat_parser.set_defaults(func=cmd_chat)
 
-    # jarvis status
-    status_parser = subparsers.add_parser("status", help="Display system status")
-    status_parser.set_defaults(func=cmd_status)
+@cli.command("list")
+@click.option(
+    "--path", "-p", type=click.Path(), default="./court",
+    help="Court directory path",
+)
+def list_ministers(path: str):
+    """List all ministers in the court."""
+    court = _load_or_create_court(Path(path))
+    snap = court.inspect.snapshot()
+    click.echo(f"Total: {snap.total_ministers}  "
+               f"Active: {snap.active_count}")
+    click.echo("-" * 66)
+    for m in snap.ministers:
+        icon = "*" if m.status == "active" else " "
+        click.echo(
+            f" {icon} {m.name:<16s}  "
+            f"merit={m.merit:.3f}  "
+            f"temp={m.temperature:.2f}  "
+            f"gen={m.generation}"
+        )
 
-    args = parser.parse_args()
 
-    if not args.command:
-        parser.print_help()
-        sys.exit(1)
+@cli.command()
+@click.option(
+    "--path", "-p", type=click.Path(), default="./court",
+    help="Court directory path",
+)
+@click.option("--limit", "-l", type=int, default=10,
+              help="Max recent cycles to show")
+def history(path: str, limit: int):
+    """Show evolution cycle history."""
+    court = _load_or_create_court(Path(path))
+    total = len(court.history)
+    if total == 0:
+        click.echo("No evolution history yet. Run: emperor evolve")
+        return
 
-    args.func(args)
+    start = max(0, total - limit)
+    click.echo(f"Showing cycles {start}–{total - 1} of {total}")
+    click.echo("-" * 50)
+    for i in range(start, total):
+        rec = court.history[i]
+        click.echo(
+            f"  Cycle {rec.cycle:>3d}:  "
+            f"active={rec.active_count}  "
+            f"merit_avg={rec.merit_mean:.3f}"
+        )
+
+
+@cli.command()
+@click.option(
+    "--path", "-p", type=click.Path(), default="./court",
+    help="Court directory path",
+)
+@click.option("--port", type=int, default=8000, help="Server port")
+@click.option("--host", default="127.0.0.1", help="Server host")
+def serve(path: str, port: int, host: str):
+    """Start the Court REST API server."""
+    import uvicorn
+    from jarvis.court.config import SurvivalConfig
+    from jarvis.court_api import create_app
+
+    court_dir = Path(path)
+    config_path = court_dir / "config.yaml"
+
+    config = None
+    if config_path.exists():
+        config = SurvivalConfig.from_yaml(str(config_path))
+        click.echo(f"Loaded config from {config_path}")
+
+    app = create_app(config=config)
+    click.echo(f"Emperor Court API → http://{host}:{port}")
+    click.echo(f"Court directory: {court_dir}")
+    uvicorn.run(app, host=host, port=port, log_level="info")
+
+
+@cli.command()
+@click.option(
+    "--path", "-p", type=click.Path(), default="./court",
+    help="Court directory path",
+)
+@click.argument("action", type=click.Choice(["show", "init"]))
+def config(path: str, action: str):
+    """Manage court configuration.
+
+    ACTION is one of: show, init.
+    """
+    court_dir = Path(path)
+    config_file = court_dir / "config.yaml"
+
+    if action == "init":
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        config_file.write_text(
+            "elitism_count: 2\n"
+            "crossover_rate: 0.3\n"
+            "mutation_rate: 0.05\n"
+            "shadow_count: 3\n"
+            "cycle_limit: 50\n"
+            "task_difficulty: 0.5\n"
+            "diversity_weight: 0.3\n"
+            "stability_blend: 0.2\n",
+            encoding="utf-8",
+        )
+        click.echo(f"Config written to {config_file}")
+    elif action == "show":
+        if config_file.exists():
+            click.echo(config_file.read_text(encoding="utf-8"))
+        else:
+            click.echo(
+                f"No config at {config_file}. "
+                "Run 'emperor config init' to create one."
+            )
+
+
+# ══════════════════════════════════════════════════════════════════
+# Entry points
+# ══════════════════════════════════════════════════════════════════
+
+def main():
+    cli(prog_name="emperor")
 
 
 if __name__ == "__main__":

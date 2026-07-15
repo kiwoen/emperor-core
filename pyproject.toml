@@ -27,6 +27,7 @@ dependencies = [
     "asyncpg>=0.29.0",
     "redis>=5.0.0",
     "celery>=5.3.0",
+    "click>=8.1.0",
 ]
 
 [project.optional-dependencies]
@@ -41,7 +42,7 @@ dev = [
 
 [project.scripts]
 jarvis = "jarvis.cli:main"
-emperor = "jarvis.emperor_cli:main"
+emperor = "jarvis.cli:main"
 
 [build-system]
 requires = ["setuptools>=69.0.0", "wheel"]
