@@ -110,12 +110,43 @@ class Database:
             self._conn.commit()
             return cur.lastrowid
 
-    def get_task_history(self, limit: int = 50) -> list[dict]:
-        """Return the most recent N task records (newest first)."""
+    def get_task_history(
+        self,
+        limit: int = 50,
+        minister: str | None = None,
+        status: str | None = None,
+        search: str | None = None,
+        offset: int = 0,
+    ) -> list[dict]:
+        """Return task records with optional filtering (newest first).
+
+        Args:
+            limit: Max rows to return.
+            minister: Filter by minister name (exact match).
+            status: Filter by task status (completed / failed).
+            search: Fuzzy-search prompt content (SQL LIKE).
+            offset: Pagination offset.
+        """
+        clauses = []
+        params: list[Any] = []
+
+        if minister:
+            clauses.append("minister = ?")
+            params.append(minister)
+        if status:
+            clauses.append("status = ?")
+            params.append(status)
+        if search:
+            clauses.append("prompt LIKE ?")
+            params.append(f"%{search}%")
+
+        where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+        params.extend([limit, offset])
+
         with self._lock:
             rows = self._conn.execute(
-                "SELECT * FROM task_history ORDER BY id DESC LIMIT ?",
-                (limit,),
+                f"SELECT * FROM task_history{where} ORDER BY id DESC LIMIT ? OFFSET ?",
+                params,
             ).fetchall()
         return [dict(r) for r in rows]
 
@@ -161,14 +192,65 @@ class Database:
             self._conn.commit()
             return cur.lastrowid
 
-    def get_alert_history(self, limit: int = 50) -> list[dict]:
-        """Return the most recent N alert records (newest first)."""
+    def get_alert_history(
+        self,
+        limit: int = 50,
+        level: str | None = None,
+        search: str | None = None,
+        offset: int = 0,
+    ) -> list[dict]:
+        """Return alert records with optional filtering (newest first).
+
+        Args:
+            limit: Max rows to return.
+            level: Filter by alert level (WARNING / ERROR / INFO).
+            search: Fuzzy-search message content (SQL LIKE).
+            offset: Pagination offset.
+        """
+        clauses = []
+        params: list[Any] = []
+
+        if level:
+            clauses.append("level = ?")
+            params.append(level)
+        if search:
+            clauses.append("message LIKE ?")
+            params.append(f"%{search}%")
+
+        where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+        params.extend([limit, offset])
+
         with self._lock:
             rows = self._conn.execute(
-                "SELECT * FROM alert_history ORDER BY id DESC LIMIT ?",
-                (limit,),
+                f"SELECT * FROM alert_history{where} ORDER BY id DESC LIMIT ? OFFSET ?",
+                params,
             ).fetchall()
         return [dict(r) for r in rows]
+
+    # ── Export ─────────────────────────────────────────────────────
+
+    def export_all(self) -> dict[str, list[dict]]:
+        """Return all data from all three tables as a dict of lists."""
+        with self._lock:
+            tasks = [
+                dict(r)
+                for r in self._conn.execute(
+                    "SELECT * FROM task_history ORDER BY id DESC"
+                ).fetchall()
+            ]
+            evolutions = [
+                dict(r)
+                for r in self._conn.execute(
+                    "SELECT * FROM evolution_history ORDER BY id DESC"
+                ).fetchall()
+            ]
+            alerts = [
+                dict(r)
+                for r in self._conn.execute(
+                    "SELECT * FROM alert_history ORDER BY id DESC"
+                ).fetchall()
+            ]
+        return {"tasks": tasks, "evolutions": evolutions, "alerts": alerts}
 
     # ── Utility ────────────────────────────────────────────────────
 

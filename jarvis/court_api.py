@@ -422,13 +422,22 @@ def create_app(
         }
 
     @app.get("/dashboard/task-history")
-    def dashboard_task_history():
-        """Return recent task history from the database (newest first)."""
+    def dashboard_task_history(
+        minister: str | None = None,
+        status: str | None = None,
+        search: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ):
+        """Return task history with optional filtering (newest first)."""
         db = app.extra.get("db")
         if db is None:
             return {"history": [], "note": "Database not initialized"}
         try:
-            rows = db.get_task_history(limit=50)
+            rows = db.get_task_history(
+                limit=limit, minister=minister,
+                status=status, search=search, offset=offset,
+            )
             return {"history": rows, "count": len(rows)}
         except Exception as e:
             raise HTTPException(500, f"Failed to read task history: {e}")
@@ -446,16 +455,81 @@ def create_app(
             raise HTTPException(500, f"Failed to read evolution history: {e}")
 
     @app.get("/dashboard/alert-history")
-    def dashboard_alert_history():
-        """Return recent alert history from the database (newest first)."""
+    def dashboard_alert_history(
+        level: str | None = None,
+        search: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ):
+        """Return alert history with optional filtering (newest first)."""
         db = app.extra.get("db")
         if db is None:
             return {"history": [], "note": "Database not initialized"}
         try:
-            rows = db.get_alert_history(limit=50)
+            rows = db.get_alert_history(
+                limit=limit, level=level, search=search, offset=offset,
+            )
             return {"history": rows, "count": len(rows)}
         except Exception as e:
             raise HTTPException(500, f"Failed to read alert history: {e}")
+
+    @app.get("/dashboard/export")
+    def dashboard_export(
+        format: str = "json",
+        what: str = "all",
+    ):
+        """Export dashboard data in JSON or CSV format."""
+        db = app.extra.get("db")
+        if db is None:
+            raise HTTPException(503, "Database not initialized")
+        try:
+            data = db.export_all()
+        except Exception as e:
+            raise HTTPException(500, f"Failed to export data: {e}")
+
+        # Filter by what
+        if what == "tasks":
+            data = {"tasks": data["tasks"]}
+        elif what == "alerts":
+            data = {"alerts": data["alerts"]}
+        elif what == "evolutions":
+            data = {"evolutions": data["evolutions"]}
+
+        if format == "csv":
+            import csv
+            import io
+
+            output = io.StringIO()
+            writer = csv.writer(output)
+
+            tables = [
+                ("TASKS", data.get("tasks", [])),
+                ("ALERTS", data.get("alerts", [])),
+                ("EVOLUTIONS", data.get("evolutions", [])),
+            ]
+
+            first_section = True
+            for section_name, rows in tables:
+                if not rows:
+                    continue
+                if not first_section:
+                    output.write("---\n")
+                first_section = False
+
+                # Header
+                writer.writerow(rows[0].keys())
+                for row in rows:
+                    writer.writerow(row.values())
+
+            from fastapi.responses import Response
+            return Response(
+                content=output.getvalue(),
+                media_type="text/csv",
+                headers={"Content-Disposition": "attachment; filename=emperor_export.csv"},
+            )
+
+        # JSON format
+        return data
 
     return app
 

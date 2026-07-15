@@ -206,3 +206,155 @@ def test_empty_history_returns_empty_list(db):
     assert db.get_task_history() == []
     assert db.get_evolution_history() == []
     assert db.get_alert_history() == []
+
+
+# ══════════════════════════════════════════════════════════════════
+# Tests — task_history filtering
+# ══════════════════════════════════════════════════════════════════
+
+
+def test_task_history_filter_by_minister(db):
+    """get_task_history should filter by minister name."""
+    db.save_task("t1", "prompt1", "turing", "r1", 0.9, "completed")
+    db.save_task("t2", "prompt2", "curie", "r2", 0.8, "completed")
+    db.save_task("t3", "prompt3", "turing", "r3", 0.7, "failed")
+
+    rows = db.get_task_history(minister="turing")
+    assert len(rows) == 2
+    assert all(r["minister"] == "turing" for r in rows)
+
+
+def test_task_history_filter_by_status(db):
+    """get_task_history should filter by status."""
+    db.save_task("t1", "p1", "m1", "r1", 0.9, "completed")
+    db.save_task("t2", "p2", "m2", "r2", 0.8, "failed")
+    db.save_task("t3", "p3", "m3", "r3", 0.7, "completed")
+
+    rows = db.get_task_history(status="failed")
+    assert len(rows) == 1
+    assert rows[0]["status"] == "failed"
+
+
+def test_task_history_filter_by_search(db):
+    """get_task_history should fuzzy-search prompt content."""
+    db.save_task("t1", "solve math equation", "m1", "42", 0.9, "completed")
+    db.save_task("t2", "write python code", "m2", "ok", 0.8, "completed")
+    db.save_task("t3", "analyze data", "m3", "ok", 0.7, "completed")
+
+    rows = db.get_task_history(search="math")
+    assert len(rows) == 1
+    assert "math" in rows[0]["prompt"]
+
+    rows = db.get_task_history(search="python")
+    assert len(rows) == 1
+    assert "python" in rows[0]["prompt"]
+
+    rows = db.get_task_history(search="xyzzy")
+    assert len(rows) == 0
+
+
+def test_task_history_offset(db):
+    """get_task_history should support pagination offset."""
+    for i in range(5):
+        db.save_task(f"t{i}", f"prompt{i}", "m", "ok", 0.5, "completed")
+
+    all_rows = db.get_task_history(limit=10)
+    assert len(all_rows) == 5
+
+    page1 = db.get_task_history(limit=2, offset=0)
+    page2 = db.get_task_history(limit=2, offset=2)
+    assert len(page1) == 2
+    assert len(page2) == 2
+    # Verify no overlap
+    ids_page1 = {r["id"] for r in page1}
+    ids_page2 = {r["id"] for r in page2}
+    assert ids_page1.isdisjoint(ids_page2)
+
+
+def test_task_history_combined_filters(db):
+    """get_task_history with multiple filters combined (AND logic)."""
+    db.save_task("t1", "hello world", "turing", "ok", 0.9, "completed")
+    db.save_task("t2", "hello again", "turing", "ok", 0.8, "failed")
+    db.save_task("t3", "hello world", "curie", "ok", 0.7, "completed")
+
+    rows = db.get_task_history(minister="turing", status="completed", search="hello")
+    assert len(rows) == 1
+    assert rows[0]["task_id"] == "t1"
+
+
+# ══════════════════════════════════════════════════════════════════
+# Tests — alert_history filtering
+# ══════════════════════════════════════════════════════════════════
+
+
+def test_alert_history_filter_by_level(db):
+    """get_alert_history should filter by level."""
+    db.save_alert("rule1", "WARNING", "msg1")
+    db.save_alert("rule2", "ERROR", "msg2")
+    db.save_alert("rule3", "WARNING", "msg3")
+
+    rows = db.get_alert_history(level="WARNING")
+    assert len(rows) == 2
+    assert all(r["level"] == "WARNING" for r in rows)
+
+    rows = db.get_alert_history(level="ERROR")
+    assert len(rows) == 1
+    assert rows[0]["level"] == "ERROR"
+
+
+def test_alert_history_filter_by_search(db):
+    """get_alert_history should fuzzy-search message content."""
+    db.save_alert("r1", "WARNING", "Memory usage high")
+    db.save_alert("r2", "ERROR", "CPU spike detected")
+    db.save_alert("r3", "INFO", "Disk space low")
+
+    rows = db.get_alert_history(search="memory")
+    assert len(rows) == 1
+    assert "Memory" in rows[0]["message"]
+
+    rows = db.get_alert_history(search="cpu")
+    assert len(rows) == 1
+
+    rows = db.get_alert_history(search="nope")
+    assert len(rows) == 0
+
+
+def test_alert_history_offset(db):
+    """get_alert_history should support pagination offset."""
+    for i in range(5):
+        db.save_alert(f"r{i}", "INFO", f"msg{i}")
+
+    page1 = db.get_alert_history(limit=2, offset=0)
+    page2 = db.get_alert_history(limit=2, offset=2)
+    assert len(page1) == 2
+    assert len(page2) == 2
+    ids1 = {r["id"] for r in page1}
+    ids2 = {r["id"] for r in page2}
+    assert ids1.isdisjoint(ids2)
+
+
+# ══════════════════════════════════════════════════════════════════
+# Tests — export_all
+# ══════════════════════════════════════════════════════════════════
+
+
+def test_export_all_empty(db):
+    """export_all should return empty lists when no data."""
+    result = db.export_all()
+    assert result == {"tasks": [], "evolutions": [], "alerts": []}
+
+
+def test_export_all_with_data(db):
+    """export_all should return all data from all three tables."""
+    db.save_task("t1", "prompt1", "m1", "r1", 0.9, "completed")
+    db.save_task("t2", "prompt2", "m2", "r2", 0.8, "failed")
+    db.save_evolution(1, "m1", 0.5, 0.8, 0.3)
+    db.save_alert("rule1", "WARNING", "test alert")
+
+    result = db.export_all()
+    assert len(result["tasks"]) == 2
+    assert len(result["evolutions"]) == 1
+    assert len(result["alerts"]) == 1
+    # Verify newest first ordering
+    assert result["tasks"][0]["task_id"] == "t2"
+    assert result["tasks"][1]["task_id"] == "t1"

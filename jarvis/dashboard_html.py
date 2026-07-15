@@ -195,6 +195,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     <button id="btnEvolve" onclick="triggerEvolve()" style="background:#e94560;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-family:inherit;font-size:0.85rem;cursor:pointer;transition:filter 0.2s;">进化</button>
     <button id="btnExecute" onclick="triggerExecute()" style="background:#e94560;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-family:inherit;font-size:0.85rem;cursor:pointer;transition:filter 0.2s;">执行任务</button>
     <button id="btnHeal" onclick="triggerHeal()" style="background:#e94560;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-family:inherit;font-size:0.85rem;cursor:pointer;transition:filter 0.2s;">自愈检查</button>
+    <button id="btnExport" onclick="triggerExport()" style="background:var(--card-bg);color:var(--accent);border:1px solid rgba(108,140,255,0.3);border-radius:8px;padding:10px 20px;font-family:inherit;font-size:0.85rem;cursor:pointer;transition:all 0.2s;">导出数据</button>
   </div>
 </div>
 
@@ -245,6 +246,20 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 <!-- Recent tasks panel -->
 <div class="panel">
   <h3>Recent Tasks <span class="count" id="taskCount">0</span></h3>
+  <div class="filter-bar" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+    <input type="text" id="taskSearch" placeholder="搜索任务..." oninput="debounceFilterTasks()"
+      style="flex:1;min-width:140px;padding:6px 10px;border-radius:6px;border:1px solid var(--card-border);background:rgba(255,255,255,0.03);color:var(--text);font-family:inherit;font-size:0.78rem;outline:none;">
+    <select id="taskMinisterFilter" onchange="filterTasks()"
+      style="padding:6px 10px;border-radius:6px;border:1px solid var(--card-border);background:rgba(255,255,255,0.03);color:var(--text);font-family:inherit;font-size:0.78rem;cursor:pointer;">
+      <option value="">全部大臣</option>
+    </select>
+    <select id="taskStatusFilter" onchange="filterTasks()"
+      style="padding:6px 10px;border-radius:6px;border:1px solid var(--card-border);background:rgba(255,255,255,0.03);color:var(--text);font-family:inherit;font-size:0.78rem;cursor:pointer;">
+      <option value="">全部状态</option>
+      <option value="completed">完成</option>
+      <option value="failed">失败</option>
+    </select>
+  </div>
   <div id="taskList" class="panel-scroll">
     <div class="empty">No tasks executed yet</div>
   </div>
@@ -253,6 +268,17 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 <!-- Alerts panel -->
 <div class="panel">
   <h3>Active Alerts & Notifications <span class="count" id="alertCount">0</span></h3>
+  <div class="filter-bar" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+    <input type="text" id="alertSearch" placeholder="搜索告警..." oninput="debounceFilterAlerts()"
+      style="flex:1;min-width:140px;padding:6px 10px;border-radius:6px;border:1px solid var(--card-border);background:rgba(255,255,255,0.03);color:var(--text);font-family:inherit;font-size:0.78rem;outline:none;">
+    <select id="alertLevelFilter" onchange="filterAlerts()"
+      style="padding:6px 10px;border-radius:6px;border:1px solid var(--card-border);background:rgba(255,255,255,0.03);color:var(--text);font-family:inherit;font-size:0.78rem;cursor:pointer;">
+      <option value="">全部级别</option>
+      <option value="WARNING">WARNING</option>
+      <option value="ERROR">ERROR</option>
+      <option value="INFO">INFO</option>
+    </select>
+  </div>
   <div id="alertsList"><div class="empty">No alerts</div></div>
 </div>
 
@@ -412,31 +438,24 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   // ── Recent task list (prefer DB history, fallback to metrics) ──
   var taskHistory = null;
   function renderTaskList(metrics) {
-    var tasks = (taskHistory && taskHistory.length)
-      ? taskHistory
-      : (metrics && metrics.tasks ? metrics.tasks : []);
-    document.getElementById('taskCount').textContent = tasks.length;
-    if (!tasks.length) {
-      document.getElementById('taskList').innerHTML = '<div class="empty">No tasks executed yet</div>';
-      return;
+    // Only update taskHistory from metrics if DB history is not available
+    if (!taskHistory || !taskHistory.length) {
+      if (metrics && metrics.tasks && metrics.tasks.length) {
+        taskHistory = metrics.tasks.map(function(t) {
+          return {
+            task_id: t.task_id,
+            prompt: t.prompt || '',
+            minister: t.domain || 'general',
+            result: '',
+            confidence: t.confidence || 0,
+            status: t.success ? 'completed' : 'failed',
+            created_at: t.timestamp ? new Date(t.timestamp * 1000).toISOString() : null,
+            id: null
+          };
+        });
+      }
     }
-    var html = tasks.slice(0, 25).map(function(t) {
-      var statusClass = (t.success || t.status === 'completed') ? 'online' : 'offline';
-      var conf = (t.confidence || 0).toFixed(2);
-      var taskId = t.task_id || '?';
-      var displayId = (t.id && !t.task_id) ? '#' + t.id : taskId;
-      return '<div class="task-row">' +
-        '<span class="dot ' + statusClass + '"></span>' +
-        '<div>' +
-          '<code style="font-size:0.78rem;">' + displayId + '</code>' +
-          ' &middot; <span class="task-domain">' + (t.domain || t.minister || 'general') + '</span>' +
-          ' &middot; conf=' + conf +
-        '</div>' +
-        '<span style="color:var(--text-dim);font-size:0.7rem;">' + (t.result || t.prompt || '').substring(0, 30) + '</span>' +
-        '<span class="task-time">' + (t.created_at ? new Date(t.created_at).toLocaleTimeString() : '--') + '</span>' +
-      '</div>';
-    }).join('');
-    document.getElementById('taskList').innerHTML = html;
+    filterTasks();
   }
 
   // ── Charts: update from metrics ──
@@ -479,31 +498,20 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   // ── Alerts (prefer DB history, fallback to real-time) ──
   var alertHistory = null;
   function renderAlerts(alertsData) {
-    var items = (alertHistory && alertHistory.length)
-      ? alertHistory
-      : (alertsData && alertsData.history ? alertsData.history : []);
-    document.getElementById('alertCount').textContent = items.length;
-    var el = document.getElementById('alertsList');
-    if (!items.length) {
-      el.innerHTML = '<div class="empty">No alerts — system is healthy</div>';
-      return;
-    }
-    el.innerHTML = items.slice(0, 15).map(function(a) {
-      var timeStr = '--';
-      if (a.timestamp) {
-        timeStr = new Date(a.timestamp * 1000).toLocaleTimeString();
-      } else if (a.created_at) {
-        timeStr = new Date(a.created_at).toLocaleTimeString();
+    // Only update alertHistory from real-time if DB history not available
+    if (!alertHistory || !alertHistory.length) {
+      if (alertsData && alertsData.history && alertsData.history.length) {
+        alertHistory = alertsData.history.map(function(a) {
+          return {
+            rule_name: a.rule_name,
+            level: a.severity || 'info',
+            message: a.message,
+            created_at: a.timestamp ? new Date(a.timestamp * 1000).toISOString() : null
+          };
+        });
       }
-      var sev = a.severity || a.level || 'info';
-      var name = a.rule_name || 'alert';
-      var msg = a.message || '';
-      return '<div class="alert-item ' + sev + '">' +
-        '<span class="alert-sev ' + sev + '">' + sev.toUpperCase() + '</span>' +
-        '<span class="alert-msg"><strong>' + name + '</strong> &middot; ' + msg + '</span>' +
-        '<span class="alert-time">' + timeStr + '</span>' +
-      '</div>';
-    }).join('');
+    }
+    filterAlerts();
   }
 
   // ── Fetchers ──
@@ -515,10 +523,12 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
         document.getElementById('connectionStatus').style.color = 'var(--success)';
         document.getElementById('lastUpdate').textContent = fmtTs(Date.now() / 1000);
         document.getElementById('footerCycle').textContent = 'Cycle #' + ((d.court||{}).cycle || 0);
-        // attach metrics so the cards can show them
+        // Store minister list for dropdown
+        window._lastMinisters = d.ministers || [];
         if (d.metrics) { d.tasks.success_rate = d.metrics.success_rate; }
         renderStatCards(d);
         renderMinisterTable(d);
+        populateMinisterDropdown();
       })
       .catch(function() {
         document.getElementById('connectionStatus').textContent = 'Disconnected';
@@ -549,6 +559,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       .then(function(d) {
         taskHistory = d.history || [];
         renderTaskList(null);
+        populateMinisterDropdown();
       })
       .catch(function() {});
   }
@@ -561,6 +572,164 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
         renderAlerts(null);
       })
       .catch(function() {});
+  }
+
+  // ── Filtering helpers ──
+  var _taskFilterTimer = null;
+  var _alertFilterTimer = null;
+
+  function debounceFilterTasks() {
+    if (_taskFilterTimer) clearTimeout(_taskFilterTimer);
+    _taskFilterTimer = setTimeout(filterTasks, 300);
+  }
+
+  function debounceFilterAlerts() {
+    if (_alertFilterTimer) clearTimeout(_alertFilterTimer);
+    _alertFilterTimer = setTimeout(filterAlerts, 300);
+  }
+
+  function filterTasks() {
+    var search = (document.getElementById('taskSearch').value || '').toLowerCase();
+    var minister = document.getElementById('taskMinisterFilter').value;
+    var status = document.getElementById('taskStatusFilter').value;
+
+    // Build filtered list from cached taskHistory
+    var raw = taskHistory || [];
+    var filtered = raw.filter(function(t) {
+      if (search) {
+        var prompt = (t.prompt || '').toLowerCase();
+        var result = (t.result || '').toLowerCase();
+        if (prompt.indexOf(search) === -1 && result.indexOf(search) === -1) return false;
+      }
+      if (minister && t.minister !== minister) return false;
+      if (status && t.status !== status) return false;
+      return true;
+    });
+
+    document.getElementById('taskCount').textContent = filtered.length;
+    var el = document.getElementById('taskList');
+    if (!filtered.length) {
+      el.innerHTML = '<div class="empty">No matching tasks</div>';
+      return;
+    }
+    el.innerHTML = filtered.slice(0, 50).map(function(t) {
+      var statusClass = (t.status === 'completed') ? 'online' : 'offline';
+      var conf = (t.confidence != null ? t.confidence : 0).toFixed(2);
+      var displayId = t.task_id || '#' + t.id;
+      return '<div class="task-row">' +
+        '<span class="dot ' + statusClass + '"></span>' +
+        '<div>' +
+          '<code style="font-size:0.78rem;">' + displayId + '</code>' +
+          ' &middot; <span class="task-domain">' + (t.minister || 'general') + '</span>' +
+          ' &middot; conf=' + conf +
+        '</div>' +
+        '<span style="color:var(--text-dim);font-size:0.7rem;">' + (t.prompt || '').substring(0, 30) + '</span>' +
+        '<span class="task-time">' + (t.created_at ? new Date(t.created_at).toLocaleTimeString() : '--') + '</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  function filterAlerts() {
+    var search = (document.getElementById('alertSearch').value || '').toLowerCase();
+    var level = document.getElementById('alertLevelFilter').value;
+
+    var raw = alertHistory || [];
+    var filtered = raw.filter(function(a) {
+      if (search) {
+        var msg = (a.message || '').toLowerCase();
+        var name = (a.rule_name || '').toLowerCase();
+        if (msg.indexOf(search) === -1 && name.indexOf(search) === -1) return false;
+      }
+      if (level && a.level !== level) return false;
+      return true;
+    });
+
+    document.getElementById('alertCount').textContent = filtered.length;
+    var el = document.getElementById('alertsList');
+    if (!filtered.length) {
+      el.innerHTML = '<div class="empty">No matching alerts</div>';
+      return;
+    }
+    el.innerHTML = filtered.slice(0, 30).map(function(a) {
+      var timeStr = '--';
+      if (a.timestamp) {
+        timeStr = new Date(a.timestamp * 1000).toLocaleTimeString();
+      } else if (a.created_at) {
+        timeStr = new Date(a.created_at).toLocaleTimeString();
+      }
+      var sev = (a.severity || a.level || 'info').toLowerCase();
+      var name = a.rule_name || 'alert';
+      var msg = a.message || '';
+      return '<div class="alert-item ' + sev + '">' +
+        '<span class="alert-sev ' + sev + '">' + sev.toUpperCase() + '</span>' +
+        '<span class="alert-msg"><strong>' + name + '</strong> &middot; ' + msg + '</span>' +
+        '<span class="alert-time">' + timeStr + '</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  function populateMinisterDropdown() {
+    var sel = document.getElementById('taskMinisterFilter');
+    if (!sel) return;
+    var current = sel.value;
+    // Collect unique minister names from taskHistory
+    var names = [];
+    var seen = {};
+    (taskHistory || []).forEach(function(t) {
+      if (t.minister && !seen[t.minister]) {
+        seen[t.minister] = true;
+        names.push(t.minister);
+      }
+    });
+    // Also collect from dashboard status ministers
+    if (window._lastMinisters) {
+      window._lastMinisters.forEach(function(m) {
+        if (m.name && !seen[m.name]) {
+          seen[m.name] = true;
+          names.push(m.name);
+        }
+      });
+    }
+    names.sort();
+    var html = '<option value="">全部大臣</option>';
+    names.forEach(function(n) {
+      html += '<option value="' + n + '"' + (n === current ? ' selected' : '') + '>' + n + '</option>';
+    });
+    sel.innerHTML = html;
+  }
+
+  function triggerExport() {
+    var fmt = window.confirm('选择导出格式：\\n\\n确定 = JSON\\n取消 = CSV');
+    var format = fmt ? 'json' : 'csv';
+    fetch(API + '/dashboard/export?format=' + format + '&what=all')
+      .then(function(r) {
+        var contentType = r.headers.get('Content-Type') || '';
+        if (contentType.indexOf('text/csv') !== -1 || format === 'csv') {
+          return r.text().then(function(text) {
+            var blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'emperor_export.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          });
+        }
+        return r.text().then(function(text) {
+          var blob = new Blob([text], { type: 'application/json;charset=utf-8' });
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = 'emperor_export.json';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        });
+      })
+      .catch(function() { alert('导出失败，请检查服务是否运行'); });
   }
 
   // ── Control Panel actions ──

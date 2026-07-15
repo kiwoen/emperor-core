@@ -228,3 +228,144 @@ class TestAPIValidation:
             "name": "hot", "temperature": 99.0,
         })
         assert r.status_code == 422
+
+
+# ══════════════════════════════════════════════════════════════════
+# Dashboard — task/alert history filtering & export
+# ══════════════════════════════════════════════════════════════════
+
+class TestDashboardHistory:
+    def test_task_history_no_db_returns_note(self, client):
+        """When DB is not initialized, return empty with note."""
+        r = client.get("/dashboard/task-history")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["history"] == []
+        assert "Database not initialized" in data["note"]
+
+    def test_task_history_accepts_filter_params(self, client):
+        """task-history endpoint accepts minister/status/search/limit/offset."""
+        r = client.get(
+            "/dashboard/task-history"
+            "?minister=turing&status=completed&search=hello&limit=10&offset=0"
+        )
+        assert r.status_code == 200
+
+    def test_alert_history_no_db_returns_note(self, client):
+        """When DB is not initialized, return empty with note."""
+        r = client.get("/dashboard/alert-history")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["history"] == []
+        assert "Database not initialized" in data["note"]
+
+    def test_alert_history_accepts_filter_params(self, client):
+        """alert-history endpoint accepts level/search/limit/offset."""
+        r = client.get(
+            "/dashboard/alert-history"
+            "?level=WARNING&search=memory&limit=10&offset=0"
+        )
+        assert r.status_code == 200
+
+    def test_export_no_db_returns_503(self, client):
+        """Export without DB returns 503."""
+        r = client.get("/dashboard/export")
+        assert r.status_code == 503
+
+    def test_export_accepts_format_params(self, client):
+        """Export endpoint accepts format and what params (503 when no DB)."""
+        r = client.get("/dashboard/export?format=csv&what=tasks")
+        # 503 because no DB, but params are accepted
+        assert r.status_code == 503
+
+
+# ══════════════════════════════════════════════════════════════════
+# Dashboard — export with real database
+# ══════════════════════════════════════════════════════════════════
+
+class TestDashboardExportWithDB:
+    """Tests that require a DB instance wired into app.extra."""
+
+    @pytest.fixture
+    def client_with_db(self):
+        import tempfile
+        import os
+        from jarvis.database import Database
+
+        fd, path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        db = Database(path)
+
+        from jarvis.court_api import create_app
+        app_with_db = create_app()
+        app_with_db.extra["db"] = db
+
+        # Seed some data
+        db.save_task("t1", "hello world", "turing", "ok", 0.9, "completed")
+        db.save_task("t2", "write code", "curie", "ok", 0.8, "failed")
+        db.save_evolution(1, "turing", 0.5, 0.8, 0.3)
+        db.save_alert("rule1", "WARNING", "memory alert")
+
+        with TestClient(app_with_db) as client:
+            yield client
+
+        db.close()
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+    def test_export_json_all(self, client_with_db):
+        """Export JSON with all data."""
+        r = client_with_db.get("/dashboard/export?format=json&what=all")
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["tasks"]) == 2
+        assert len(data["evolutions"]) == 1
+        assert len(data["alerts"]) == 1
+
+    def test_export_json_tasks_only(self, client_with_db):
+        """Export JSON with tasks only."""
+        r = client_with_db.get("/dashboard/export?format=json&what=tasks")
+        assert r.status_code == 200
+        data = r.json()
+        assert "tasks" in data
+        assert "alerts" not in data
+        assert "evolutions" not in data
+        assert len(data["tasks"]) == 2
+
+    def test_export_csv_all(self, client_with_db):
+        """Export CSV with all data."""
+        r = client_with_db.get("/dashboard/export?format=csv&what=all")
+        assert r.status_code == 200
+        assert "text/csv" in r.headers["content-type"]
+        content = r.text
+        # Should contain header rows and separator
+        assert "task_id" in content
+        assert "rule_name" in content
+        assert "minister_name" in content
+
+    def test_export_csv_alerts_only(self, client_with_db):
+        """Export CSV with alerts only."""
+        r = client_with_db.get("/dashboard/export?format=csv&what=alerts")
+        assert r.status_code == 200
+        assert "text/csv" in r.headers["content-type"]
+        content = r.text
+        assert "rule_name" in content
+        assert "memory alert" in content
+
+    def test_task_history_with_filters(self, client_with_db):
+        """task-history endpoint applies DB filters."""
+        r = client_with_db.get("/dashboard/task-history?minister=turing")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["count"] == 1
+        assert data["history"][0]["minister"] == "turing"
+
+    def test_alert_history_with_filters(self, client_with_db):
+        """alert-history endpoint applies DB filters."""
+        r = client_with_db.get("/dashboard/alert-history?level=WARNING")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["count"] == 1
+        assert data["history"][0]["level"] == "WARNING"
