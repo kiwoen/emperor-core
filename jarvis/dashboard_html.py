@@ -180,6 +180,54 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     transition: all 0.2s; }
   .tab.active { background: rgba(108,140,255,0.15); color: var(--accent);
     border-color: rgba(108,140,255,0.3); }
+
+  /* ── Inline task form ── */
+  .task-form { background: #1a1a2e; border-radius: 8px; padding: 16px;
+    position: relative; margin-top: 12px; }
+  .task-form textarea {
+    width: 100%; min-height: 80px; background: #0f0f23; color: var(--text);
+    border: 1px solid var(--card-border); border-radius: 6px; padding: 10px 12px;
+    font-family: inherit; font-size: 0.82rem; resize: vertical; outline: none;
+    box-sizing: border-box; margin-bottom: 10px;
+  }
+  .task-form textarea:focus { border-color: rgba(108,140,255,0.4); }
+  .task-form-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .task-form select {
+    background: #0f0f23; color: var(--text); border: 1px solid var(--card-border);
+    border-radius: 6px; padding: 8px 12px; font-family: inherit; font-size: 0.82rem;
+    cursor: pointer; outline: none; min-width: 120px;
+  }
+  .task-form select:focus { border-color: rgba(108,140,255,0.4); }
+  .task-form .cap-hint {
+    font-size: 0.75rem; color: var(--text-dim); line-height: 1.6; flex: 1;
+    min-width: 200px;
+  }
+  .task-form .cap-hint span { margin-right: 8px; white-space: nowrap; }
+  .task-form .btn-submit {
+    background: var(--accent); color: #fff; border: none; border-radius: 6px;
+    padding: 8px 20px; font-family: inherit; font-size: 0.85rem; cursor: pointer;
+    transition: filter 0.2s; white-space: nowrap;
+  }
+  .task-form .btn-submit:hover { filter: brightness(1.15); }
+  .task-form .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+  .task-form .btn-clear {
+    position: absolute; top: 8px; right: 8px;
+    background: none; border: none; color: var(--text-dim); font-size: 1rem;
+    cursor: pointer; padding: 2px 6px; border-radius: 4px; line-height: 1;
+  }
+  .task-form .btn-clear:hover { color: var(--danger); background: rgba(248,113,113,0.1); }
+  .task-result {
+    display: none; background: #16213e; border-left: 3px solid #66bb6a;
+    border-radius: 0 6px 6px 0; padding: 12px; margin-top: 10px;
+    font-size: 0.78rem; color: var(--text); position: relative;
+    max-height: 120px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+  }
+  .task-result .show-full {
+    color: var(--accent); cursor: pointer; font-size: 0.75rem;
+    display: inline-block; margin-left: 8px;
+  }
+  .task-result .show-full:hover { text-decoration: underline; }
+  .task-form hr { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 0 0 12px 0; }
 </style>
 </head>
 <body>
@@ -200,9 +248,27 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   <div class="card-label" style="font-size:0.78rem;text-transform:uppercase;color:var(--text-dim);letter-spacing:1px;margin-bottom:12px;">Control Panel</div>
   <div style="display:flex;gap:12px;flex-wrap:wrap;">
     <button id="btnEvolve" onclick="triggerEvolve()" style="background:#e94560;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-family:inherit;font-size:0.85rem;cursor:pointer;transition:filter 0.2s;">进化</button>
-    <button id="btnExecute" onclick="triggerExecute()" style="background:#e94560;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-family:inherit;font-size:0.85rem;cursor:pointer;transition:filter 0.2s;">执行任务</button>
     <button id="btnHeal" onclick="triggerHeal()" style="background:#e94560;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-family:inherit;font-size:0.85rem;cursor:pointer;transition:filter 0.2s;">自愈检查</button>
     <button id="btnExport" onclick="triggerExport()" style="background:var(--card-bg);color:var(--accent);border:1px solid rgba(108,140,255,0.3);border-radius:8px;padding:10px 20px;font-family:inherit;font-size:0.85rem;cursor:pointer;transition:all 0.2s;">导出数据</button>
+  </div>
+  <hr>
+  <div class="task-form">
+    <button class="btn-clear" onclick="clearTaskForm()" title="清空">&times;</button>
+    <textarea id="task-prompt" placeholder="输入任务描述...支持自然语言，如：计算圆周率前20位？生成一个UUID" oninput="updateCapHint()"></textarea>
+    <div class="task-form-row">
+      <select id="task-domain" onchange="updateCapHint()">
+        <option value="general">general</option>
+        <option value="math">math</option>
+        <option value="data">data</option>
+        <option value="code">code</option>
+        <option value="legal">legal</option>
+        <option value="science">science</option>
+        <option value="creative">creative</option>
+      </select>
+      <div class="cap-hint" id="cap-hint"></div>
+      <button class="btn-submit" id="task-submit-btn" onclick="submitManualTask()">派遣任务</button>
+    </div>
+    <div class="task-result" id="task-result"></div>
   </div>
 </div>
 
@@ -773,24 +839,6 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       .catch(function() { alert('Evolution request failed'); });
   }
 
-  function triggerExecute() {
-    var prompt = window.prompt('Enter task prompt:');
-    if (prompt === null || prompt.trim() === '') return;
-    var domain = window.prompt('Enter domain (optional, default: general):', 'general');
-    if (domain === null) domain = 'general';
-    fetch(API + '/dashboard/execute', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: prompt, domain: domain })
-    })
-      .then(function(r) { return r.json(); })
-      .then(function(d) {
-        if (d.ok) { location.reload(); }
-        else { alert('Task execution failed'); }
-      })
-      .catch(function() { alert('Task execution request failed'); });
-  }
-
   function triggerHeal() {
     fetch(API + '/dashboard/heal', {
       method: 'POST',
@@ -809,6 +857,88 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       })
       .catch(function() { alert('Healing request failed'); });
   }
+
+  // ── Inline task form ──
+  function updateCapHint() {
+    var domain = document.getElementById('task-domain').value;
+    var hint = document.getElementById('cap-hint');
+    // Map capabilities by domain using CAP_COLORS keys
+    var domainCaps = {
+      general: ['datetime', 'text', 'uuid_gen'],
+      math: ['math', 'random'],
+      data: ['json_tool', 'hash'],
+      code: ['file_info', 'hash', 'json_tool', 'uuid_gen'],
+      legal: [],
+      science: [],
+      creative: []
+    };
+    var caps = domainCaps[domain] || [];
+    if (caps.length === 0) {
+      hint.innerHTML = '<span style="color:#8892a8;">该领域暂无内置能力</span>';
+      return;
+    }
+    hint.innerHTML = caps.map(function(c) {
+      var color = CAP_COLORS[c] || '#a78bfa';
+      return '<span style="color:' + color + ';">' + c + '</span>';
+    }).join('');
+  }
+
+  async function submitManualTask() {
+    var prompt = document.getElementById('task-prompt').value.trim();
+    if (!prompt) return;
+
+    var domain = document.getElementById('task-domain').value;
+    var btn = document.getElementById('task-submit-btn');
+    btn.disabled = true;
+    btn.textContent = '执行中...';
+
+    try {
+      var res = await fetch(API + '/api/manual_task', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: prompt, domain: domain })
+      });
+      var data = await res.json();
+      if (!res.ok) {
+        showTaskResult(data.detail || '执行失败');
+      } else {
+        showTaskResult(data.report || '');
+      }
+      // Reload panels after a short delay
+      setTimeout(function() { fetchStatus(); fetchMetrics(); fetchTaskHistory(); }, 500);
+    } catch (e) {
+      showTaskResult('执行失败: ' + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '派遣任务';
+    }
+  }
+
+  function showTaskResult(report) {
+    var container = document.getElementById('task-result');
+    if (!report) {
+      container.innerHTML = '(空结果)';
+      container.style.display = 'block';
+      container.dataset.full = '(空结果)';
+      return;
+    }
+    var truncated = report.length > 200
+      ? report.slice(0, 200) + '... <span class="show-full" onclick="this.parentElement.innerHTML=this.parentElement.dataset.full;">查看详情 →</span>'
+      : report;
+    container.innerHTML = truncated;
+    container.style.display = 'block';
+    container.dataset.full = report;
+  }
+
+  function clearTaskForm() {
+    document.getElementById('task-prompt').value = '';
+    document.getElementById('task-result').style.display = 'none';
+    document.getElementById('task-result').innerHTML = '';
+    updateCapHint();
+  }
+
+  // Initialize cap hint on load
+  updateCapHint();
 
   fetchStatus();
   setInterval(fetchStatus, 3000);

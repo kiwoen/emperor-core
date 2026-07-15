@@ -83,6 +83,11 @@ class DashboardExecuteRequest(BaseModel):
     domain: Optional[str] = None
 
 
+class ManualTaskRequest(BaseModel):
+    prompt: str
+    domain: str = "general"
+
+
 # ══════════════════════════════════════════════════════════════════
 # Factory
 # ══════════════════════════════════════════════════════════════════
@@ -393,6 +398,27 @@ def create_app(
             "task_id": result.get("task_id", ""),
             "minister": result.get("minister", ""),
             "confidence": result.get("confidence", 0.0),
+        }
+
+    @app.post("/api/manual_task")
+    def manual_task(req: ManualTaskRequest):
+        """Execute a manual task with inline form submission. Returns report + id."""
+        prompt = req.prompt.strip()
+        if not prompt:
+            raise HTTPException(400, "任务描述不能为空")
+
+        emperor = app.extra.get("emperor")
+        if emperor is None:
+            raise HTTPException(503, "Emperor not available")
+
+        try:
+            result = emperor.execute_task(prompt, domain=req.domain)
+        except Exception as e:
+            raise HTTPException(500, f"Task execution failed: {e}")
+
+        return {
+            "report": result.get("response", ""),
+            "id": result.get("task_id", ""),
         }
 
     @app.post("/dashboard/heal")
