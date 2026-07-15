@@ -121,6 +121,26 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   }
   .refresh { animation: pulse 2s infinite; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+  .alert-panel { background: var(--card-bg); border: 1px solid var(--card-border);
+    border-radius: var(--radius); padding: 20px 24px; backdrop-filter: blur(16px);
+    margin-bottom: var(--gap);
+  }
+  .alert-panel h3 { font-size: 0.8rem; text-transform: uppercase; color: var(--text-dim);
+    letter-spacing: 1px; margin-bottom: 12px;
+  }
+  .alert-item { padding: 8px 12px; border-radius: 8px; margin-bottom: 6px;
+    font-size: 0.82rem; display: flex; align-items: center; gap: 10px; }
+  .alert-item.info { background: rgba(108,140,255,0.08); border: 1px solid rgba(108,140,255,0.15); }
+  .alert-item.warning { background: rgba(250,204,21,0.08); border: 1px solid rgba(250,204,21,0.15); }
+  .alert-item.critical { background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.15); }
+  .alert-sev { font-size: 0.7rem; text-transform: uppercase; font-weight: 700; min-width: 60px; }
+  .alert-sev.info { color: var(--accent); }
+  .alert-sev.warning { color: var(--warning); }
+  .alert-sev.critical { color: var(--danger); }
+  .alert-msg { color: var(--text); flex: 1; }
+  .alert-time { color: var(--text-dim); font-size: 0.7rem; white-space: nowrap; }
+  .alert-empty { color: var(--text-dim); font-size: 0.8rem; padding: 8px 0; }
 </style>
 </head>
 <body>
@@ -148,6 +168,11 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 </div>
 
 <div class="grid" id="detailCards"></div>
+
+<div class="alert-panel" id="alertsPanel">
+  <h3>Alerts & Notifications</h3>
+  <div id="alertsList"><span class="alert-empty">No alerts</span></div>
+</div>
 
 <div class="footer">
   Emperor Core &middot; Auto-refresh every 3s &middot; <span id="footerCycle">--</span>
@@ -262,8 +287,35 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       });
   }
 
+  function fetchAlerts() {
+    fetch(API + '/dashboard/alerts')
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        var history = d.history || [];
+        var el = document.getElementById('alertsList');
+        if (!history.length) {
+          el.innerHTML = '<span class="alert-empty">No alerts</span>';
+          return;
+        }
+        el.innerHTML = history.slice(0, 10).map(function(a) {
+          var t = new Date(a.timestamp * 1000);
+          return '<div class="alert-item ' + (a.severity || 'info') + '">' +
+            '<span class="alert-sev ' + (a.severity || 'info') + '">' + (a.severity || '').toUpperCase() + '</span>' +
+            '<span class="alert-msg">' + (a.message || a.rule_name || '?') +
+            ' <span style="color:var(--text-dim);font-size:0.7rem">(' +
+            (a.metric||'') + ' ' + (a.operator||'') + ' ' + fmt(a.threshold,2) +
+            ', current: ' + fmt(a.current_value,3) + ')</span></span>' +
+            '<span class="alert-time">' + t.toLocaleTimeString() + '</span>' +
+          '</div>';
+        }).join('');
+      })
+      .catch(function() {});
+  }
+
   fetchData();
   setInterval(fetchData, 3000);
+  fetchAlerts();
+  setInterval(fetchAlerts, 5000);
 </script>
 </body>
 </html>"""

@@ -239,7 +239,7 @@ def create_app(
         # Sort by merit descending
         ministers.sort(key=lambda x: x["merit"], reverse=True)
 
-        return {
+        result = {
             "court": {
                 "active_ministers": snap.active_count,
                 "total_ministers": snap.total_ministers,
@@ -263,6 +263,43 @@ def create_app(
             "scheduler_running": app.extra.get("scheduler_running", False),
             "scheduler_jobs": app.extra.get("scheduler_jobs", 0),
             "scheduler_total_runs": app.extra.get("scheduler_total_runs", 0),
+        }
+        return result
+
+    @app.get("/dashboard/alerts")
+    def dashboard_alerts():
+        """Alert history and active rules for the dashboard."""
+        mgr = app.extra.get("alert_manager")
+        if mgr is None:
+            return {"history": [], "rules": []}
+
+        return {
+            "history": [
+                {
+                    "rule_name": a.rule_name,
+                    "severity": a.severity,
+                    "message": a.message,
+                    "metric": a.metric,
+                    "current_value": a.current_value,
+                    "threshold": a.threshold,
+                    "operator": a.operator,
+                    "timestamp": a.timestamp,
+                }
+                for a in mgr.history(limit=50)
+            ],
+            "rules": [
+                {
+                    "name": r.name,
+                    "metric": r.metric,
+                    "threshold": r.threshold,
+                    "operator": r.operator,
+                    "severity": r.severity,
+                    "message": r.message,
+                    "enabled": r.enabled,
+                    "tags": r.tags,
+                }
+                for r in mgr.list_rules()
+            ],
         }
 
     return app

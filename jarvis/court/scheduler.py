@@ -96,6 +96,9 @@ class Scheduler:
         self._thread: Optional[threading.Thread] = None
         self._started_at: float = 0.0
 
+        # Alert integration
+        self._alert_manager: Any = None  # injected by Emperor.serve
+
     # ── Convenience methods (require emperor) ──────────────────────
 
     def schedule_evolution(
@@ -373,3 +376,42 @@ class Scheduler:
             except Exception:
                 entry.total_failures += 1
                 logger.exception("[Scheduler] Job '%s' failed", entry.name)
+
+        # Alert evaluation
+        if self._alert_manager is not None and self._emperor is not None:
+            try:
+                state = self._build_state()
+                self._alert_manager.evaluate(state)
+            except Exception:
+                logger.exception("[Scheduler] Alert evaluation failed")
+
+    def _build_state(self) -> dict:
+        """Build a metrics dict for alert evaluation from the emperor."""
+        court = self._emperor._court
+        sched = self
+
+        # Task metrics
+        total_tasks = getattr(court, "_total_tasks", 0)
+        completed = getattr(court, "_completed_tasks", 0)
+        failed = getattr(court, "_failed_tasks", 0)
+        success_rate = completed / max(total_tasks, 1)
+
+        # Minister metrics
+        ministers = getattr(court, "ministers", [])
+        active_count = sum(1 for m in ministers if getattr(m, "status", "") == "active")
+
+        # Scheduler metrics
+        scheduler_running = 1 if self._state == SchedulerState.RUNNING else 0
+        total_jobs = len(self._entries)
+        job_failures = sum(e.total_failures for e in self._entries.values())
+
+        return {
+            "success_rate": round(success_rate, 4),
+            "task_failures": failed,
+            "total_tasks": total_tasks,
+            "active_ministers": active_count,
+            "total_ministers": len(ministers),
+            "scheduler_running": scheduler_running,
+            "total_jobs": total_jobs,
+            "job_failures": job_failures,
+        }

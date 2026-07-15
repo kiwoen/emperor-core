@@ -210,10 +210,15 @@ class Emperor:
             app.extra["scheduler_running"] = r.state == "RUNNING"
             app.extra["scheduler_jobs"] = len(r.entries)
             app.extra["scheduler_total_runs"] = r.total_runs
+            # Wire alerts into scheduler for auto-evaluation
+            self._scheduler._alert_manager = self.alerts
         else:
             app.extra["scheduler_running"] = False
             app.extra["scheduler_jobs"] = 0
             app.extra["scheduler_total_runs"] = 0
+
+        # Store alert_manager on app for dashboard access
+        app.extra["alert_manager"] = self.alerts
 
         self._app = app
 
