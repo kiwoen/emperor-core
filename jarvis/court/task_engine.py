@@ -263,6 +263,19 @@ class TaskEngine:
         except Exception:
             pass
 
+        # 5b. Publish task_completed event for SSE dashboard
+        try:
+            from jarvis.event_bus import event_bus, Event
+            result_text = outcome.get("result", "") or ""
+            event_bus.publish(Event("task_completed", {
+                "minister": minister,
+                "domain": request.domain,
+                "capability": capability_name or "",
+                "result_preview": result_text[:100],
+            }))
+        except Exception:
+            pass
+
         # 6. Feed back to merit board
         try:
             self._court.record_dispatch(

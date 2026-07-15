@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from jarvis.court.config import SurvivalConfig
@@ -766,6 +766,65 @@ def create_app(
             "config": dict(_scheduler_config),
             "updated": updated_fields,
         }
+
+    # ── SSE streaming endpoint ────────────────────────────────────
+
+    @app.get("/api/events")
+    def sse_events():
+        """Server-Sent Events stream for real-time dashboard updates."""
+        import json as _json  # local alias to avoid shadowing module-level
+
+        from jarvis.event_bus import event_bus
+
+        q, sub_id = event_bus.subscribe()
+
+        def generate():
+            try:
+                # Initial connection event
+                yield f"data: {_json.dumps({'type': 'connected', 'data': {}})}\n\n"
+
+                while True:
+                    try:
+                        data = q.get(timeout=30)
+                        yield f"data: {data}\n\n"
+                    except Exception:
+                        # timeout → send heartbeat to keep alive
+                        yield f"data: {_json.dumps({'type': 'heartbeat', 'data': {}})}\n\n"
+            except GeneratorExit:
+                pass
+            finally:
+                event_bus.unsubscribe(sub_id)
+
+        return StreamingResponse(
+            generate(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    # ── Background heartbeat thread ───────────────────────────────
+
+    import threading
+    import time as _time
+
+    def _start_heartbeat():
+        from jarvis.event_bus import event_bus
+
+        def _beat():
+            while True:
+                _time.sleep(15)
+                try:
+                    event_bus.publish_heartbeat()
+                except Exception:
+                    pass
+
+        t = threading.Thread(target=_beat, daemon=True)
+        t.start()
+
+    _start_heartbeat()
 
     return app
 

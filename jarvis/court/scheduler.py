@@ -134,7 +134,17 @@ class Scheduler:
         interval = interval_minutes * 60
 
         def run_evo() -> dict:
-            return self._emperor.evolve(cycles=cycles)
+            result = self._emperor.evolve(cycles=cycles)
+            # Publish evolution event for SSE
+            try:
+                from jarvis.event_bus import event_bus, Event
+                event_bus.publish(Event("evolution", {
+                    "round": getattr(self, "evolution_round", 0),
+                    "ministers_count": len(self._emperor._court.ministers),
+                }))
+            except Exception:
+                pass
+            return result
 
         self.add_job(name, run_evo, interval, tags=["evolution"])
         logger.info(
@@ -172,7 +182,21 @@ class Scheduler:
         tmpls = list(templates)
 
         def run_tasks() -> list[dict]:
-            return self._emperor.execute_batch(tmpls)
+            reports = self._emperor.execute_batch(tmpls)
+            # Publish task_completed events for SSE
+            try:
+                from jarvis.event_bus import event_bus, Event
+                for report in (reports or []):
+                    event_bus.publish(Event("task_completed", {
+                        "minister": report.get("minister", ""),
+                        "domain": report.get("domain", ""),
+                        "prompt": (report.get("prompt", "") or "")[:50],
+                        "capability": report.get("capability", ""),
+                        "result_preview": (report.get("result", "") or "")[:100],
+                    }))
+            except Exception:
+                pass
+            return reports
 
         self.add_job(name, run_tasks, interval, tags=["tasks"])
         logger.info(

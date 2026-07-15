@@ -1233,6 +1233,47 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     await loadMinisters();
   }
 
+  // ═══ SSE real-time updates ════════════════════════════════════
+  var eventSource = null;
+
+  function connectSSE() {
+    if (eventSource) {
+      eventSource.close();
+    }
+    eventSource = new EventSource(API + '/api/events');
+    eventSource.onmessage = function(event) {
+      try {
+        var msg = JSON.parse(event.data);
+        handleSSEEvent(msg);
+      } catch(e) {}
+    };
+    eventSource.onerror = function() {
+      // Connection lost, reconnect after 3s
+      setTimeout(connectSSE, 3000);
+    };
+  }
+
+  function handleSSEEvent(msg) {
+    switch(msg.type) {
+      case 'task_completed':
+        fetchTaskHistory();
+        loadMinisters();
+        break;
+      case 'evolution':
+        loadMeritBoard();
+        updateCharts();
+        loadMinisters();
+        break;
+      case 'alert':
+        fetchAlertHistory();
+        break;
+      case 'heartbeat':
+      case 'connected':
+        // Keep-alive, no refresh needed
+        break;
+    }
+  }
+
   // Load ministers on page load and periodic refresh
   loadMinisters();
   setInterval(loadMinisters, 30000);
@@ -1289,17 +1330,20 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 
   loadSchedulerConfig();
 
+  // SSE first, fallback polling at reduced cadence
+  connectSSE();
+
   fetchStatus();
-  setInterval(fetchStatus, 3000);
+  setInterval(fetchStatus, 15000);
   fetchMetrics();
-  setInterval(fetchMetrics, 3000);
+  setInterval(fetchMetrics, 15000);
   fetchAlerts();
-  setInterval(fetchAlerts, 5000);
+  setInterval(fetchAlerts, 15000);
   // Load persisted history once on page load, then periodically
   fetchTaskHistory();
-  setInterval(fetchTaskHistory, 10000);
+  setInterval(fetchTaskHistory, 15000);
   fetchAlertHistory();
-  setInterval(fetchAlertHistory, 10000);
+  setInterval(fetchAlertHistory, 15000);
 </script>
 </body>
 </html>"""
