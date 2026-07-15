@@ -98,6 +98,9 @@ class AlertManager:
         self._fired_history: list[Alert] = []  # capped at 200
         self._last_fired: dict[str, float] = {}  # rule_name → timestamp
 
+        # Built-in rules store: rule_name → {condition, severity, message, enabled, cooldown_seconds}
+        self._builtin_rules: dict[str, dict] = {}
+
         # Built-in: log handler
         self._handlers.append(self._log_handler)
 
@@ -217,6 +220,120 @@ class AlertManager:
 
         return fired
 
+    # ── Built-in rules ──────────────────────────────────────────────
+
+    def ensure_builtin_rules(self, emperor: Any = None) -> None:
+        """Register built-in health-check rules. Idempotent — repeated calls
+        do not duplicate.
+
+        Rules registered:
+            minister_depletion  — active ministers < 3 → WARNING
+            task_failure_spike  — failure rate > 50% → ERROR
+            evolution_stagnation — 3 consecutive evolutions with no merit gain → WARNING
+        """
+        if "minister_depletion" not in self._builtin_rules:
+            self._builtin_rules["minister_depletion"] = {
+                "condition": lambda e: len(e.court.active_ministers) < 3,
+                "severity": "warning",
+                "message": "Active ministers dropped below 3 (current: {active})",
+                "enabled": True,
+                "cooldown_seconds": 60.0,
+            }
+
+        if "task_failure_spike" not in self._builtin_rules:
+            self._builtin_rules["task_failure_spike"] = {
+                "condition": _failure_spike_condition,
+                "severity": "error",
+                "message": "Task failure rate is {rate:.0%} (>50% threshold)",
+                "enabled": True,
+                "cooldown_seconds": 60.0,
+            }
+
+        if "evolution_stagnation" not in self._builtin_rules:
+            self._builtin_rules["evolution_stagnation"] = {
+                "condition": _evolution_stagnation_condition,
+                "severity": "warning",
+                "message": "No merit improvement in the last 3 consecutive evolutions",
+                "enabled": True,
+                "cooldown_seconds": 120.0,
+            }
+
+        logger.debug("[Alerts] Built-in rules registered: %d",
+                     len(self._builtin_rules))
+
+    def fire_rule(self, rule_name: str, emperor: Any) -> Optional[Alert]:
+        """Evaluate a built-in rule's condition and fire an alert if triggered.
+
+        Args:
+            rule_name: Name of the built-in rule to evaluate.
+            emperor: Emperor instance (passed to the condition callable).
+
+        Returns:
+            Alert if triggered and not in cooldown, else None.
+        """
+        import time
+
+        rule = self._builtin_rules.get(rule_name)
+        if rule is None:
+            logger.warning("[Alerts] Unknown built-in rule: %s", rule_name)
+            return None
+        if not rule.get("enabled", True):
+            return None
+
+        # Cooldown check
+        now = time.time()
+        last = self._last_fired.get(rule_name, 0)
+        if now - last < rule.get("cooldown_seconds", 60.0):
+            return None
+
+        # Evaluate condition
+        try:
+            triggered = rule["condition"](emperor)
+        except Exception:
+            logger.exception("[Alerts] Built-in rule '%s' condition failed", rule_name)
+            return None
+
+        if not triggered:
+            return None
+
+        # Build message with format substitution
+        raw_msg = rule.get("message", rule_name)
+        try:
+            message = _format_builtin_message(raw_msg, rule_name, emperor)
+        except Exception:
+            message = raw_msg
+
+        alert = Alert(
+            rule_name=rule_name,
+            severity=rule.get("severity", "warning"),
+            message=message,
+            metric="",
+            current_value=0.0,
+            threshold=0.0,
+            operator="",
+            timestamp=now,
+        )
+        self._last_fired[rule_name] = now
+
+        # Dispatch to handlers
+        for handler in self._handlers:
+            try:
+                handler(alert)
+            except Exception:
+                logger.exception("[Alerts] Handler failed for %s", rule_name)
+
+        # Archive
+        self._fired_history.append(alert)
+        if len(self._fired_history) > 200:
+            self._fired_history = self._fired_history[-100:]
+
+        logger.info("[Alerts] Built-in rule '%s' fired: %s", rule_name, message)
+        return alert
+
+    def list_builtin_rules(self) -> list[str]:
+        """Return names of all registered built-in rules."""
+        return list(self._builtin_rules.keys())
+
     # ── History ────────────────────────────────────────────────────
 
     def history(self, limit: int = 20) -> list[Alert]:
@@ -253,3 +370,71 @@ class AlertManager:
         logger.log(level, "[ALERT %s] %s → %s (%.3f)",
                    alert.severity.upper(), alert.rule_name,
                    alert.message, alert.current_value)
+
+
+# ══════════════════════════════════════════════════════════════════
+# Built-in rule condition helpers
+# ══════════════════════════════════════════════════════════════════
+
+
+def _failure_spike_condition(emperor: Any) -> bool:
+    """Return True if more than 50% of recent task outcomes are failures."""
+    engine = getattr(emperor, "task_engine", None)
+    if engine is None:
+        return False
+    outcomes = getattr(engine, "_outcomes", [])
+    if not outcomes:
+        return False
+    failed = sum(1 for o in outcomes if not o.success)
+    return (failed / len(outcomes)) > 0.5
+
+
+def _evolution_stagnation_condition(emperor: Any) -> bool:
+    """Return True if the last 3 evolution cycles show no merit improvement."""
+    court = getattr(emperor, "court", None)
+    if court is None:
+        return False
+    history = getattr(court, "history", None)
+    if history is None:
+        return False
+    records = getattr(history, "_records", [])
+    if len(records) < 4:
+        return False
+    merits = [r.merit_mean for r in records[-4:]]
+    # Three consecutive non-improving transitions
+    return (merits[1] <= merits[0] and
+            merits[2] <= merits[1] and
+            merits[3] <= merits[2])
+
+
+def _format_builtin_message(
+    template: str, rule_name: str, emperor: Any,
+) -> str:
+    """Substitute placeholders in built-in alert messages.
+
+    Supported placeholders:
+        {active} — current active minister count
+        {rate}   — task failure rate (float 0.0-1.0)
+    """
+    msg = template
+
+    if "{active}" in msg:
+        try:
+            active = len(emperor.court.active_ministers)
+            msg = msg.replace("{active}", str(active))
+        except Exception:
+            pass
+
+    if "{rate}" in msg:
+        try:
+            outcomes = emperor.task_engine._outcomes
+            if outcomes:
+                failed = sum(1 for o in outcomes if not o.success)
+                rate = failed / len(outcomes)
+            else:
+                rate = 0.0
+            msg = msg.replace("{rate:.0%}", f"{rate:.0%}")
+        except Exception:
+            pass
+
+    return msg

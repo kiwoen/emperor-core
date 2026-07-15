@@ -377,6 +377,13 @@ class Emperor:
             interval_minutes=self.config.auto_tasks_interval_minutes,
             templates=task_templates,
         )
+
+        # Wire emperor reference for built-in alert rule evaluation
+        sched.emperor = self
+
+        # Register built-in alert rules so Dashboard shows alerts on boot
+        self.alerts.ensure_builtin_rules(self)
+
         sched.start()
         logger.info(
             "[Emperor] auto-scheduler started: evolve every %.1f min, tasks every %.1f min",

@@ -100,6 +100,15 @@ class Scheduler:
         self._alert_manager: Any = None   # injected by Emperor.serve
         self._healing_engine: Any = None  # injected by Emperor.serve
 
+    @property
+    def emperor(self) -> Any:
+        """The Emperor instance this scheduler is attached to."""
+        return self._emperor
+
+    @emperor.setter
+    def emperor(self, value: Any) -> None:
+        self._emperor = value
+
     # ── Convenience methods (require emperor) ──────────────────────
 
     def schedule_evolution(
@@ -390,6 +399,16 @@ class Scheduler:
                     self._healing_engine.handle_batch(rule_names)
             except Exception:
                 logger.exception("[Scheduler] Alert/Healing evaluation failed")
+
+        # Built-in rule evaluation (condition-callable rules)
+        if self._alert_manager is not None and self._emperor is not None:
+            try:
+                for rule_name in self._alert_manager.list_builtin_rules():
+                    alert = self._alert_manager.fire_rule(rule_name, self._emperor)
+                    if alert is not None and self._healing_engine is not None:
+                        self._healing_engine.handle_batch([alert.rule_name])
+            except Exception:
+                logger.exception("[Scheduler] Built-in rule evaluation failed")
 
     def _build_state(self) -> dict:
         """Build a metrics dict for alert evaluation from the emperor."""
