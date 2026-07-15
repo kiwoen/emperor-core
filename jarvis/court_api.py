@@ -81,10 +81,19 @@ class ConfigLoadRequest(BaseModel):
 # Factory
 # ══════════════════════════════════════════════════════════════════
 
-def create_app(config: SurvivalConfig | None = None) -> FastAPI:
-    """Create a FastAPI app wired to a Court instance."""
+def create_app(
+    config: SurvivalConfig | None = None,
+    court: Court | None = None,
+) -> FastAPI:
+    """Create a FastAPI app wired to a Court instance.
+
+    Args:
+        config: Optional SurvivalConfig to load.
+        court: Optional pre-built Court instance to inject.
+    """
     app = FastAPI(title="Emperor Court API", version="0.1.0")
-    court = Court()
+    if court is None:
+        court = Court()
 
     if config is not None and config.genome_path:
         court._sm.genome_path = config.genome_path
