@@ -92,7 +92,8 @@ class Emperor:
         from jarvis.court.task_engine import TaskEngine
 
         self._task_engine = TaskEngine(self._court)
-        self._app = None  # FastAPI app (lazy)
+        self._app: Any = None  # FastAPI app (lazy)
+        self._scheduler: Any = None  # Scheduler (lazy)
 
         # Load persisted state if data_dir set
         if self.config.data_dir:
@@ -314,7 +315,37 @@ class Emperor:
     # ── Shutdown ───────────────────────────────────────────────────
 
     def shutdown(self) -> None:
-        """Graceful shutdown — save state, clean up."""
+        """Graceful shutdown — stop scheduler, save state, clean up."""
+        if self._scheduler is not None:
+            self._scheduler.stop()
         if self.config.data_dir:
             self.save()
         logger.info("[Emperor] shutdown complete")
+
+    # ── Scheduler ──────────────────────────────────────────────────
+
+    @property
+    def scheduler(self):
+        """Lazy-loaded scheduler for periodic automation."""
+        if self._scheduler is None:
+            from jarvis.court.scheduler import Scheduler
+            self._scheduler = Scheduler(self)
+        return self._scheduler
+
+    def start_auto_evolve(self, every_minutes: float = 30,
+                          cycles: int = 3) -> None:
+        """Start automatic periodic evolution.
+
+        Equivalent to: emp.scheduler.schedule_evolution(...); emp.scheduler.start()
+        """
+        self.scheduler.schedule_evolution(every_minutes, cycles)
+        self.scheduler.start()
+
+    def start_auto_tasks(self, every_minutes: float = 5,
+                         templates: Optional[list[dict]] = None) -> None:
+        """Start automatic periodic task execution.
+
+        Equivalent to: emp.scheduler.schedule_tasks(...); emp.scheduler.start()
+        """
+        self.scheduler.schedule_tasks(every_minutes, templates)
+        self.scheduler.start()
