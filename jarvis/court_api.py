@@ -595,16 +595,26 @@ def create_app(
         snap = court.inspect.snapshot()
         ministers = []
         for m in snap.ministers:
-            # Check for merit override stored on genome
             genome = court._sm._genomes.get(m.name)
             merit = m.merit
             if genome is not None and hasattr(genome, "_merit_override"):
                 merit = genome._merit_override
+
+            # Extract task-feedback fields from genome (default 0 for legacy)
+            success_streak = getattr(genome, "success_streak", 0)
+            failure_streak = getattr(genome, "failure_streak", 0)
+            total_tasks = getattr(genome, "total_tasks", 0)
+            capability_hits = getattr(genome, "capability_hits", 0)
+
             ministers.append({
                 "name": m.name,
                 "domain": m.domain,
                 "merit": round(merit, 1),
                 "stability": round(getattr(m, "confidence_baseline", 0.75), 2),
+                "success_streak": success_streak,
+                "failure_streak": failure_streak,
+                "total_tasks": total_tasks,
+                "capability_hits": capability_hits,
             })
         return {"ministers": ministers}
 
@@ -628,6 +638,10 @@ def create_app(
                 "domain": req.domain,
                 "merit": 0.0,
                 "stability": 0.75,
+                "success_streak": 0,
+                "failure_streak": 0,
+                "total_tasks": 0,
+                "capability_hits": 0,
             },
             "message": f"大臣 {name} 已创建",
         }

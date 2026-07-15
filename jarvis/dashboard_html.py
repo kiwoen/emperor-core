@@ -336,7 +336,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   <table class="ministers-table">
     <thead>
       <tr>
-        <th>Name</th><th>领域</th><th>功绩(Merit)</th><th>稳定度</th><th>操作</th>
+        <th>Name</th><th>领域</th><th>功绩(Merit)</th><th>稳定度</th><th>状态</th><th>操作</th>
       </tr>
     </thead>
     <tbody id="ministers-tbody"></tbody>
@@ -1089,19 +1089,26 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     var tbody = document.getElementById('ministers-tbody');
     if (!tbody) return;
     if (!ministers.length) {
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#8892b0;padding:24px;">暂无大臣</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#8892b0;padding:24px;">暂无大臣</td></tr>';
       return;
     }
     tbody.innerHTML = ministers.map(function(m) {
       var stabColor = (m.stability > 0.8 ? '#66bb6a' : m.stability > 0.5 ? '#ffa726' : '#e94560');
+      var statusHtml = '--';
+      if (m.success_streak >= 3) {
+        statusHtml = '<span style="color:#66bb6a;">\uD83D\uDD25 ' + m.success_streak + '</span>';
+      } else if (m.failure_streak >= 3) {
+        statusHtml = '<span style="color:#e94560;">\u26A0 ' + m.failure_streak + '</span>';
+      }
       return '<tr>' +
         '<td><strong>' + (m.name || '?') + '</strong></td>' +
         '<td><span class="domain-tag">' + (m.domain || 'general') + '</span></td>' +
         '<td><div class="merit-bar"><div class="merit-fill" style="width:' + Math.min(m.merit || 0, 100) + '%">' + (m.merit || 0) + '</div></div></td>' +
         '<td style="color:' + stabColor + '">' + ((m.stability || 0).toFixed(2)) + '</td>' +
+        '<td>' + statusHtml + '</td>' +
         '<td>' +
-          '<button class="action-btn edit-btn" onclick="openEditModal(\'' + m.name + '\')" title="编辑">✎</button>' +
-          '<button class="action-btn delete-btn" onclick="confirmDelete(\'' + m.name + '\')" title="删除">✕</button>' +
+          '<button class="action-btn edit-btn" onclick="openEditModal(\'' + m.name + '\')" title="编辑">\u270E</button>' +
+          '<button class="action-btn delete-btn" onclick="confirmDelete(\'' + m.name + '\')" title="删除">\u2715</button>' +
         '</td>' +
       '</tr>';
     }).join('');

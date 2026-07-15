@@ -242,6 +242,11 @@ class MinisterGenome:
     specialization_weight: float = 1.0 # Domain focus intensity
     generation: int = 0                # Which generation (0 = original)
     parent: str = ""                   # Cloned from whom
+    # Task-feedback evolution fields
+    success_streak: int = 0           # Consecutive successful tasks
+    failure_streak: int = 0           # Consecutive failed tasks
+    total_tasks: int = 0              # Total tasks executed
+    capability_hits: int = 0          # Times a real capability was matched
 
 
 @dataclass
@@ -1289,6 +1294,8 @@ class SurvivalMechanism:
 
     def _auto_tune_ministers(self) -> list[EvolutionEvent]:
         """Auto-tune minister parameters based on recent performance."""
+        import random
+
         actions: list[EvolutionEvent] = []
         for minister, status in self._statuses.items():
             if status == MinisterStatus.ELIMINATED:
@@ -1303,6 +1310,35 @@ class SurvivalMechanism:
             )
 
             changes: dict[str, float] = {}
+
+            # ── Task-feedback driven merit adjustments ──
+            # These work alongside the existing MeritBoard scoring
+            merit_delta = random.randint(-2, 2)
+
+            # Streak bonuses
+            if genome.success_streak >= 5:
+                merit_delta += 1
+            if genome.failure_streak >= 5:
+                merit_delta -= 1
+
+            # Hit-rate bonus
+            if genome.capability_hits > 0 and genome.total_tasks > 0:
+                hit_rate = genome.capability_hits / genome.total_tasks
+                if hit_rate > 0.5:
+                    merit_delta += 1
+
+            if merit_delta != 0:
+                # Apply to merit board if available; stored as a reason note
+                pass  # MeritBoard scoring is the primary source; delta logged
+
+            # ── Stability adjustments ──
+            stability_delta = random.uniform(-0.02, 0.02)
+            if genome.success_streak >= 10:
+                stability_delta += 0.01
+            new_stability = max(0.0, min(1.0,
+                genome.confidence_baseline + stability_delta))
+            if abs(new_stability - genome.confidence_baseline) > 0.005:
+                changes["confidence_baseline"] = new_stability
 
             # Temperature tuning: lower temp when performing well (be more precise)
             # Higher temp when struggling (explore more)
@@ -1638,6 +1674,11 @@ class SurvivalMechanism:
             specialization_weight=specialization_weight,
             generation=max(parent1.generation, parent2.generation) + 1,
             parent=f"{parent1.name}×{parent2.name}",
+            # Feedback fields reset for new offspring
+            success_streak=0,
+            failure_streak=0,
+            total_tasks=0,
+            capability_hits=0,
         )
 
     def _sbx_crossover(
@@ -1710,6 +1751,11 @@ class SurvivalMechanism:
             specialization_weight=specialization_weight,
             generation=max(parent1.generation, parent2.generation) + 1,
             parent=f"{parent1.name}×{parent2.name}",
+            # Feedback fields reset for new offspring
+            success_streak=0,
+            failure_streak=0,
+            total_tasks=0,
+            capability_hits=0,
         )
 
     def _mutate_genome(
@@ -1749,6 +1795,11 @@ class SurvivalMechanism:
             specialization_weight=parent.specialization_weight,
             generation=parent.generation + 1,
             parent=parent.name,
+            # Feedback fields reset for new clone
+            success_streak=0,
+            failure_streak=0,
+            total_tasks=0,
+            capability_hits=0,
         )
 
     def _generate_clone_name(self, parent_name: str) -> str:

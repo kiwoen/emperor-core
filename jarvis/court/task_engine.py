@@ -243,7 +243,27 @@ class TaskEngine:
 
         self._outcomes.append(outcome)
 
-        # 5. Feed back to merit board
+        # 5. Apply task feedback to minister's genome (streaks, hits, etc.)
+        try:
+            capability_name = None
+            if self._capability_registry is not None:
+                try:
+                    exec_domain = request.domain
+                    genome = self._court._sm._genomes.get(minister)
+                    if genome:
+                        exec_domain = genome.domain
+                    best_cap = self._capability_registry.find_best(
+                        request.prompt, exec_domain
+                    )
+                    if best_cap is not None:
+                        capability_name = best_cap.name
+                except Exception:
+                    pass
+            self._apply_task_feedback(minister, capability_name)
+        except Exception:
+            pass
+
+        # 6. Feed back to merit board
         try:
             self._court.record_dispatch(
                 minister=minister,
@@ -348,6 +368,82 @@ class TaskEngine:
         except Exception:
             pass
         return {"temperature": 0.7}
+
+    def _apply_task_feedback(
+        self, minister: str, capability_name: str | None = None
+    ) -> None:
+        """Update minister genome stats based on task execution.
+
+        Tracks success/failure streaks, total tasks, and capability hits.
+        Adjusts merit (via MeritBoard proxy) and stability (via confidence_baseline).
+        """
+        genome = None
+        try:
+            genome = self._court._sm._genomes.get(minister)
+        except Exception:
+            return
+        if genome is None:
+            return
+
+        genome.total_tasks += 1
+
+        if capability_name:
+            # Matched a real capability → high-quality execution
+            genome.capability_hits += 1
+            genome.success_streak += 1
+            genome.failure_streak = 0
+
+            # merit gain: base +2, plus streak bonus
+            streak_bonus = min(genome.success_streak // 3, 3)
+            merit_gain = 2 + streak_bonus
+
+            # Apply merit via MeritBoard if available
+            if self._court._merit_board:
+                try:
+                    current = self._court._merit_board.compute_merit(minister)
+                    new_merit = min(current + merit_gain, 100.0)
+                    # Record a feedback entry to nudge merit
+                    self._court.record_feedback(
+                        minister=minister,
+                        edict_id=f"feedback-{genome.total_tasks}",
+                        score=new_merit,
+                    )
+                except Exception:
+                    pass
+
+            # stability micro-increase
+            genome.confidence_baseline = min(
+                genome.confidence_baseline + 0.01, 1.0
+            )
+        else:
+            # No capability matched → simulated result, lower quality
+            genome.failure_streak += 1
+            genome.success_streak = 0
+
+            # Mild stability decrease
+            genome.confidence_baseline = max(
+                genome.confidence_baseline - 0.005, 0.0
+            )
+
+        # If failure streak is long, stability drops faster
+        if genome.failure_streak >= 10:
+            genome.confidence_baseline = max(
+                genome.confidence_baseline - 0.02, 0.0
+            )
+
+        # stability < 0.3 triggers merit penalty
+        if genome.confidence_baseline < 0.3:
+            if self._court._merit_board:
+                try:
+                    current = self._court._merit_board.compute_merit(minister)
+                    new_merit = max(current - 3, 0.0)
+                    self._court.record_feedback(
+                        minister=minister,
+                        edict_id=f"penalty-{genome.total_tasks}",
+                        score=new_merit,
+                    )
+                except Exception:
+                    pass
 
 
 # ══════════════════════════════════════════════════════════════════
