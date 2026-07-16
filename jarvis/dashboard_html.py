@@ -34,19 +34,59 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 <title>Emperor Dashboard</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  :root {
+  :root, [data-theme="dark"] {
+    --bg-primary: #0b0f19;
+    --bg-secondary: #12121a;
+    --bg-card: rgba(20, 25, 45, 0.85);
+    --bg-card-hover: #1e1e36;
     --bg: #0b0f19;
     --card-bg: rgba(20, 25, 45, 0.85);
     --card-border: rgba(255, 255, 255, 0.06);
+    --text-primary: #e0e4f0;
+    --text-secondary: #8892a8;
+    --text-muted: #555577;
     --text: #e0e4f0;
     --text-dim: #8892a8;
-    --accent: #6c8cff;
+    --border-color: #2a2a4a;
+    --accent: #6366f1;
+    --accent-hover: #818cf8;
     --accent-2: #a78bfa;
-    --success: #4ade80;
-    --warning: #facc15;
-    --danger: #f87171;
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --table-header: #16162b;
+    --table-row-alt: #15152c;
+    --input-bg: #0f0f23;
+    --input-border: #2a2a4a;
+    --shadow: 0 2px 8px rgba(0,0,0,0.4);
     --radius: 12px;
     --gap: 16px;
+  }
+  [data-theme="light"] {
+    --bg-primary: #f5f5f9;
+    --bg-secondary: #ffffff;
+    --bg-card: #ffffff;
+    --bg-card-hover: #f0f0f8;
+    --bg: #f5f5f9;
+    --card-bg: #ffffff;
+    --card-border: #d4d4e8;
+    --text-primary: #1a1a2e;
+    --text-secondary: #555577;
+    --text-muted: #8888aa;
+    --text: #1a1a2e;
+    --text-dim: #555577;
+    --border-color: #d4d4e8;
+    --accent: #6366f1;
+    --accent-hover: #4f46e5;
+    --accent-2: #7c3aed;
+    --success: #16a34a;
+    --warning: #d97706;
+    --danger: #dc2626;
+    --table-header: #f0f0f8;
+    --table-row-alt: #f5f5fa;
+    --input-bg: #ffffff;
+    --input-border: #d4d4e8;
+    --shadow: 0 2px 8px rgba(0,0,0,0.08);
   }
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
@@ -182,18 +222,18 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     border-color: rgba(108,140,255,0.3); }
 
   /* ── Inline task form ── */
-  .task-form { background: #1a1a2e; border-radius: 8px; padding: 16px;
+  .task-form { background: var(--bg-card-hover); border-radius: 8px; padding: 16px;
     position: relative; margin-top: 12px; }
   .task-form textarea {
-    width: 100%; min-height: 80px; background: #0f0f23; color: var(--text);
-    border: 1px solid var(--card-border); border-radius: 6px; padding: 10px 12px;
+    width: 100%; min-height: 80px; background: var(--input-bg); color: var(--text);
+    border: 1px solid var(--border-color); border-radius: 6px; padding: 10px 12px;
     font-family: inherit; font-size: 0.82rem; resize: vertical; outline: none;
     box-sizing: border-box; margin-bottom: 10px;
   }
   .task-form textarea:focus { border-color: rgba(108,140,255,0.4); }
   .task-form-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .task-form select {
-    background: #0f0f23; color: var(--text); border: 1px solid var(--card-border);
+    background: var(--input-bg); color: var(--text); border: 1px solid var(--border-color);
     border-radius: 6px; padding: 8px 12px; font-family: inherit; font-size: 0.82rem;
     cursor: pointer; outline: none; min-width: 120px;
   }
@@ -217,7 +257,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   }
   .task-form .btn-clear:hover { color: var(--danger); background: rgba(248,113,113,0.1); }
   .task-result {
-    display: none; background: #16213e; border-left: 3px solid #66bb6a;
+    display: none; background: var(--bg-card-hover); border-left: 3px solid #66bb6a;
     border-radius: 0 6px 6px 0; padding: 12px; margin-top: 10px;
     font-size: 0.78rem; color: var(--text); position: relative;
     max-height: 120px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
@@ -230,14 +270,14 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   .task-form hr { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 0 0 12px 0; }
 
   /* ── Ministers management panel ── */
-  .ministers-panel { background: #1a1a2e; border-radius: 8px; padding: 20px; margin-top: 16px; }
-  .ministers-panel h3 { margin: 0 0 16px 0; color: #e2e2e2; display: flex; align-items: center; gap: 8px; }
+  .ministers-panel { background: var(--bg-card-hover); border-radius: 8px; padding: 20px; margin-top: 16px; }
+  .ministers-panel h3 { margin: 0 0 16px 0; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
   .minister-count { background: #4fc3f7; color: #0f0f23; border-radius: 12px; padding: 2px 10px; font-size: 13px; font-weight: bold; }
   .add-btn { background: #4fc3f7; color: #0f0f23; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; float: right; }
   .ministers-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-  .ministers-table th { text-align: left; color: #8892b0; font-size: 13px; padding: 8px 12px; border-bottom: 1px solid #2a2a4a; }
-  .ministers-table td { color: #ccd6f6; padding: 10px 12px; border-bottom: 1px solid #1f1f3a; font-size: 14px; }
-  .merit-bar { background: #0f0f23; border-radius: 4px; height: 20px; overflow: hidden; min-width: 60px; }
+  .ministers-table th { text-align: left; color: var(--text-secondary); font-size: 13px; padding: 8px 12px; border-bottom: 1px solid var(--border-color); }
+  .ministers-table td { color: var(--text-primary); padding: 10px 12px; border-bottom: 1px solid #1f1f3a; font-size: 14px; }
+  .merit-bar { background: var(--input-bg); border-radius: 4px; height: 20px; overflow: hidden; min-width: 60px; }
   .merit-fill { background: linear-gradient(90deg, #66bb6a, #4caf50); height: 100%; font-size: 11px; line-height: 20px; text-align: center; color: #fff; border-radius: 4px; }
   .action-btn { background: none; border: none; cursor: pointer; font-size: 16px; padding: 4px 8px; }
   .edit-btn { color: #4fc3f7; }
@@ -247,43 +287,49 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   /* ── Modal (create/edit minister) ── */
   .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 1000; display: flex; align-items: center; justify-content: center; }
   .modal-overlay.hidden { display: none; }
-  .modal-box { background: #1a1a2e; border-radius: 12px; padding: 24px; width: 400px; max-width: 90vw; box-shadow: 0 8px 40px rgba(0,0,0,0.5); border: 1px solid #2a2a4a; }
-  .modal-box h3 { color: #e2e2e2; margin: 0 0 20px 0; font-size: 1.1rem; }
-  .modal-box label { display: block; color: #8892b0; font-size: 0.78rem; margin-bottom: 4px; margin-top: 12px; }
-  .modal-box input, .modal-box select { width: 100%; padding: 8px 12px; background: #0f0f23; color: #e2e2e2; border: 1px solid #2a2a4a; border-radius: 6px; font-family: inherit; font-size: 0.85rem; outline: none; box-sizing: border-box; }
+  .modal-box { background: var(--bg-card-hover); border-radius: 12px; padding: 24px; width: 400px; max-width: 90vw; box-shadow: var(--shadow); border: 1px solid var(--border-color); }
+  .modal-box h3 { color: var(--text-primary); margin: 0 0 20px 0; font-size: 1.1rem; }
+  .modal-box label { display: block; color: var(--text-secondary); font-size: 0.78rem; margin-bottom: 4px; margin-top: 12px; }
+  .modal-box input, .modal-box select { width: 100%; padding: 8px 12px; background: var(--input-bg); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 6px; font-family: inherit; font-size: 0.85rem; outline: none; box-sizing: border-box; }
   .modal-box input:focus, .modal-box select:focus { border-color: #4fc3f7; }
   .modal-actions { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; }
   .modal-actions button { padding: 8px 20px; border-radius: 6px; font-family: inherit; font-size: 0.85rem; cursor: pointer; border: none; }
   .modal-actions .btn-save { background: #4fc3f7; color: #0f0f23; font-weight: bold; }
-  .modal-actions .btn-cancel { background: #2a2a4a; color: #8892b0; }
-  .modal-error { color: #e94560; font-size: 0.78rem; margin-top: 8px; display: none; }
+  .modal-actions .btn-cancel { background: var(--border-color); color: var(--text-secondary); }
+  .modal-error { color: var(--danger); font-size: 0.78rem; margin-top: 8px; display: none; }
 
   /* ── Confirm dialog overlay ── */
   .confirm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1001; display: flex; align-items: center; justify-content: center; }
   .confirm-overlay.hidden { display: none; }
-  .confirm-box { background: #1a1a2e; border-radius: 12px; padding: 24px; width: 360px; max-width: 90vw; text-align: center; box-shadow: 0 8px 40px rgba(0,0,0,0.5); border: 1px solid #e94560; }
-  .confirm-box p { color: #e2e2e2; font-size: 0.95rem; margin-bottom: 20px; }
-  .confirm-box strong { color: #e94560; }
+  .confirm-box { background: var(--bg-card-hover); border-radius: 12px; padding: 24px; width: 360px; max-width: 90vw; text-align: center; box-shadow: var(--shadow); border: 1px solid var(--danger); }
+  .confirm-box p { color: var(--text-primary); font-size: 0.95rem; margin-bottom: 20px; }
+  .confirm-box strong { color: var(--danger); }
   .confirm-actions { display: flex; gap: 10px; justify-content: center; }
   .confirm-actions button { padding: 8px 24px; border-radius: 6px; font-family: inherit; font-size: 0.85rem; cursor: pointer; border: none; }
-  .confirm-actions .btn-confirm-yes { background: #e94560; color: #fff; font-weight: bold; }
-  .confirm-actions .btn-confirm-no { background: #2a2a4a; color: #8892b0; }
+  .confirm-actions .btn-confirm-yes { background: var(--danger); color: #fff; font-weight: bold; }
+  .confirm-actions .btn-confirm-no { background: var(--border-color); color: var(--text-secondary); }
 
   /* ── Scheduler config panel ── */
-  .scheduler-config-panel { background: #1a1a2e; border-radius: 8px; padding: 20px; margin-top: 16px; }
-  .scheduler-config-panel h3 { margin: 0 0 16px 0; color: #e2e2e2; }
+  .scheduler-config-panel { background: var(--bg-card-hover); border-radius: 8px; padding: 20px; margin-top: 16px; }
+  .scheduler-config-panel h3 { margin: 0 0 16px 0; color: var(--text-primary); }
   .config-row { display: flex; align-items: center; margin-bottom: 12px; gap: 12px; }
-  .config-row label { color: #8892b0; font-size: 14px; min-width: 80px; }
-  .config-row input[type="number"] { background: #0f0f23; color: #ccd6f6; border: 1px solid #2a2a4a; border-radius: 4px; padding: 6px 10px; width: 80px; }
-  .config-hint { color: #5a6a8a; font-size: 12px; }
+  .config-row label { color: var(--text-secondary); font-size: 14px; min-width: 80px; }
+  .config-row input[type="number"] { background: var(--input-bg); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; padding: 6px 10px; width: 80px; }
+  .config-hint { color: var(--text-muted); font-size: 12px; }
   .toggle-switch { position: relative; width: 48px; height: 24px; cursor: pointer; display: inline-block; }
   .toggle-switch input { display: none; }
   .toggle-slider { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #3a3a5a; border-radius: 24px; transition: 0.3s; }
   .toggle-slider::before { content: ''; position: absolute; height: 18px; width: 18px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: 0.3s; }
-  .toggle-switch input:checked + .toggle-slider { background: #66bb6a; }
+  .toggle-switch input:checked + .toggle-slider { background: var(--success); }
   .toggle-switch input:checked + .toggle-slider::before { transform: translateX(24px); }
   .save-btn { background: #4fc3f7; color: #0f0f23; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 8px; }
-  .save-success { color: #66bb6a; font-size: 13px; margin-left: 12px; display: none; }
+  .save-success { color: var(--success); font-size: 13px; margin-left: 12px; display: none; }
+  .theme-btn {
+    background: none; border: 1px solid var(--border-color); color: var(--text-primary);
+    font-size: 18px; cursor: pointer; padding: 6px 10px; border-radius: 6px;
+    margin-right: 8px; transition: border-color 0.2s;
+  }
+  .theme-btn:hover { border-color: var(--accent); }
 </style>
 </head>
 <body>
@@ -291,6 +337,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 <div class="header">
   <h1>Emperor Evolution Dashboard</h1>
   <div>
+    <button id="theme-toggle" class="theme-btn" onclick="cycleTheme()" title="切换主题">\u263E</button>
     <span class="badge refresh" id="connectionStatus">Connecting...</span>
     <span class="badge" style="margin-left:8px;" id="lastUpdate"></span>
   </div>
@@ -300,7 +347,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 <div class="grid grid-stats" id="statCards"></div>
 
 <!-- Control Panel -->
-<div class="card" style="background:#16213e;border:1px solid #0f3460;margin-bottom:var(--gap);">
+<div class="card" style="background:var(--bg-card-hover);border:1px solid var(--border-color);margin-bottom:var(--gap);">
   <div class="card-label" style="font-size:0.78rem;text-transform:uppercase;color:var(--text-dim);letter-spacing:1px;margin-bottom:12px;">Control Panel</div>
   <div style="display:flex;gap:12px;flex-wrap:wrap;">
     <button id="btnEvolve" onclick="triggerEvolve()" style="background:#e94560;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-family:inherit;font-size:0.85rem;cursor:pointer;transition:filter 0.2s;">进化</button>
@@ -514,6 +561,56 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     execTime: [],      // ms
     evolution: []      // cycle count
   };
+
+  // ── Theme management ──
+  var currentTheme = 'dark';
+
+  function applyTheme(theme) {
+    if (theme === 'auto') {
+      var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+    } else {
+      document.documentElement.setAttribute('data-theme', theme);
+    }
+    currentTheme = theme;
+    updateThemeButton();
+  }
+
+  function updateThemeButton() {
+    var btn = document.getElementById('theme-toggle');
+    if (!btn) return;
+    var icons = { dark: '\\u263E', light: '\\u2600', auto: '\\u21C5' };
+    btn.textContent = icons[currentTheme] || '\\u263E';
+    btn.title = '\u4e3b\u9898: ' + currentTheme + ' (\u70b9\u51fb\u5207\u6362)';
+  }
+
+  function cycleTheme() {
+    var themes = ['dark', 'light', 'auto'];
+    var nextIdx = (themes.indexOf(currentTheme) + 1) % themes.length;
+    var nextTheme = themes[nextIdx];
+    fetch(API + '/theme', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ theme: nextTheme }),
+    }).then(function() {
+      // success
+    }).catch(function() {
+      // ignore
+    });
+    applyTheme(nextTheme);
+  }
+
+  // Listen for OS-level theme changes (only in auto mode)
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+    if (currentTheme === 'auto') { applyTheme('auto'); }
+  });
+
+  function initTheme() {
+    fetch(API + '/config')
+      .then(function(r) { return r.json(); })
+      .then(function(cfg) { applyTheme(cfg.theme || 'dark'); })
+      .catch(function() { applyTheme('dark'); });
+  }
 
   // ── SVG line chart helper ──
   function drawLineChart(svgId, values, opts) {
@@ -1329,6 +1426,9 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   }
 
   loadSchedulerConfig();
+
+  // Initialize theme first (before any rendering)
+  initTheme();
 
   // SSE first, fallback polling at reduced cadence
   connectSSE();

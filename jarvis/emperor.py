@@ -379,9 +379,10 @@ class Emperor:
         if self.config.auto_schedule:
             self._auto_start_scheduler()
 
-        from jarvis.court_api import create_app
+        from jarvis.court_api import create_app, configure_app
 
         app = create_app(court=self._court)
+        configure_app(self.app_config)
         app.extra["host"] = host
         app.extra["port"] = port
         app.extra["emperor"] = self

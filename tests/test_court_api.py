@@ -369,3 +369,73 @@ class TestDashboardExportWithDB:
         data = r.json()
         assert data["count"] == 1
         assert data["history"][0]["level"] == "WARNING"
+
+
+# ══════════════════════════════════════════════════════════════════
+# Theme API
+# ══════════════════════════════════════════════════════════════════
+
+class TestThemeAPI:
+    def test_get_config_returns_theme(self, client):
+        """GET /api/config returns theme field."""
+        r = client.get("/api/config")
+        assert r.status_code == 200
+        data = r.json()
+        assert "theme" in data
+        assert data["theme"] in ("dark", "light", "auto")
+
+    def test_get_config_returns_refresh_interval(self, client):
+        """GET /api/config returns refresh_interval_seconds."""
+        r = client.get("/api/config")
+        assert r.status_code == 200
+        data = r.json()
+        assert "refresh_interval_seconds" in data
+        assert isinstance(data["refresh_interval_seconds"], (int, float))
+
+    def test_set_theme_dark(self, client):
+        """POST /api/theme sets theme to dark."""
+        r = client.post("/api/theme", json={"theme": "dark"})
+        assert r.status_code == 200
+        data = r.json()
+        assert data["theme"] == "dark"
+        assert data["status"] == "ok"
+
+    def test_set_theme_light(self, client):
+        """POST /api/theme sets theme to light."""
+        r = client.post("/api/theme", json={"theme": "light"})
+        assert r.status_code == 200
+        data = r.json()
+        assert data["theme"] == "light"
+        assert data["status"] == "ok"
+
+    def test_set_theme_auto(self, client):
+        """POST /api/theme sets theme to auto."""
+        r = client.post("/api/theme", json={"theme": "auto"})
+        assert r.status_code == 200
+        data = r.json()
+        assert data["theme"] == "auto"
+        assert data["status"] == "ok"
+
+    def test_set_theme_invalid_rejected(self, client):
+        """POST /api/theme rejects invalid theme values."""
+        for bad in ["red", "blue", "day", "night", "", "system"]:
+            r = client.post("/api/theme", json={"theme": bad})
+            assert r.status_code == 400, f"Expected 400 for theme={bad!r}, got {r.status_code}"
+
+    def test_set_theme_defaults_to_dark(self, client):
+        """POST /api/theme with no body defaults to dark."""
+        r = client.post("/api/theme", json={})
+        assert r.status_code == 200
+        assert r.json()["theme"] == "dark"
+
+    def test_theme_config_integration(self, client):
+        """Set theme then read from /api/config (in-memory only for test client)."""
+        r = client.post("/api/theme", json={"theme": "auto"})
+        assert r.status_code == 200
+
+        # Config returns default theme since test client has no emperor injected.
+        # But endpoint should still return 200 and a valid theme.
+        r2 = client.get("/api/config")
+        assert r2.status_code == 200
+        cfg = r2.json()
+        assert "theme" in cfg

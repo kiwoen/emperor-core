@@ -105,6 +105,10 @@ class SchedulerConfigRequest(BaseModel):
     auto_schedule: Optional[bool] = None
 
 
+class ThemeRequest(BaseModel):
+    theme: str = "dark"
+
+
 # ══════════════════════════════════════════════════════════════════
 # Module-level scheduler state (shared with Emperor.serve)
 # ══════════════════════════════════════════════════════════════════
@@ -114,6 +118,21 @@ _scheduler_config: dict = {
     "task_interval_minutes": 3.0,
     "auto_schedule": True,
 }
+
+_emperor_config = None
+"""Module-level reference to the EmperorConfig (jarvis.yaml AppConfig).
+Injected by Emperor.serve() via configure_app()."""
+
+
+def configure_app(emperor_config=None):
+    """Inject jarvis.yaml AppConfig so API endpoints can read/write it.
+
+    Args:
+        emperor_config: An AppConfig instance from jarvis.yaml.
+    """
+    global _emperor_config
+    if emperor_config is not None:
+        _emperor_config = emperor_config
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -772,8 +791,11 @@ def create_app(
     @app.get("/api/config")
     def api_get_config():
         """Return dashboard-visible configuration."""
-        emperor = getattr(app, "extra", {}).get("emperor")
-        app_cfg = getattr(emperor, "app_config", None) if emperor else None
+        # Prefer _emperor_config (injected by Emperor.serve), fallback to app.extra
+        app_cfg = _emperor_config
+        if app_cfg is None:
+            emperor = getattr(app, "extra", {}).get("emperor")
+            app_cfg = getattr(emperor, "app_config", None) if emperor else None
 
         theme = "dark"
         refresh = 15
@@ -785,6 +807,33 @@ def create_app(
             "theme": theme,
             "refresh_interval_seconds": refresh,
         }
+
+    @app.post("/api/theme")
+    def api_set_theme(req: ThemeRequest):
+        """Set dashboard theme and persist to jarvis.yaml."""
+        import json as _json
+        import os as _os
+
+        theme = req.theme
+
+        if theme not in ("dark", "light", "auto"):
+            raise HTTPException(400, "Invalid theme. Use dark, light, or auto")
+
+        global _emperor_config
+
+        if _emperor_config is not None:
+            _emperor_config.dashboard.theme = theme
+
+        # Persist to jarvis.yaml
+        config_path = "jarvis.yaml"
+        if _os.path.exists(config_path):
+            with open(config_path, "r", encoding="utf-8") as f:
+                raw = _json.load(f)
+            raw.setdefault("dashboard", {})["theme"] = theme
+            with open(config_path, "w", encoding="utf-8") as f:
+                _json.dump(raw, f, indent=2, ensure_ascii=False)
+
+        return {"theme": theme, "status": "ok"}
 
     # ── SSE streaming endpoint ────────────────────────────────────
 
