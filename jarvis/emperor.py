@@ -11,6 +11,11 @@ Usage:
     emp.evolve(cycles=3)
     emp.execute_task("What is 17 * 23?", domain="math")
     emp.serve(port=9020)
+
+Configuration:
+    Emperor auto-loads ``jarvis.yaml`` (JSON-inside-YAML) if present.
+    On first run, ``save_default_config()`` writes all defaults to disk.
+    See ``jarvis/config.py`` for the full schema.
 """
 
 from __future__ import annotations
@@ -20,6 +25,12 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
+
+from jarvis.config import (
+    EmperorConfig as AppConfig,
+    load_config as load_app_config,
+    save_default_config as save_default_app_config,
+)
 
 logger = logging.getLogger("jarvis.emperor")
 
@@ -67,6 +78,33 @@ class EmperorConfig:
 
 
 # ══════════════════════════════════════════════════════════════════
+# Bridge: jarvis.yaml AppConfig → EmperorConfig
+# ══════════════════════════════════════════════════════════════════
+
+
+def _app_config_to_emperor(app: AppConfig) -> EmperorConfig:
+    """Convert ``AppConfig`` (from jarvis.yaml) to runtime ``EmperorConfig``."""
+    return EmperorConfig(
+        min_ministers=3,
+        max_ministers=app.max_ministers,
+        crossover_rate=0.6,
+        elitism_count=2,
+        enable_auto_breeding=True,
+        api_host=app.dashboard.host,
+        api_port=app.dashboard.port,
+        enable_api=False,
+        auto_schedule=app.scheduler.auto_schedule,
+        auto_seed_ministers=True,
+        auto_evolve_interval_minutes=app.scheduler.evolve_interval_minutes,
+        auto_evolve_cycles=1,
+        auto_tasks_interval_minutes=app.scheduler.task_interval_minutes,
+        data_dir="",
+        log_level="INFO",
+        max_task_timeout=30.0,
+    )
+
+
+# ══════════════════════════════════════════════════════════════════
 # Emperor
 # ══════════════════════════════════════════════════════════════════
 
@@ -80,8 +118,24 @@ class Emperor:
     >>> emp.status()
     """
 
-    def __init__(self, config: Optional[EmperorConfig] = None) -> None:
-        self.config = config or EmperorConfig()
+    def __init__(
+        self,
+        config: Optional[EmperorConfig] = None,
+        config_path: Optional[str] = None,
+    ) -> None:
+        # Load from jarvis.yaml if no explicit EmperorConfig provided
+        if config is None and config_path is None:
+            app_cfg = load_app_config()
+        elif config_path is not None:
+            app_cfg = load_app_config(config_path)
+        else:
+            app_cfg = None
+
+        if app_cfg is not None:
+            self._app_config = app_cfg
+            config = _app_config_to_emperor(app_cfg)
+
+        self.config: EmperorConfig = config or EmperorConfig()
 
         # Defer imports for fast startup
         from jarvis.court.court import Court, CourtConfig
@@ -96,9 +150,17 @@ class Emperor:
         )
         self._court = Court(config=court_cfg)
 
-        # Create default capability registry
+        # Create default capability registry (filtered by config)
         from jarvis.capability import create_default_registry
-        self._capability_registry = create_default_registry()
+        enabled_caps = getattr(
+            getattr(self, '_app_config', None), 'capability', None
+        )
+        if enabled_caps is not None:
+            self._capability_registry = create_default_registry(
+                enabled=enabled_caps.enabled_capabilities,
+            )
+        else:
+            self._capability_registry = create_default_registry()
 
         from jarvis.court.task_engine import TaskEngine
 
@@ -138,6 +200,11 @@ class Emperor:
     def court(self):
         """Direct access to the underlying Court."""
         return self._court
+
+    @property
+    def app_config(self) -> Optional[AppConfig]:
+        """Access to the loaded jarvis.yaml config (if available)."""
+        return getattr(self, '_app_config', None)
 
     @property
     def task_engine(self):
@@ -358,10 +425,8 @@ class Emperor:
 
     # ── One-command live dashboard helpers ────────────────────────
 
-    # Default minister lineup — one per major domain, ready for live
-    # evolution on first `serve()`. Names follow the classical
-    # Imperial Court theme.
-    DEFAULT_MINISTERS: list[tuple[str, str]] = [
+    # Default minister lineup — used when jarvis.yaml is absent.
+    _FALLBACK_MINISTERS: list[tuple[str, str]] = [
         ("turing",   "math"),
         ("curie",    "science"),
         ("hinton",   "code"),
@@ -372,16 +437,41 @@ class Emperor:
         ("lovelace", "general"),
     ]
 
+    @property
+    def DEFAULT_MINISTERS(self) -> list[tuple[str, str]]:
+        """Backward-compatible accessor for seed ministers.
+
+        Returns tuples from jarvis.yaml if present, otherwise falls back
+        to _FALLBACK_MINISTERS.
+        """
+        if self.app_config is not None and self.app_config.seed_ministers:
+            return [(m["name"], m["domain"]) for m in self.app_config.seed_ministers]
+        return self._FALLBACK_MINISTERS
+
     def _ensure_default_ministers(self) -> int:
         """Auto-register a default minister lineup if the court is empty.
+
+        Uses ``seed_ministers`` from ``jarvis.yaml`` if present, otherwise
+        falls back to ``_FALLBACK_MINISTERS``.
 
         Returns:
             Number of new ministers actually registered (0 if court
             was already populated).
         """
         existing = set(self._court.active_ministers)
+
+        # Honour jarvis.yaml seed_ministers
+        seed = None
+        if self.app_config is not None:
+            raw = self.app_config.seed_ministers
+            if raw:
+                seed = [(m["name"], m["domain"]) for m in raw]
+
+        if seed is None:
+            seed = self._FALLBACK_MINISTERS
+
         seeded: list[str] = []
-        for name, domain in self.DEFAULT_MINISTERS:
+        for name, domain in seed:
             if name not in existing and len(self._court.active_ministers) < self.config.max_ministers:
                 try:
                     self.register(name, domain=domain, temperature=0.7)
@@ -466,6 +556,7 @@ class Emperor:
             self._app = create_app(court=self._court)
             self._app.extra.setdefault("host", self.config.api_host or "127.0.0.1")
             self._app.extra.setdefault("port", self.config.api_port or 9020)
+            self._app.extra["emperor"] = self
         return self._app
 
     # ── Status / Dashboard ─────────────────────────────────────────

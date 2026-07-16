@@ -836,69 +836,29 @@ def _html_to_text(html: str) -> str:
 # ══════════════════════════════════════════════════════════════════
 
 
-def create_default_registry() -> CapabilityRegistry:
-    """Create a CapabilityRegistry pre-loaded with 8 built-in capabilities."""
+def create_default_registry(enabled: Optional[list[str]] = None) -> CapabilityRegistry:
+    """Create a CapabilityRegistry pre-loaded with 10 built-in capabilities.
+
+    Args:
+        enabled: If provided, only register capabilities whose name is in this list.
+    """
     registry = CapabilityRegistry()
 
-    registry.register(Capability(
-        name="datetime",
-        description="获取当前日期、时间、时区、星期等信息",
-        domains=["general", "data"],
-        handler=_handle_datetime,
-    ))
-    registry.register(Capability(
-        name="math",
-        description="安全计算数学表达式（加减乘除、幂、取模）",
-        domains=["math", "science"],
-        handler=_handle_math,
-    ))
-    registry.register(Capability(
-        name="random",
-        description="生成随机数、掷骰子、随机选择",
-        domains=["general"],
-        handler=_handle_random,
-    ))
-    registry.register(Capability(
-        name="text",
-        description="文本统计、反转、大小写转换、计数",
-        domains=["general", "code", "legal"],
-        handler=_handle_text,
-    ))
-    registry.register(Capability(
-        name="file_info",
-        description="获取文件大小、修改时间、行数等信息",
-        domains=["data", "code"],
-        handler=_handle_file_info,
-    ))
-    registry.register(Capability(
-        name="hash",
-        description="计算字符串的 MD5 / SHA1 / SHA256 哈希摘要",
-        domains=["code", "data"],
-        handler=_handle_hash,
-    ))
-    registry.register(Capability(
-        name="json_tool",
-        description="JSON 格式化美化 / 校验 / 压缩",
-        domains=["code", "data"],
-        handler=_handle_json_tool,
-    ))
-    registry.register(Capability(
-        name="uuid_gen",
-        description="生成 UUID4 唯一标识符",
-        domains=["code", "general"],
-        handler=_handle_uuid_gen,
-    ))
-    registry.register(Capability(
-        name="web_search",
-        description="搜索互联网信息（通过 DuckDuckGo）",
-        domains=["general", "data"],
-        handler=_web_search_handler,
-    ))
-    registry.register(Capability(
-        name="web_fetch",
-        description="抓取指定网页的内容",
-        domains=["general", "data", "code"],
-        handler=_web_fetch_handler,
-    ))
+    def _reg(name: str, desc: str, domains: list[str], handler) -> None:
+        """Register a capability only if enabled list allows it."""
+        if enabled is not None and name not in enabled:
+            return
+        registry.register(Capability(name=name, description=desc, domains=domains, handler=handler))
+
+    _reg("datetime", "获取当前日期、时间、时区、星期等信息", ["general", "data"], _handle_datetime)
+    _reg("math", "安全计算数学表达式（加减乘除、幂、取模）", ["math", "science"], _handle_math)
+    _reg("random", "生成随机数、掷骰子、随机选择", ["general"], _handle_random)
+    _reg("text", "文本统计、反转、大小写转换、计数", ["general", "code", "legal"], _handle_text)
+    _reg("file_info", "获取文件大小、修改时间、行数等信息", ["data", "code"], _handle_file_info)
+    _reg("hash", "计算字符串的 MD5 / SHA1 / SHA256 哈希摘要", ["code", "data"], _handle_hash)
+    _reg("json_tool", "JSON 格式化美化 / 校验 / 压缩", ["code", "data"], _handle_json_tool)
+    _reg("uuid_gen", "生成 UUID4 唯一标识符", ["code", "general"], _handle_uuid_gen)
+    _reg("web_search", "搜索互联网信息（通过 DuckDuckGo）", ["general", "data"], _web_search_handler)
+    _reg("web_fetch", "抓取指定网页的内容", ["general", "data", "code"], _web_fetch_handler)
 
     return registry

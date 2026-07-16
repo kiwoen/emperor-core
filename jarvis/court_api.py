@@ -767,6 +767,25 @@ def create_app(
             "updated": updated_fields,
         }
 
+    # ── Dashboard config endpoint ─────────────────────────────────
+
+    @app.get("/api/config")
+    def api_get_config():
+        """Return dashboard-visible configuration."""
+        emperor = getattr(app, "extra", {}).get("emperor")
+        app_cfg = getattr(emperor, "app_config", None) if emperor else None
+
+        theme = "dark"
+        refresh = 15
+        if app_cfg is not None:
+            theme = getattr(app_cfg.dashboard, "theme", "dark")
+            refresh = getattr(app_cfg.dashboard, "refresh_interval_seconds", 15)
+
+        return {
+            "theme": theme,
+            "refresh_interval_seconds": refresh,
+        }
+
     # ── SSE streaming endpoint ────────────────────────────────────
 
     @app.get("/api/events")
