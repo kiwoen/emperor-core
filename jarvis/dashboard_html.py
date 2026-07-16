@@ -389,6 +389,46 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     transform: rotate(-90deg);
   }
 
+  /* ── Health monitoring panel ── */
+  .health-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 14px;
+    text-align: center;
+  }
+  .health-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+  .health-value {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.1;
+  }
+  .health-bar {
+    margin-top: 6px;
+    height: 6px;
+    background: var(--bg-primary);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .health-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.5s;
+  }
+  .health-detail {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
   /* ── Responsive layout ── */
   /* Tablet portrait (≤1024px): two-column */
   @media (max-width: 1024px) {
@@ -451,6 +491,9 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     .grid-charts {
       grid-template-columns: 1fr;
     }
+    .health-grid {
+      grid-template-columns: repeat(2, 1fr) !important;
+    }
   }
 
   /* Large screen (≥1400px): three-column */
@@ -479,6 +522,49 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 
 <!-- Top stat cards -->
 <div class="panel-full grid grid-stats" id="statCards"></div>
+
+<!-- 系统健康面板 -->
+<div class="panel panel-full" id="panel-health">
+  <div class="panel-header">
+    <h2>系统健康</h2>
+    <button class="panel-collapse-btn" onclick="togglePanel('panel-health')">▼</button>
+    <span class="panel-actions" style="display:flex;gap:8px;">
+      <span id="health-uptime" style="color:var(--text-secondary);font-size:13px;">--</span>
+    </span>
+  </div>
+  <div class="panel-body">
+    <div class="health-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+      <div class="health-card" id="hc-cpu">
+        <div class="health-label">CPU</div>
+        <div class="health-value">--%</div>
+        <div class="health-bar">
+          <div class="health-bar-fill" style="width:0%;"></div>
+        </div>
+      </div>
+      <div class="health-card" id="hc-memory">
+        <div class="health-label">内存</div>
+        <div class="health-value">--%</div>
+        <div class="health-bar">
+          <div class="health-bar-fill" style="width:0%;"></div>
+        </div>
+        <div class="health-detail">-- / -- GB</div>
+      </div>
+      <div class="health-card" id="hc-disk">
+        <div class="health-label">磁盘</div>
+        <div class="health-value">--%</div>
+        <div class="health-bar">
+          <div class="health-bar-fill" style="width:0%;"></div>
+        </div>
+        <div class="health-detail">-- / -- GB</div>
+      </div>
+      <div class="health-card" id="hc-uptime">
+        <div class="health-label">运行时长</div>
+        <div class="health-value">--</div>
+        <div class="health-detail">Python 3.x</div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Control Panel -->
 <div class="card panel-full" id="panel-controls">
@@ -1601,6 +1687,69 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 
   loadSchedulerConfig();
 
+  // ═══ Health monitoring ═══════════════════════════════════════
+
+  async function refreshHealth() {
+    try {
+      var resp = await fetch(API + '/api/health');
+      var data = await resp.json();
+
+      // CPU
+      var cpuPct = data.cpu_percent;
+      updateHealthCard('hc-cpu', cpuPct, cpuPct >= 0 ? cpuPct + '%' : '--%');
+
+      // 内存
+      var mem = data.memory;
+      updateHealthCard('hc-memory', mem.percent, mem.percent >= 0 ? mem.percent + '%' : '--%');
+      var memDetail = document.querySelector('#hc-memory .health-detail');
+      if (memDetail && mem.used_gb >= 0) {
+        memDetail.textContent = mem.used_gb + ' / ' + mem.total_gb + ' GB';
+      }
+
+      // 磁盘
+      var disk = data.disk;
+      updateHealthCard('hc-disk', disk.percent, disk.percent >= 0 ? disk.percent + '%' : '--%');
+      var diskDetail = document.querySelector('#hc-disk .health-detail');
+      if (diskDetail && disk.used_gb >= 0) {
+        diskDetail.textContent = disk.used_gb + ' / ' + disk.total_gb + ' GB';
+      }
+
+      // 运行时长
+      var uptimeEl = document.querySelector('#hc-uptime .health-value');
+      if (uptimeEl) uptimeEl.textContent = data.uptime || '--';
+      var uptimeDetail = document.querySelector('#hc-uptime .health-detail');
+      if (uptimeDetail) {
+        uptimeDetail.textContent = data.python ? 'Python ' + data.python : '';
+      }
+
+      // 顶部运行时长
+      var healthUptime = document.getElementById('health-uptime');
+      if (healthUptime) healthUptime.textContent = '运行 ' + (data.uptime || '--');
+
+    } catch (e) {
+      // 静默失败
+    }
+  }
+
+  function updateHealthCard(cardId, percent, displayValue) {
+    var card = document.getElementById(cardId);
+    if (!card) return;
+
+    var valueEl = card.querySelector('.health-value');
+    if (valueEl) valueEl.textContent = displayValue;
+
+    var barEl = card.querySelector('.health-bar-fill');
+    if (barEl && percent >= 0) {
+      barEl.style.width = Math.min(percent, 100) + '%';
+      // 根据使用率变色
+      if (percent > 90) barEl.style.background = 'var(--danger)';
+      else if (percent > 70) barEl.style.background = 'var(--warning)';
+      else if (cardId === 'hc-disk') barEl.style.background = 'var(--warning)';
+      else if (cardId === 'hc-memory') barEl.style.background = 'var(--success)';
+      else barEl.style.background = 'var(--accent)';
+    }
+  }
+
   // ═══ Panel collapse management ════════════════════════════════
   function togglePanel(panelId) {
     var panel = document.getElementById(panelId);
@@ -1644,6 +1793,8 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   setInterval(fetchTaskHistory, 15000);
   fetchAlertHistory();
   setInterval(fetchAlertHistory, 15000);
+  refreshHealth();
+  setInterval(refreshHealth, 10000);
 </script>
 </body>
 </html>"""

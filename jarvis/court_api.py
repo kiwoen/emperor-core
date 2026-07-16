@@ -835,6 +835,15 @@ def create_app(
 
         return {"theme": theme, "status": "ok"}
 
+    # ── Health monitoring endpoint ──────────────────────────────
+
+    @app.get("/api/health")
+    def health_check():
+        """系统健康检查端点（CPU/内存/磁盘/运行时长）"""
+        from jarvis.health import get_system_health
+
+        return get_system_health()
+
     # ── SSE streaming endpoint ────────────────────────────────────
 
     @app.get("/api/events")

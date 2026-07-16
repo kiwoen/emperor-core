@@ -439,3 +439,15 @@ class TestThemeAPI:
         assert r2.status_code == 200
         cfg = r2.json()
         assert "theme" in cfg
+
+
+class TestHealthEndpoint:
+    def test_health_endpoint(self, client):
+        """GET /api/health 返回健康数据"""
+        resp = client.get("/api/health")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "cpu_percent" in data
+        assert "memory" in data
+        assert "disk" in data
+        assert "uptime" in data
