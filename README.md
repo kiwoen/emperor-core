@@ -1,188 +1,314 @@
-<div align="center">
+# Jarvis
 
-# 🏯 Emperor
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://python.org)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-### Imperial Court AI Orchestrator · 八大臣协同的天子决策系统
+**J.A.R.V.I.S.** — Just A Rather Very Intelligent System.
 
-[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org)
-[![Tests](https://img.shields.io/badge/tests-311%20passed-success.svg)]()
-[![License](https://img.shields.io/badge/license-MIT-green.svg)]()
-[![Architecture](https://img.shields.io/badge/architecture-imperial--court-gold.svg)]()
+AI 驱动的多领域自进化智能体系统。内置 Dashboard 实时监控、大臣进化引擎、12 种内置能力、插件系统、自愈机制和 SQLite 持久化。
 
-> **"受命于天，统领八表；朝议百官，合成圣旨。"**
-> *An Emperor listens to his ministers, weighs their counsel, and speaks the decree.*
-
-**Emperor** 是一套以"中国古代朝堂"为隐喻的多域 AI 编排系统。用户的请求被视作「奏章」，
-由「天子」（Emperor）拆解意图、量化大臣能力评分，并行分派给八位各怀绝技的「大臣」
-（Minister）议事，最终合成「圣旨」（Edict）下达。八位大臣每一位都封装了当前市场
-领先 AI 的核心优势——推理、审阅、搜索、代码、多模态、成本、科学、安全——让你
-在本地即可调度一个「多模型联合体」，并通过天子持续从反馈中学习、不断自我进化。
-
-</div>
-
----
-
-## ✨ 核心理念
-
-| 朝堂隐喻 | 现实映射 |
-|----------|----------|
-| **奏章** (Memorial) | 用户的自然语言请求 |
-| **天子** (Emperor) | 中央编排器：意图拆解 + 大臣评分 + 议会召集 + 圣旨合成 |
-| **大臣** (Minister) | 八位领域专家代理：各自封装一种顶尖 AI 能力 |
-| **圣旨** (Edict) | 多大臣协同生成的最终答复 |
-| **朝议** (Court) | 八大臣并行议事 + 反馈机制 |
-| **自进化** (Evolution) | 天子从圣旨反馈中漂移大臣置信度、调整调度温度 |
-
----
-
-## 🏛️ 朝堂架构
-
-```
-                          ┌──────────────────────┐
-                          │   👑 天子 (Emperor)  │
-                          │                      │
-                          │  · 奏章拆解          │
-                          │  · 大臣能力评分      │
-                          │  · 自适应温度选择    │
-                          └──────────┬───────────┘
-                                     │  派发奏章
-              ┌──────────┬───────────┼───────────┬──────────┐
-              ▼          ▼           ▼           ▼          ▼
-         ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐
-         │ 丞相    │ │ 御史大夫│ │ 太史令  │ │ 工部尚书│ │ 太常    │
-         │ 推理   │ │ 审阅    │ │ 搜索    │ │ 代码   │ │ 多模态  │
-         │ GPT-5  │ │ Claude  │ │ Perpl.  │ │ DSeek  │ │ Gemini  │
-         └────────┘ └────────┘ └────────┘ └────────┘ └────────┘
-              ▼          ▼           ▼           ▼          ▼
-              ┌──────────┬───────────┼───────────┬──────────┐
-              ▼          ▼           ▼           ▼          ▼
-         ┌────────┐ ┌────────┐ ┌────────┐
-         │ 大司农  │ │ 太卜    │ │ 卫尉    │
-         │ 成本   │ │ 科学    │ │ 安全    │
-         │ DSeekV3│ │ o3     │ │ CAI     │
-         └────────┘ └────────┘ └────────┘
-                                     │
-                          ┌──────────▼───────────┐
-                          │  📜 圣旨 (Edict)     │
-                          │  · 多臣协同答复      │
-                          │  · 置信度综合        │
-                          │  · 反馈回流          │
-                          └──────────────────────┘
-```
-
----
-
-## 🎭 八大臣
-
-| 官职 | 核心能力 | 借鉴模型 | 适用场景 |
-|------|----------|----------|----------|
-| **丞相** | 深度推理 | GPT-5 / o-series | 复杂逻辑、规划、策略推演 |
-| **御史大夫** | 审阅润色 | Claude | 文档评审、措辞优化、批判性思维 |
-| **太史令** | 实时搜索 | Perplexity | 事实查询、新闻、市场数据 |
-| **工部尚书** | 代码工程 | DeepSeek-R1 | 编程、架构、调试、Bug 修复 |
-| **太常** | 多模态 | Gemini | 图像理解、视觉推理、跨模态 |
-| **大司农** | 低成本执行 | DeepSeek-V3 | 高吞吐、低优先级任务 |
-| **太卜** | 科学推理 | o3 | 数学、物理、定理证明 |
-| **卫尉** | 安全审计 | CAI | 内容审核、安全检查、红队测试 |
-
----
-
-## 🚀 快速开始
+## 快速开始
 
 ```bash
-git clone https://github.com/kiwoen/emperor-core.git
-cd emperor-core
+# 安装
+pip install -e .
+
+# 一键启动 Dashboard
+python -m jarvis serve
+
+# 或使用 CLI
+jarvis serve
+```
+
+启动后访问 http://127.0.0.1:9020 打开 Dashboard。
+
+## 核心特性
+
+### Dashboard 实时监控
+- 系统健康面板（CPU / 内存 / 磁盘 / 运行时长）
+- 实时天气小部件 + 新闻头条
+- ECharts 进化历史趋势图
+- 能力命中统计环形饼图
+- 金银铜功绩排行榜
+- 任务面板（搜索 / 筛选 / 状态追踪）
+- 大臣管理（CRUD / 能力分布 / 稳定度可视化）
+- 调度器配置面板（暂停 / 恢复 / 调整间隔）
+- 告警面板（搜索 / 筛选）
+- 暗色 / 亮色 / 自动主题切换
+- 响应式布局（桌面三列 → 平板两列 → 手机单列）
+- 面板折叠 (localStorage 持久化)
+- 控制面板（手动进化 / 执行任务 / 触发自愈）
+
+### 进化引擎
+- 8 位默认大臣，各具专长领域 (general / science / data / code / math)
+- 任务成功驱动进化：稳定度、含金量、功绩值动态变化
+- 连续成功奖励机制 (streak bonus)
+- 周期性自动进化（默认 5 分钟）
+
+### 能力系统（12 个能力）
+
+| 能力 | 描述 | 数据源 |
+|------|------|--------|
+| datetime | 当前日期时间、时区、星期 | Python stdlib |
+| math | AST 安全数学表达式求值 | Python stdlib |
+| random | 随机数/骰子/抽签 | Python stdlib |
+| text | 文本统计、反转、大小写转换 | Python stdlib |
+| file_info | 文件大小/修改时间/行数 | Python stdlib |
+| hash | MD5 / SHA256 哈希校验 | Python stdlib |
+| json_tool | JSON 格式化/美化/解析 | Python stdlib |
+| uuid_gen | UUID/GUID 生成 | Python stdlib |
+| weather | 实时天气查询 | wttr.in |
+| news | 新闻摘要 | Google News RSS |
+| web_search | 网页搜索 | DuckDuckGo |
+| web_fetch | 网页内容抓取 | aiohttp |
+
+### 自愈引擎
+- 内置自愈动作（重启调度器 / 紧急进化 / 清理停滞大臣等）
+- 默认告警规则（大臣枯竭 / 任务失败飙升 / 进化停滞）
+- 冷却机制避免重复触发
+
+### 插件系统
+- 10+ 生命周期钩子（pre_init / post_init / pre_task / post_task / pre_evolve / ...）
+- 支持动态加载/卸载
+
+### 持久化层
+- SQLite（WAL 模式）自动落库
+- 3 张表：task_history / evolution_history / alert_history
+- 自动 schema 迁移
+- 支持 JSON/CSV 导出
+
+### 配置文件
+- `jarvis.yaml` 集中管理所有参数
+- 首次运行自动生成默认配置
+
+### CLI 工具
+
+```bash
+jarvis serve                       # 启动 Dashboard + 调度器
+jarvis task "计算 2+3"             # 手动执行任务
+jarvis task --domain math "π*2"   # 指定领域
+jarvis status                      # 查看系统状态
+jarvis ministers                   # 查看大臣列表
+jarvis evolve                      # 手动触发进化
+jarvis alerts                      # 查看告警历史
+```
+
+## 项目结构
+
+```
+jarvis/
+├── __init__.py              # 包元信息
+├── __main__.py              # python -m jarvis 入口
+├── cli.py                   # CLI 命令行工具
+├── main.py                  # 启动入口
+├── emperor.py               # 核心编排器 (Emperor)
+├── emperor_cli.py           # CLI 编排器
+├── config.py                # 配置系统 (jarvis.yaml)
+├── capability.py            # 能力注册表 + 12 个处理器
+├── database.py              # SQLite 持久化层
+├── health.py                # 系统健康监控 (CPU/内存/磁盘)
+├── healing.py               # 自愈引擎
+├── healing_actions.py       # 内置自愈动作
+├── alerts.py                # 告警管理器
+├── plugin.py                # 插件系统 (生命周期钩子)
+├── event_bus.py             # 事件总线
+├── court_api.py             # FastAPI REST API + Dashboard 端点
+├── dashboard_html.py        # Dashboard HTML 前端
+├── api/                     # API 子模块
+├── codex/                   # Codex 模块
+├── core/                    # 核心抽象层
+├── court/                   # 大臣管理模块
+├── domains/                 # 领域模块
+├── events/                  # 事件系统
+├── evolution/               # 进化算法
+├── hermes/                  # Hermes 通信模块
+├── hermes_agent/            # Hermes Agent
+├── knowledge/               # 知识库
+├── memory/                  # 记忆模块
+├── plugins/                 # 插件目录
+├── sandbox/                 # 沙箱执行环境
+└── vscode/                  # VSCode 集成
+tests/
+├── test_capability.py
+├── test_cli.py
+├── test_config.py
+├── test_court.py
+├── test_court_api.py
+├── test_database.py
+├── test_emperor.py
+├── test_events.py
+├── test_healing.py
+├── test_health.py
+├── test_plugin.py
+├── test_scheduler.py
+├── test_alerts.py
+├── test_alerts_integration.py
+├── test_builtin_alerts.py
+├── test_builtin_plugins.py
+├── test_breeding.py
+├── test_calibration.py
+├── test_censorate.py
+├── test_codex.py
+├── test_core.py
+├── test_court_facade.py
+├── test_court_integration.py
+├── test_court_kg.py
+├── test_court_orchestration.py
+├── test_crossover.py
+├── test_dashboard.py
+├── test_diversity.py
+├── test_domains.py
+├── test_emperor_auto_start.py
+├── test_emperor_builtin_plugins.py
+├── test_emperor_evolve.py
+├── test_emperor_plugins.py
+├── test_event_bus.py
+├── test_evolution.py
+├── test_evolution_feedback.py
+├── test_evolution_lifecycle.py
+├── test_genome_injector.py
+├── test_genome_store.py
+├── test_healing_actions.py
+├── test_hermes.py
+├── test_hermes_agent.py
+├── test_history.py
+├── test_inspector.py
+├── test_integration.py
+├── test_knowledge.py
+├── test_manual_task_api.py
+├── test_memory.py
+├── test_merit_board.py
+├── test_ministers_api.py
+├── test_orchestrator.py
+├── test_providers.py
+├── test_reflection.py
+├── test_routing.py
+├── test_scheduler_config_api.py
+├── test_sliding_merit.py
+├── test_sse_endpoint.py
+├── test_stability_tracker.py
+├── test_task_engine.py
+├── test_task_feedback.py
+├── test_vscode.py
+├── test_workflow.py
+└── test_adaptive_evolution_rate.py
+```
+
+## 配置参考
+
+默认 `jarvis.yaml`：
+
+```yaml
+{
+  "dashboard": {
+    "host": "127.0.0.1",
+    "port": 9020,
+    "theme": "dark",
+    "weather_city": "北京",
+    "refresh_interval_seconds": 15
+  },
+  "scheduler": {
+    "auto_schedule": true,
+    "evolve_interval_minutes": 5.0,
+    "task_interval_minutes": 3.0
+  },
+  "evolution": {
+    "merit_delta_range": [-2, 2],
+    "stability_delta_range": [-0.02, 0.02],
+    "streak_bonus_threshold": 5
+  },
+  "capability": {
+    "enabled_capabilities": ["datetime", "math", "random", "text", "file_info",
+      "hash", "json_tool", "uuid_gen", "weather", "news", "web_search", "web_fetch"]
+  },
+  "database": {
+    "db_path": "jarvis.db",
+    "wal_mode": true,
+    "max_history_rows": 10000
+  },
+  "seed_ministers": [
+    {"name": "turing", "domain": "general"},
+    {"name": "curie", "domain": "science"},
+    {"name": "hinton", "domain": "data"},
+    {"name": "bengio", "domain": "data"},
+    {"name": "lecun", "domain": "code"},
+    {"name": "goodfellow", "domain": "math"},
+    {"name": "sutton", "domain": "general"},
+    {"name": "silver", "domain": "general"}
+  ],
+  "max_ministers": 50
+}
+```
+
+## API 端点
+
+### Dashboard（Flask，端口 9020）
+
+| 方法 | 路径 | 描述 |
+|------|------|------|
+| GET | / | Dashboard 主页 |
+| GET | /api/status | 系统状态 |
+| GET | /api/health | 系统健康指标 (CPU/内存/磁盘/运行时长) |
+| GET | /api/dashboard/live | 天气 + 新闻实时数据 |
+| GET | /api/dashboard/capability-stats | 能力命中统计 |
+| GET | /api/tasks | 任务列表（支持 ?minister=&status=&search=&offset=） |
+| GET | /api/ministers | 大臣列表 |
+| POST | /api/ministers | 创建大臣 |
+| PUT | /api/ministers/&lt;id&gt; | 更新大臣 |
+| DELETE | /api/ministers/&lt;id&gt; | 删除大臣 |
+| GET | /api/alerts | 告警列表（支持 ?status=&rule=&search=&offset=） |
+| GET | /api/evolution | 进化历史 |
+| POST | /api/evolve | 手动触发进化 |
+| POST | /api/tasks/execute | 手动执行任务 |
+| POST | /api/heal | 触发自愈 |
+| PATCH | /api/scheduler | 调度器控制（暂停/恢复/调整间隔） |
+| GET | /api/config | 当前配置 |
+| POST | /api/theme | 切换主题 (dark/light/auto) |
+| GET | /api/events | SSE 事件流 |
+| GET | /dashboard/export | 导出数据 (JSON/CSV) |
+
+### Court API（FastAPI，端口 8000）
+
+| 方法 | 路径 | 描述 |
+|------|------|------|
+| GET | / | 服务健康检查 |
+| GET | /court/summary | 宫廷摘要 |
+| GET | /court/snapshot | 结构化宫廷状态 |
+| GET | /court/history | 进化周期历史 |
+| GET | /court/ministers | 大臣列表 |
+| GET | /court/minister/{name} | 大臣详情 |
+| POST | /court/register | 注册大臣 |
+| POST | /court/register/batch | 批量注册大臣 |
+| POST | /court/evolve | 运行 N 轮进化 |
+| POST | /court/dispatch | 记录任务派遣结果 |
+| POST | /court/feedback | 记录外部反馈 |
+| POST | /court/genomes/save | 持久化基因组 |
+| POST | /court/genomes/load | 从文件加载基因组 |
+| POST | /court/config/load | 加载 YAML 配置 |
+| GET | /court/config | 查看当前配置 |
+
+## 技术栈
+
+- **语言**：Python 3.11+
+- **Web 框架**：Flask (Dashboard) + FastAPI (Court API)
+- **数据库**：SQLite (WAL 模式)
+- **可视化**：ECharts 5
+- **SSE**：实时事件推送
+- **跨平台**：Windows / Linux 双平台健康监控
+
+## 快速开发
+
+```bash
+# 安装开发依赖
 pip install -e ".[dev]"
 
-# 运行全量测试
-pytest tests/ -v
+# 运行测试
+python -m pytest tests/ -x -q --tb=short
 
-# 启动 CLI
-python -m jarvis run
+# 代码格式化
+black jarvis/ tests/
+ruff check jarvis/ tests/
 
-# 启动 API 服务
-python -m jarvis serve
+# 类型检查
+mypy jarvis/
 ```
-
-### CLI 命令
-
-```bash
-jarvis run      # 单次交互
-jarvis chat     # 多轮对话
-jarvis serve    # 启动 FastAPI + WebSocket
-jarvis status   # 查看运行时状态
-```
-
----
-
-## 🧪 测试覆盖
-
-```
-311 passed in 4.82s
-```
-
-涵盖：
-- 核心编排器、8 域模块、记忆引擎
-- Hermes 消息总线、Codex 代码智能、VSCode 桥接
-- MCP 桥接、EventStreamManager、KnowledgeGraph
-- **朝堂系统（天子 + 八大臣）**：意图评分、并行分派、圣旨合成、反馈回流、自进化
-
----
-
-## 📁 项目结构
-
-```
-emperor-core/
-├── jarvis/
-│   ├── core/                  # 核心编排 + 自进化
-│   ├── domains/               # 8 域模块
-│   ├── memory/                # 混合记忆引擎
-│   ├── hermes/                # 消息总线
-│   ├── codex/                 # 代码智能
-│   ├── bridge/                # VSCode 桥接
-│   ├── mcp/                   # MCP 桥接
-│   ├── event_stream/          # WebSocket 事件流
-│   ├── knowledge/             # 知识图谱
-│   ├── court/                 # 🏯 朝堂系统
-│   │   ├── emperor.py         # 天子
-│   │   ├── minister.py        # 大臣基类
-│   │   └── ministers/         # 8 位大臣
-│   ├── integration/           # 统一运行时
-│   ├── api/                   # FastAPI
-│   └── cli.py                 # CLI 入口
-├── tests/                     # 311 单元测试
-└── pyproject.toml
-```
-
----
-
-## 🛠️ 技术栈
-
-- **Python 3.11+** + `asyncio` 全异步
-- **Pydantic v2** 数据契约
-- **FastAPI** + WebSocket 实时推送
-- **pytest** + asyncio 测试
-- 可插拔：8 位大臣每位都可独立替换/扩展
-
----
-
-## 🗺️ 路线图
-
-- [x] 核心编排器 + 8 域模块
-- [x] 混合记忆 + 自进化
-- [x] Hermes 消息总线
-- [x] Codex 代码智能
-- [x] VSCode 桥接
-- [x] MCP 桥接
-- [x] EventStreamManager
-- [x] KnowledgeGraph
-- [x] **朝堂系统（天子 + 八大臣）**
-- [ ] 朝堂接入 Orchestrator 调度管线
-- [ ] 真实模型对接（GPT-5 / Claude / Perplexity …）
-- [ ] Web UI（朝堂议事可视化）
-
----
-
-## 📜 License
-
-MIT
