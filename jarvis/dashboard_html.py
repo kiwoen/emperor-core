@@ -810,6 +810,46 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   </div><!-- .panel-body -->
 </div>
 
+<!-- Evals 评测面板 -->
+<div class="panel" id="panel-evals">
+  <div class="panel-header">
+    <h2>Evals 评测</h2>
+    <button class="panel-collapse-btn" onclick="togglePanel('panel-evals')">▼</button>
+  </div>
+  <div class="panel-body">
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+      <button onclick="runEvals()" id="evals-run-btn" class="btn btn-sm" style="background:var(--accent);color:#fff;border:none;border-radius:4px;padding:6px 14px;cursor:pointer;">Run All Evals</button>
+      <span id="evals-status" style="font-size:11px;color:var(--text-muted);"></span>
+    </div>
+    <div id="evals-summary" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
+      <div class="mini-stat"><span class="mini-stat-val" id="evals-total">--</span><span class="mini-stat-label">Total</span></div>
+      <div class="mini-stat"><span class="mini-stat-val" id="evals-passed" style="color:var(--success);">--</span><span class="mini-stat-label">Passed</span></div>
+      <div class="mini-stat"><span class="mini-stat-val" id="evals-failed" style="color:var(--danger);">--</span><span class="mini-stat-label">Failed</span></div>
+      <div class="mini-stat"><span class="mini-stat-val" id="evals-errored" style="color:var(--warning);">--</span><span class="mini-stat-label">Errored</span></div>
+      <div class="mini-stat"><span class="mini-stat-val" id="evals-rate">--</span><span class="mini-stat-label">Pass Rate</span></div>
+    </div>
+    <div id="evals-suites" style="max-height:360px;overflow-y:auto;font-size:12px;"></div>
+  </div><!-- .panel-body -->
+</div>
+
+<!-- Audit 审计追踪面板 -->
+<div class="panel panel-full" id="panel-audit">
+  <div class="panel-header">
+    <h2>Audit 审计追踪</h2>
+    <button class="panel-collapse-btn" onclick="togglePanel('panel-audit')">▼</button>
+  </div>
+  <div class="panel-body">
+    <div class="tab-bar" style="display:flex;gap:2px;margin-bottom:12px;border-bottom:1px solid var(--card-border);">
+      <button class="audit-tab active" onclick="switchAuditTab('recent')" id="audit-tab-recent" style="background:none;border:none;color:var(--accent);padding:6px 14px;cursor:pointer;font-family:inherit;font-size:0.78rem;border-bottom:2px solid var(--accent);margin-bottom:-1px;">Recent Events</button>
+      <button class="audit-tab" onclick="switchAuditTab('failures')" id="audit-tab-failures" style="background:none;border:none;color:var(--text-secondary);padding:6px 14px;cursor:pointer;font-family:inherit;font-size:0.78rem;border-bottom:2px solid transparent;margin-bottom:-1px;">Failures</button>
+      <button class="audit-tab" onclick="switchAuditTab('stats')" id="audit-tab-stats" style="background:none;border:none;color:var(--text-secondary);padding:6px 14px;cursor:pointer;font-family:inherit;font-size:0.78rem;border-bottom:2px solid transparent;margin-bottom:-1px;">Stats</button>
+    </div>
+    <div id="audit-tab-content" style="font-size:12px;max-height:400px;overflow-y:auto;">
+      <div class="empty">Loading...</div>
+    </div>
+  </div><!-- .panel-body -->
+</div>
+
 <!-- 服务流水线面板 -->
 <div class="panel" id="panel-pipelines" style="min-width:0;">
   <div class="panel-header">
@@ -2143,6 +2183,180 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       alert('请求失败: ' + e.message);
     }
   }
+
+  // ═══ Evals panel functions ════════════════════════════════════
+
+  async function refreshEvals() {
+    try {
+      var res = await fetch(API + '/api/dashboard/evals/report');
+      var data = await res.json();
+      renderEvals(data);
+    } catch (e) {
+      console.error('Evals fetch failed:', e);
+    }
+  }
+
+  function renderEvals(report) {
+    document.getElementById('evals-total').textContent = report.total_cases || 0;
+    document.getElementById('evals-passed').textContent = report.passed || 0;
+    document.getElementById('evals-failed').textContent = report.failed || 0;
+    document.getElementById('evals-errored').textContent = report.errored || 0;
+    var rate = report.pass_rate != null ? (report.pass_rate * 100).toFixed(1) + '%' : '--';
+    document.getElementById('evals-rate').textContent = rate;
+
+    var suitesHtml = '';
+    var suites = report.suites || [];
+    if (suites.length === 0) {
+      suitesHtml = '<div class="empty">No eval results yet. Click "Run All Evals" to start.</div>';
+    } else {
+      suites.forEach(function(s) {
+        var suitePassRate = s.pass_rate != null ? (s.pass_rate * 100).toFixed(0) + '%' : '--';
+        suitesHtml += '<div style="border-bottom:1px solid var(--card-border);padding:6px 0;">';
+        suitesHtml += '<div style="display:flex;justify-content:space-between;cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'\':\'none\'">';
+        suitesHtml += '<strong>' + s.suite_name + '</strong>';
+        suitesHtml += '<span style="font-size:11px;color:var(--text-muted);">' + s.passed + '/' + s.failed + '/' + s.errored + ' | ' + suitePassRate + '</span>';
+        suitesHtml += '</div>';
+        suitesHtml += '<div style="display:none;margin-top:4px;padding-left:12px;font-size:11px;">';
+        (s.results || []).forEach(function(r) {
+          var icon = r.status === 'pass' ? '<span style="color:var(--success);">PASS</span>' :
+                    r.status === 'fail' ? '<span style="color:var(--danger);">FAIL</span>' :
+                    r.status === 'error' ? '<span style="color:var(--warning);">ERR</span>' :
+                    '<span style="color:var(--text-muted);">' + r.status + '</span>';
+          suitesHtml += '<div style="padding:1px 0;">' + icon + ' ' + r.case + '</div>';
+        });
+        suitesHtml += '</div></div>';
+      });
+    }
+    document.getElementById('evals-suites').innerHTML = suitesHtml;
+  }
+
+  async function runEvals() {
+    var btn = document.getElementById('evals-run-btn');
+    var status = document.getElementById('evals-status');
+    btn.disabled = true;
+    btn.textContent = 'Running...';
+    status.textContent = 'Executing all suites...';
+    try {
+      var res = await fetch(API + '/api/dashboard/evals/run', { method: 'POST' });
+      if (!res.ok) {
+        status.textContent = 'Failed: ' + res.status;
+        return;
+      }
+      var data = await res.json();
+      renderEvals(data);
+      status.textContent = 'Completed at ' + new Date().toLocaleTimeString();
+    } catch (e) {
+      status.textContent = 'Error: ' + e.message;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Run All Evals';
+    }
+  }
+
+  // ═══ Audit panel functions ════════════════════════════════════
+
+  var _auditTab = 'recent';
+
+  function switchAuditTab(tab) {
+    _auditTab = tab;
+    document.querySelectorAll('.audit-tab').forEach(function(btn) {
+      btn.style.color = 'var(--text-secondary)';
+      btn.style.borderBottomColor = 'transparent';
+      btn.classList.remove('active');
+    });
+    var activeBtn = document.getElementById('audit-tab-' + tab);
+    if (activeBtn) {
+      activeBtn.style.color = 'var(--accent)';
+      activeBtn.style.borderBottomColor = 'var(--accent)';
+      activeBtn.classList.add('active');
+    }
+    refreshAudit();
+  }
+
+  async function refreshAudit() {
+    var container = document.getElementById('audit-tab-content');
+    try {
+      if (_auditTab === 'recent') {
+        var res = await fetch(API + '/api/dashboard/audit/recent?limit=50');
+        var data = await res.json();
+        renderAuditTable(data.entries || [], container);
+      } else if (_auditTab === 'failures') {
+        var res = await fetch(API + '/api/dashboard/audit/failures?limit=50');
+        var data = await res.json();
+        renderAuditTable(data.entries || [], container);
+      } else if (_auditTab === 'stats') {
+        var res = await fetch(API + '/api/dashboard/audit/stats');
+        var data = await res.json();
+        renderAuditStats(data, container);
+      }
+    } catch (e) {
+      container.innerHTML = '<div class="empty">Fetch error: ' + e.message + '</div>';
+    }
+  }
+
+  function renderAuditTable(entries, container) {
+    if (!entries || entries.length === 0) {
+      container.innerHTML = '<div class="empty">No audit records found.</div>';
+      return;
+    }
+    var html = '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11px;">';
+    html += '<thead><tr style="border-bottom:1px solid var(--card-border);color:var(--text-secondary);text-align:left;">';
+    html += '<th style="padding:4px 8px;">Trace ID</th>';
+    html += '<th style="padding:4px 8px;">Phase</th>';
+    html += '<th style="padding:4px 8px;">Action</th>';
+    html += '<th style="padding:4px 8px;">Success</th>';
+    html += '<th style="padding:4px 8px;">Time</th>';
+    html += '</tr></thead><tbody>';
+    entries.forEach(function(e) {
+      var successColor = e.success ? 'var(--success)' : 'var(--danger)';
+      var successText = e.success ? 'OK' : 'FAIL';
+      html += '<tr style="border-bottom:1px solid var(--card-border);">';
+      html += '<td style="padding:3px 8px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + (e.trace_id || '') + '">' + (e.trace_id || '').slice(0, 12) + '</td>';
+      html += '<td style="padding:3px 8px;">' + (e.phase || '') + '</td>';
+      html += '<td style="padding:3px 8px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + (e.action || '') + '">' + (e.action || '') + '</td>';
+      html += '<td style="padding:3px 8px;color:' + successColor + ';">' + successText + '</td>';
+      html += '<td style="padding:3px 8px;color:var(--text-muted);white-space:nowrap;">' + (e.created_at || '') + '</td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+  }
+
+  function renderAuditStats(data, container) {
+    var rate = data.total_entries > 0 ? (data.success_rate || 0).toFixed(1) + '%' : '--';
+    var html = '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;">';
+    html += '<div class="mini-stat"><span class="mini-stat-val">' + (data.total_entries || 0) + '</span><span class="mini-stat-label">Total Entries</span></div>';
+    html += '<div class="mini-stat"><span class="mini-stat-val" style="color:var(--success);">' + (data.successes || 0) + '</span><span class="mini-stat-label">Successes</span></div>';
+    html += '<div class="mini-stat"><span class="mini-stat-val" style="color:var(--danger);">' + (data.failures || 0) + '</span><span class="mini-stat-label">Failures</span></div>';
+    html += '<div class="mini-stat"><span class="mini-stat-val">' + rate + '</span><span class="mini-stat-label">Success Rate</span></div>';
+    html += '<div class="mini-stat"><span class="mini-stat-val">' + formatBytes(data.db_size_bytes || 0) + '</span><span class="mini-stat-label">DB Size</span></div>';
+    html += '</div>';
+
+    var actions = data.top_actions || [];
+    if (actions.length > 0) {
+      html += '<div style="font-size:11px;"><strong style="color:var(--text-secondary);">Top Actions:</strong></div>';
+      html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">';
+      actions.forEach(function(a) {
+        html += '<span style="background:var(--bg-secondary);padding:2px 8px;border-radius:4px;font-size:10px;">' + a.action + ': ' + a.count + '</span>';
+      });
+      html += '</div>';
+    }
+
+    container.innerHTML = html;
+  }
+
+  function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    var k = 1024;
+    var sizes = ['B', 'KB', 'MB', 'GB'];
+    var i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+
+  // Auto-refresh Evals and Audit
+  refreshEvals();
+  refreshAudit();
+  setInterval(refreshAudit, 60000);
 </script>
 </body>
 </html>"""

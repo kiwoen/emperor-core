@@ -26,7 +26,7 @@ Endpoints:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
@@ -142,12 +142,16 @@ def configure_app(emperor_config=None):
 def create_app(
     config: SurvivalConfig | None = None,
     court: Court | None = None,
+    eval_runner: Optional[Any] = None,
+    audit_logger: Optional[Any] = None,
 ) -> FastAPI:
     """Create a FastAPI app wired to a Court instance.
 
     Args:
         config: Optional SurvivalConfig to load.
         court: Optional pre-built Court instance to inject.
+        eval_runner: Optional EvalRunner instance for /api/dashboard/evals endpoints.
+        audit_logger: Optional AuditLogger instance for /api/dashboard/audit endpoints.
     """
     app = FastAPI(title="Emperor Court API", version="0.1.0")
     if court is None:
@@ -155,6 +159,10 @@ def create_app(
 
     if config is not None and config.genome_path:
         court._sm.genome_path = config.genome_path
+
+    # Inject eval_runner / audit_logger into app.extra for dashboard endpoints
+    app.extra["eval_runner"] = eval_runner
+    app.extra["audit_logger"] = audit_logger
 
     # ── Endpoints ──────────────────────────────────────────────────
 
@@ -887,6 +895,110 @@ def create_app(
             "values": [s[1] for s in sorted_stats],
             "total": sum(s[1] for s in sorted_stats),
         }
+
+    # ── Dashboard Evals endpoints ─────────────────────────────────
+
+    @app.get("/api/dashboard/evals/report")
+    def evals_report():
+        """返回最近一次 eval 聚合报告。"""
+        runner = app.extra.get("eval_runner")
+        if runner is None:
+            return {
+                "total_suites": 0,
+                "total_cases": 0,
+                "passed": 0,
+                "failed": 0,
+                "errored": 0,
+                "pass_rate": 0,
+                "suites": [],
+            }
+        return runner.report()
+
+    @app.post("/api/dashboard/evals/run")
+    def evals_run():
+        """运行所有内置评测套件，返回报告。"""
+        runner = app.extra.get("eval_runner")
+        if runner is None:
+            raise HTTPException(status_code=503, detail="EvalRunner not available")
+
+        try:
+            from jarvis.eval import create_builtin_suites
+
+            suites = create_builtin_suites()
+            runner.run_all(suites)
+            return runner.report()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    # ── Dashboard Audit endpoints ─────────────────────────────────
+
+    def _serialize_audit_entry(entry: Any) -> dict:
+        """Convert AuditEntry dataclass → JSON-safe dict."""
+        return {
+            "id": getattr(entry, "id", 0),
+            "trace_id": entry.trace_id,
+            "step": entry.step,
+            "phase": entry.phase,
+            "action": entry.action,
+            "actor": entry.actor,
+            "input_summary": entry.input_summary,
+            "output_summary": entry.output_summary,
+            "success": entry.success,
+            "error_msg": entry.error_msg,
+            "duration_ms": getattr(entry, "duration_ms", 0),
+            "created_at": entry.created_at,
+        }
+
+    @app.get("/api/dashboard/audit/recent")
+    def audit_recent(limit: int = 50):
+        """返回最近 N 条审计记录。"""
+        logger = app.extra.get("audit_logger")
+        if logger is None:
+            return {"entries": [], "total": 0}
+
+        try:
+            entries = logger.reader().query_recent(min(limit, 200))
+            return {
+                "entries": [_serialize_audit_entry(e) for e in entries],
+                "total": len(entries),
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/api/dashboard/audit/stats")
+    def audit_stats():
+        """返回审计统计摘要。"""
+        logger = app.extra.get("audit_logger")
+        if logger is None:
+            return {
+                "total_entries": 0,
+                "successes": 0,
+                "failures": 0,
+                "success_rate": 0,
+                "db_size_bytes": 0,
+                "top_actions": [],
+            }
+
+        try:
+            return logger.reader().get_stats()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/api/dashboard/audit/failures")
+    def audit_failures(limit: int = 50):
+        """返回最近失败记录列表。"""
+        logger = app.extra.get("audit_logger")
+        if logger is None:
+            return {"entries": [], "total": 0}
+
+        try:
+            entries = logger.reader().query_failures(min(limit, 200))
+            return {
+                "entries": [_serialize_audit_entry(e) for e in entries],
+                "total": len(entries),
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
     # ── SSE streaming endpoint ────────────────────────────────────
 

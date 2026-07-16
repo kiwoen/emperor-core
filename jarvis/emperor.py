@@ -434,7 +434,7 @@ class Emperor:
 
         from jarvis.court_api import create_app, configure_app
 
-        app = create_app(court=self._court)
+        app = create_app(court=self._court, eval_runner=self._eval_runner, audit_logger=self._audit_logger)
         configure_app(self.app_config)
         app.extra["host"] = host
         app.extra["port"] = port
