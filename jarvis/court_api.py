@@ -932,6 +932,23 @@ def create_app(
 
     # ── Dashboard Audit endpoints ─────────────────────────────────
 
+    @app.get("/api/dashboard/model-costs")
+    def model_costs():
+        """Return model router cost statistics."""
+        router = app.extra.get("model_router")
+        if router is None:
+            return {
+                "total_requests": 0,
+                "requests_by_tier": {"cheap": 0, "standard": 0, "premium": 0},
+                "estimated_cost_saved": 0.0,
+                "savings_percent": 0.0,
+                "tier_distribution": {"cheap": 0, "standard": 0, "premium": 0},
+                "router_enabled": False,
+            }
+        report = router.report()
+        report["router_enabled"] = True
+        return report
+
     def _serialize_audit_entry(entry: Any) -> dict:
         """Convert AuditEntry dataclass → JSON-safe dict."""
         return {

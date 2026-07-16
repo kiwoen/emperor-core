@@ -26,6 +26,8 @@ class LLMConfig:
     temperature: float = 0.7
     max_tokens: int = 1024
     mock_mode: bool = True
+    router_enabled: bool = True
+    fallback_model: str = "gpt-4o"
 
 
 class LLMEngine:
@@ -34,6 +36,12 @@ class LLMEngine:
     def __init__(self, config: LLMConfig) -> None:
         self.config = config
         self.mock_mode = not config.api_key
+        self.router: Optional[ModelRouter] = None
+
+        if config.router_enabled:
+            from jarvis.core.router import ModelRouter
+            self.router = ModelRouter()
+
         if self.mock_mode:
             logger.info("LLM running in MOCK mode (no API key configured)")
         else:
@@ -56,12 +64,37 @@ class LLMEngine:
             temperature: Override default temperature
             max_tokens: Override default max tokens
         """
+        # ── Route to optimal model tier (skip in mock_mode) ──
+        if self.router is not None and not self.mock_mode:
+            result = self.router.route(prompt, domain, temperature, max_tokens)
+            logger.info(
+                "Router: tier=%s model=%s estimated_cost=%.6f",
+                result.tier, result.model_id, result.estimated_cost,
+            )
+
         if self.mock_mode:
             return self._mock_complete(prompt, domain, system)
         else:
             return await self._litellm_complete(
                 prompt, system, temperature or self.config.temperature, max_tokens or self.config.max_tokens
             )
+
+    def get_cost_report(self) -> dict:
+        """Return the router cost statistics.
+
+        Returns an empty report if the router is disabled.
+        """
+        if self.router is None:
+            return {
+                "total_requests": 0,
+                "requests_by_tier": {},
+                "estimated_cost_saved": 0.0,
+                "savings_percent": 0.0,
+                "router_enabled": False,
+            }
+        report = self.router.report()
+        report["router_enabled"] = True
+        return report
 
     async def _litellm_complete(self, prompt: str, system: str, temperature: float, max_tokens: int) -> str:
         """Real LLM invocation via LiteLLM."""

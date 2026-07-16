@@ -429,6 +429,59 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     margin-top: 4px;
   }
 
+  /* ── Model Cost panel ── */
+  .ring-progress {
+    position: relative; width: 120px; height: 120px; margin: 0 auto 12px;
+  }
+  .ring-progress svg { transform: rotate(-90deg); }
+  .ring-progress .ring-bg {
+    fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 10;
+  }
+  .ring-progress .ring-fill {
+    fill: none; stroke: var(--success); stroke-width: 10;
+    stroke-linecap: round; transition: stroke-dashoffset 0.8s ease;
+  }
+  .ring-progress .ring-center {
+    position: absolute; inset: 0; display: flex;
+    flex-direction: column; align-items: center; justify-content: center;
+  }
+  .ring-progress .ring-pct {
+    font-size: 1.4rem; font-weight: 700; color: var(--success);
+  }
+  .ring-progress .ring-label {
+    font-size: 0.6rem; color: var(--text-dim); text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .tier-bars { display: flex; flex-direction: column; gap: 8px; }
+  .tier-bar-row { display: flex; align-items: center; gap: 10px; }
+  .tier-bar-label {
+    font-size: 0.7rem; color: var(--text-dim); min-width: 65px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .tier-bar-track {
+    flex: 1; height: 10px; background: rgba(255,255,255,0.04);
+    border-radius: 5px; overflow: hidden;
+  }
+  .tier-bar-fill {
+    height: 100%; border-radius: 5px; transition: width 0.6s ease;
+  }
+  .tier-bar-fill.cheap { background: linear-gradient(90deg, #4ade80, #22c55e); }
+  .tier-bar-fill.standard { background: linear-gradient(90deg, #6c8cff, #818cf8); }
+  .tier-bar-fill.premium { background: linear-gradient(90deg, #a78bfa, #c084fc); }
+  .tier-bar-count { font-size: 0.75rem; color: var(--text); min-width: 40px; text-align: right; }
+  .cost-cards { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+  .cost-card {
+    flex: 1; min-width: 100px; text-align: center;
+    background: rgba(255,255,255,0.02); border-radius: 8px; padding: 10px 8px;
+  }
+  .cost-card .cost-val {
+    font-size: 1.1rem; font-weight: 700; color: var(--accent);
+  }
+  .cost-card .cost-label {
+    font-size: 0.6rem; color: var(--text-dim); text-transform: uppercase;
+    letter-spacing: 0.5px; margin-top: 2px;
+  }
+
   /* ── Responsive layout ── */
   /* Tablet portrait (≤1024px): two-column */
   @media (max-width: 1024px) {
@@ -829,6 +882,54 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       <div class="mini-stat"><span class="mini-stat-val" id="evals-rate">--</span><span class="mini-stat-label">Pass Rate</span></div>
     </div>
     <div id="evals-suites" style="max-height:360px;overflow-y:auto;font-size:12px;"></div>
+  </div><!-- .panel-body -->
+</div>
+
+<!-- Model Cost 模型成本面板 -->
+<div class="panel" id="panel-model-cost">
+  <div class="panel-header">
+    <h2>Model Routing & Cost</h2>
+    <button class="panel-collapse-btn" onclick="togglePanel('panel-model-cost')">-</button>
+  </div>
+  <div class="panel-body">
+    <div class="ring-progress">
+      <svg width="120" height="120" viewBox="0 0 120 120">
+        <circle class="ring-bg" cx="60" cy="60" r="52"/>
+        <circle class="ring-fill" id="cost-ring" cx="60" cy="60" r="52"
+          stroke-dasharray="326.7" stroke-dashoffset="326.7"/>
+      </svg>
+      <div class="ring-center">
+        <div class="ring-pct" id="cost-savings-pct">0%</div>
+        <div class="ring-label">Savings</div>
+      </div>
+    </div>
+    <div class="tier-bars" id="tier-distribution">
+      <div class="tier-bar-row">
+        <span class="tier-bar-label">Cheap</span>
+        <div class="tier-bar-track"><div class="tier-bar-fill cheap" id="bar-cheap" style="width:0%"></div></div>
+        <span class="tier-bar-count" id="cnt-cheap">0</span>
+      </div>
+      <div class="tier-bar-row">
+        <span class="tier-bar-label">Standard</span>
+        <div class="tier-bar-track"><div class="tier-bar-fill standard" id="bar-standard" style="width:0%"></div></div>
+        <span class="tier-bar-count" id="cnt-standard">0</span>
+      </div>
+      <div class="tier-bar-row">
+        <span class="tier-bar-label">Premium</span>
+        <div class="tier-bar-track"><div class="tier-bar-fill premium" id="bar-premium" style="width:0%"></div></div>
+        <span class="tier-bar-count" id="cnt-premium">0</span>
+      </div>
+    </div>
+    <div class="cost-cards">
+      <div class="cost-card">
+        <div class="cost-val" id="cost-total-reqs">0</div>
+        <div class="cost-label">Total Requests</div>
+      </div>
+      <div class="cost-card">
+        <div class="cost-val" style="color:var(--success);" id="cost-saved-val">$0</div>
+        <div class="cost-label">Est. Cost Saved</div>
+      </div>
+    </div>
   </div><!-- .panel-body -->
 </div>
 
@@ -2184,6 +2285,65 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     }
   }
 
+  // ═══ Model Cost panel functions ═════════════════════════════
+
+  var RING_CIRCUMFERENCE = 326.7; // 2 * PI * 52
+
+  async function refreshModelCosts() {
+    try {
+      var res = await fetch(API + '/api/dashboard/model-costs');
+      var data = await res.json();
+      renderModelCosts(data);
+    } catch (e) {
+      console.error('Model costs fetch failed:', e);
+    }
+  }
+
+  function renderModelCosts(report) {
+    var total = report.total_requests || 0;
+    var byTier = report.requests_by_tier || {};
+    var cheap = byTier.cheap || 0;
+    var standard = byTier.standard || 0;
+    var premium = byTier.premium || 0;
+
+    // Savings ring
+    var savingsPct = report.savings_percent || 0;
+    var offset = RING_CIRCUMFERENCE - (RING_CIRCUMFERENCE * Math.min(savingsPct, 100) / 100);
+    var ring = document.getElementById('cost-ring');
+    if (ring) {
+      ring.setAttribute('stroke-dashoffset', offset);
+      // Color based on savings level
+      if (savingsPct > 50) ring.style.stroke = 'var(--success)';
+      else if (savingsPct > 25) ring.style.stroke = 'var(--warning)';
+      else ring.style.stroke = 'var(--danger)';
+    }
+    var pctEl = document.getElementById('cost-savings-pct');
+    if (pctEl) pctEl.textContent = savingsPct.toFixed(0) + '%';
+
+    // Tier bars
+    var maxTier = Math.max(cheap, standard, premium, 1);
+    function setBar(id, value) {
+      var bar = document.getElementById(id);
+      if (bar) bar.style.width = (value / maxTier * 100) + '%';
+    }
+    setBar('bar-cheap', cheap);
+    setBar('bar-standard', standard);
+    setBar('bar-premium', premium);
+
+    var cntCheap = document.getElementById('cnt-cheap');
+    if (cntCheap) cntCheap.textContent = cheap;
+    var cntStandard = document.getElementById('cnt-standard');
+    if (cntStandard) cntStandard.textContent = standard;
+    var cntPremium = document.getElementById('cnt-premium');
+    if (cntPremium) cntPremium.textContent = premium;
+
+    // Cost cards
+    var totalReqs = document.getElementById('cost-total-reqs');
+    if (totalReqs) totalReqs.textContent = total;
+    var savedVal = document.getElementById('cost-saved-val');
+    if (savedVal) savedVal.textContent = '$' + (report.estimated_cost_saved || 0).toFixed(3);
+  }
+
   // ═══ Evals panel functions ════════════════════════════════════
 
   async function refreshEvals() {
@@ -2353,10 +2513,12 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   }
 
-  // Auto-refresh Evals and Audit
+  // Auto-refresh Evals, Audit, and Model Costs
   refreshEvals();
   refreshAudit();
+  refreshModelCosts();
   setInterval(refreshAudit, 60000);
+  setInterval(refreshModelCosts, 60000);
 </script>
 </body>
 </html>"""

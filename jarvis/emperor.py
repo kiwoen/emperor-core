@@ -197,6 +197,10 @@ class Emperor:
         self._eval_runner: EvalRunner = EvalRunner(
             capability_registry=self._capability_registry, emperor=self)
 
+        # Model router — cost-aware multi-model routing
+        from jarvis.core.router import ModelRouter
+        self._model_router: ModelRouter = ModelRouter()
+
         self._dispatch(LifecycleEvent.ON_INIT, emperor=self)
 
         # Load persisted state if data_dir set
@@ -440,6 +444,7 @@ class Emperor:
         app.extra["port"] = port
         app.extra["emperor"] = self
         app.extra["db"] = db
+        app.extra["model_router"] = self._model_router
 
         # Inject scheduler state if running
         if self._scheduler is not None:
