@@ -686,6 +686,30 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   </div>
 </div>
 
+<!-- Self-Healing Dashboard Panel -->
+<div class="panel panel-full" id="panel-healing">
+  <div class="panel-header">
+    <h2>自愈动作面板 <span id="healing-badge" style="font-size:11px;padding:2px 8px;border-radius:10px;background:var(--bg-secondary);color:var(--text-muted);">空闲</span></h2>
+    <button class="panel-collapse-btn" onclick="togglePanel('panel-healing')">▼</button>
+    <span class="panel-actions">
+      <button onclick="healingCheckAll()" style="background:var(--success);color:#fff;border:none;border-radius:4px;padding:3px 12px;font-size:12px;cursor:pointer;">检查</button>
+      <button onclick="healingResetAll()" style="background:none;border:1px solid var(--border-color);color:var(--text-secondary);border-radius:4px;padding:3px 12px;font-size:12px;cursor:pointer;">重置</button>
+    </span>
+  </div>
+  <div class="panel-body">
+    <div style="display:flex;gap:16px;margin-bottom:12px;">
+      <div style="font-size:12px;color:var(--text-secondary);">总计: <b id="healing-total">0</b></div>
+      <div style="font-size:12px;color:var(--success);">可用: <b id="healing-avail">0</b></div>
+      <div style="font-size:12px;color:var(--warning);">冷却中: <b id="healing-cooldown">0</b></div>
+      <div style="font-size:12px;color:var(--danger);">耗尽: <b id="healing-exhausted">0</b></div>
+      <div style="font-size:12px;color:var(--text-secondary);">历史: <b id="healing-last">--</b></div>
+    </div>
+    <div id="healing-actions-list">
+      <div style="color:var(--text-muted);text-align:center;padding:12px;">加载中...</div>
+    </div>
+  </div>
+</div>
+
 <!-- 实时天气小部件 -->
 <div class="panel" id="panel-weather" style="min-width:0;">
   <div class="panel-header">
@@ -1754,23 +1778,171 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       .catch(function() { alert('Evolution request failed'); });
   }
 
+  // ═══ Self-Healing Dashboard functions ═════════════════════
+
+  async function refreshHealing() {
+    try {
+      var resp = await fetch(API + '/api/healing/actions');
+      var data = await resp.json();
+      renderHealingActions(data);
+    } catch (e) {
+      console.error('Healing refresh failed:', e);
+    }
+  }
+
+  function renderHealingActions(data) {
+    var actions = data.actions || [];
+    document.getElementById('healing-total').textContent = actions.length;
+
+    var avail = 0, cooldown = 0, exhausted = 0;
+    actions.forEach(function(a) {
+      if (a.exhausted) exhausted++;
+      else if (a.on_cooldown) cooldown++;
+      else if (a.enabled) avail++;
+    });
+
+    document.getElementById('healing-avail').textContent = avail;
+    document.getElementById('healing-cooldown').textContent = cooldown;
+    document.getElementById('healing-exhausted').textContent = exhausted;
+
+    var badge = document.getElementById('healing-badge');
+    if (exhausted > 0) {
+      badge.textContent = '需关注';
+      badge.style.background = 'var(--danger)';
+      badge.style.color = '#fff';
+    } else if (cooldown > 0) {
+      badge.textContent = '冷却中';
+      badge.style.background = 'var(--warning)';
+      badge.style.color = '#fff';
+    } else if (avail > 0) {
+      badge.textContent = '就绪';
+      badge.style.background = 'var(--success)';
+      badge.style.color = '#fff';
+    } else {
+      badge.textContent = '空闲';
+      badge.style.background = 'var(--bg-secondary)';
+      badge.style.color = 'var(--text-muted)';
+    }
+
+    var listEl = document.getElementById('healing-actions-list');
+    if (actions.length === 0) {
+      listEl.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:12px;">无注册自愈动作</div>';
+      return;
+    }
+
+    listEl.innerHTML = actions.map(function(a) {
+      var statusColor, statusText;
+      if (a.exhausted)      { statusColor = 'var(--danger)';  statusText = '耗尽'; }
+      else if (a.on_cooldown) { statusColor = 'var(--warning)'; statusText = '冷却 ' + a.cooldown_remaining + 's'; }
+      else if (!a.enabled)  { statusColor = 'var(--text-muted)'; statusText = '已禁用'; }
+      else                  { statusColor = 'var(--success)'; statusText = '就绪'; }
+
+      var progressWidth = a.max_attempts
+        ? Math.min(100, a.attempts / a.max_attempts * 100)
+        : 0;
+      var progressColor = progressWidth >= 100 ? 'var(--danger)' :
+                          progressWidth >= 50 ? 'var(--warning)' : 'var(--success)';
+      var attemptLabel = a.max_attempts ? a.attempts + '/' + a.max_attempts : a.attempts + '/∞';
+
+      return '<div style="padding:8px 0;border-bottom:1px solid var(--border-color);display:flex;align-items:center;gap:12px;">'
+        + '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + statusColor + ';flex-shrink:0;" title="' + statusText + '"></span>'
+        + '<div style="flex:1;min-width:0;">'
+        + '<div style="font-weight:500;font-size:13px;">' + a.name
+        + ' <span style="color:var(--text-muted);font-size:10px;">← ' + a.alert_rule + '</span></div>'
+        + '<div style="display:flex;align-items:center;gap:12px;margin-top:4px;">'
+        + '<span style="font-size:10px;color:var(--text-secondary);">' + attemptLabel + ' attempts</span>'
+        + (a.tags && a.tags.length > 0
+          ? '<span style="font-size:10px;color:var(--text-muted);">' + a.tags.join(', ') + '</span>'
+          : '')
+        + '</div>'
+        + (a.max_attempts
+          ? '<div style="width:80px;height:4px;background:var(--bg-secondary);border-radius:2px;margin-top:4px;">'
+          + '<div style="width:' + progressWidth + '%;height:100%;background:' + progressColor + ';border-radius:2px;"></div></div>'
+          : '')
+        + '</div>'
+        + '<div style="display:flex;gap:4px;flex-shrink:0;">'
+        + (!a.exhausted && a.enabled
+          ? '<button onclick="healingTrigger(\'' + a.name + '\')" style="background:var(--success);color:#fff;border:none;border-radius:3px;padding:2px 8px;font-size:11px;cursor:pointer;">触发</button>'
+          : '<button disabled style="background:transparent;color:var(--text-muted);border:1px solid var(--border-color);border-radius:3px;padding:2px 8px;font-size:11px;">触发</button>')
+        + '<button onclick="healingReset(\'' + a.name + '\')" style="background:none;border:1px solid var(--border-color);color:var(--text-secondary);border-radius:3px;padding:2px 8px;font-size:11px;cursor:pointer;">重置</button>'
+        + '<button onclick="healingToggle(\'' + a.name + '\', ' + !a.enabled + ')" style="background:none;border:1px solid var(--border-color);color:var(--text-secondary);border-radius:3px;padding:2px 8px;font-size:11px;cursor:pointer;">' + (a.enabled ? '停用' : '启用') + '</button>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+
+    // Also refresh history
+    healRefreshHistory();
+  }
+
+  async function healRefreshHistory() {
+    try {
+      var resp = await fetch(API + '/api/healing/history?limit=5');
+      var data = await resp.json();
+      var last = data.history[0];
+      if (last) {
+        var dt = new Date(last.timestamp * 1000);
+        document.getElementById('healing-last').textContent =
+          dt.toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'})
+          + ' ' + last.action_name
+          + ' ' + (last.success ? '✓' : '✗');
+      }
+    } catch (e) {}
+  }
+
+  async function healingTrigger(name) {
+    try {
+      var resp = await fetch(API + '/api/healing/trigger/' + name, {method: 'POST'});
+      var data = await resp.json();
+      if (data.success) {
+        refreshHealing();
+      } else {
+        alert('触发失败: ' + (data.error || '未知错误'));
+      }
+    } catch (e) {
+      alert('请求失败: ' + e.message);
+    }
+  }
+
+  async function healingReset(name) {
+    try {
+      await fetch(API + '/api/healing/reset/' + name, {method: 'POST'});
+      refreshHealing();
+    } catch (e) {}
+  }
+
+  async function healingResetAll() {
+    try {
+      await fetch(API + '/api/healing/reset/_all', {method: 'POST'});
+      refreshHealing();
+    } catch (e) {}
+  }
+
+  async function healingCheckAll() {
+    try {
+      var resp = await fetch(API + '/api/healing/check', {method: 'POST'});
+      var data = await resp.json();
+      alert('自愈检查完成: ' + data.actions_executed + ' 个动作已执行');
+      refreshHealing();
+    } catch (e) {
+      alert('检查失败: ' + e.message);
+    }
+  }
+
+  async function healingToggle(name, enabled) {
+    try {
+      await fetch(API + '/api/healing/toggle/' + name, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({enabled: enabled})
+      });
+      refreshHealing();
+    } catch (e) {}
+  }
+
+  // ═══ Old heal button (kept for backward compat) ══════════════
+
   function triggerHeal() {
-    fetch(API + '/dashboard/heal', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({})
-    })
-      .then(function(r) { return r.json(); })
-      .then(function(d) {
-        if (d.ok) {
-          var n = (d.actions || []).length;
-          alert('Healing check complete — ' + n + ' action(s) executed');
-          location.reload();
-        } else {
-          alert('Healing check failed');
-        }
-      })
-      .catch(function() { alert('Healing request failed'); });
+    healingCheckAll();
   }
 
   // ── Inline task form ──
@@ -2346,6 +2518,8 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   setInterval(refreshPipelineSchedules, 60000);
   refreshPipelineMonitor();
   setInterval(refreshPipelineMonitor, 10000);
+  refreshHealing();
+  setInterval(refreshHealing, 15000);
 
   // ═══ Pipeline functions ════════════════════════════════════
 

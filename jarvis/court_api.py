@@ -133,6 +133,10 @@ class ApprovalPolicyRequest(BaseModel):
     enabled: bool = True
 
 
+class HealingToggleRequest(BaseModel):
+    enabled: bool = True
+
+
 # ══════════════════════════════════════════════════════════════════
 # Module-level scheduler state (shared with Emperor.serve)
 # ══════════════════════════════════════════════════════════════════
@@ -1566,6 +1570,172 @@ def create_app(
         if not ok:
             raise HTTPException(status_code=404, detail=f"Policy not found: {policy_id}")
         return {"deleted": True, "policy_id": policy_id}
+
+    # ══════════════════════════════════════════════════════════════
+    # Self-Healing API
+    # ══════════════════════════════════════════════════════════════
+
+    @app.get("/api/healing/actions")
+    def healing_actions(request: Request):
+        """列出所有自愈动作及状态（冷却、尝试次数、可用）"""
+        emperor = request.app.extra.get("emperor")
+        if emperor is None:
+            raise HTTPException(status_code=503, detail="Emperor not available")
+
+        import time as _t
+        now = _t.time()
+        healer = emperor.healing
+        actions = healer.list_actions()
+
+        result = []
+        for a in actions:
+            last_triggered = healer._last_triggered.get(a.name, 0)
+            attempts = healer._attempt_counts.get(a.name, 0)
+            cooldown_remaining = max(0, a.cooldown_seconds - (now - last_triggered))
+            max_attempts = a.max_attempts if a.max_attempts > 0 else None
+
+            result.append({
+                "name": a.name,
+                "alert_rule": a.alert_rule,
+                "enabled": a.enabled,
+                "cooldown_seconds": a.cooldown_seconds,
+                "cooldown_remaining": round(cooldown_remaining, 1),
+                "attempts": attempts,
+                "max_attempts": max_attempts,
+                "tags": a.tags,
+                "on_cooldown": cooldown_remaining > 0,
+                "exhausted": max_attempts is not None and attempts >= max_attempts,
+            })
+
+        return {"actions": result, "total": len(result)}
+
+    @app.post("/api/healing/trigger/{action_name}")
+    def healing_trigger(action_name: str, request: Request):
+        """手动触发指定自愈动作"""
+        emperor = request.app.extra.get("emperor")
+        if emperor is None:
+            raise HTTPException(status_code=503, detail="Emperor not available")
+
+        healer = emperor.healing
+        action = healer.get_action(action_name)
+        if action is None:
+            raise HTTPException(status_code=404, detail=f"Action not found: {action_name}")
+
+        # Force trigger bypassing cooldown by calling action directly
+        import time as _t
+        now = _t.time()
+        success = True
+        error_msg = ""
+
+        try:
+            action.action()
+        except Exception as e:
+            success = False
+            error_msg = str(e)
+
+        # Record the execution
+        from jarvis.healing import HealingRecord
+        record = HealingRecord(
+            action_name=action.name,
+            alert_rule=action.alert_rule,
+            timestamp=now,
+            success=success,
+            error=error_msg,
+        )
+        healer._history.append(record)
+        healer._last_triggered[action.name] = now
+        healer._attempt_counts[action.name] = healer._attempt_counts.get(action.name, 0) + 1
+
+        return {
+            "action_name": action_name,
+            "success": success,
+            "error": error_msg,
+            "timestamp": now,
+        }
+
+    @app.get("/api/healing/history")
+    def healing_history(limit: int = 30, request: Request = None):
+        """自愈执行历史"""
+        emperor = request.app.extra.get("emperor")
+        if emperor is None:
+            raise HTTPException(status_code=503, detail="Emperor not available")
+
+        healer = emperor.healing
+        records = healer.history(limit=limit)
+
+        return {
+            "history": [
+                {
+                    "action_name": r.action_name,
+                    "alert_rule": r.alert_rule,
+                    "timestamp": r.timestamp,
+                    "success": r.success,
+                    "error": r.error,
+                }
+                for r in records
+            ],
+            "total": len(records),
+        }
+
+    @app.post("/api/healing/reset/{action_name}")
+    def healing_reset(action_name: str, request: Request):
+        """重置自愈动作的尝试计数和冷却"""
+        emperor = request.app.extra.get("emperor")
+        if emperor is None:
+            raise HTTPException(status_code=503, detail="Emperor not available")
+
+        healer = emperor.healing
+        if action_name == "_all":
+            healer.reset_attempts()
+        else:
+            healer.reset_attempts(action_name)
+
+        return {"ok": True, "action_name": action_name}
+
+    @app.post("/api/healing/toggle/{action_name}")
+    def healing_toggle(action_name: str, payload: HealingToggleRequest, request: Request):
+        """启用/禁用自愈动作"""
+        emperor = request.app.extra.get("emperor")
+        if emperor is None:
+            raise HTTPException(status_code=503, detail="Emperor not available")
+
+        enabled = payload.enabled
+
+        healer = emperor.healing
+        action = healer.get_action(action_name)
+        if action is None:
+            raise HTTPException(status_code=404, detail=f"Action not found: {action_name}")
+
+        # Toggle the actual registered action
+        registered = healer._actions.get(action_name)
+        if registered:
+            registered.enabled = enabled
+
+        return {"action_name": action_name, "enabled": enabled}
+
+    @app.post("/api/healing/check")
+    def healing_check(request: Request):
+        """执行一轮自愈检查（遍历最近告警）"""
+        emperor = request.app.extra.get("emperor")
+        if emperor is None:
+            raise HTTPException(status_code=503, detail="Emperor not available")
+
+        alert_mgr = emperor.alerts
+        rule_names = list({a.rule_name for a in alert_mgr.history(limit=50)})
+        records = emperor.healing.handle_batch(rule_names)
+
+        return {
+            "checked_rules": len(rule_names),
+            "actions_executed": len(records),
+            "records": [
+                {
+                    "action_name": r.action_name,
+                    "success": r.success,
+                    "error": r.error,
+                }
+                for r in records
+            ],
+        }
 
     return app
 
