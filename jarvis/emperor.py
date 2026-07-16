@@ -214,6 +214,32 @@ class Emperor:
         from jarvis.capability import set_template_manager
         set_template_manager(self._template_manager)
 
+        # Context versioning & rollback — immutable state snapshots
+        from jarvis.context_versioning import (
+            ContextVersioning,
+            create_plugin_state_provider,
+            create_plugin_rollback_handler,
+            create_template_state_provider,
+            create_template_rollback_handler,
+        )
+        versioning_dir = self.config.data_dir if self.config.data_dir else str(Path.cwd())
+        self._versioning: ContextVersioning = ContextVersioning(data_dir=versioning_dir)
+
+        # Register versionable components
+        self._versioning.register_component(
+            "plugins",
+            create_plugin_state_provider(self._plugin_marketplace),
+            create_plugin_rollback_handler(self._plugin_marketplace),
+        )
+        self._versioning.register_component(
+            "templates",
+            create_template_state_provider(self._template_manager),
+            create_template_rollback_handler(self._template_manager),
+        )
+
+        # Auto-snapshot on startup so there's always a baseline
+        self._versioning.auto_snapshot(trigger="emperor-init")
+
         self._dispatch(LifecycleEvent.ON_INIT, emperor=self)
 
         # Load persisted state if data_dir set
@@ -264,6 +290,21 @@ class Emperor:
     def plugin_marketplace(self):
         """Direct access to the PluginMarketplace."""
         return self._plugin_marketplace
+
+    @property
+    def versioning(self):
+        """Direct access to the ContextVersioning engine."""
+        return self._versioning
+
+    @property
+    def template_manager(self):
+        """Direct access to the PromptTemplateManager."""
+        return self._template_manager
+
+    @property
+    def model_router(self):
+        """Direct access to the ModelRouter."""
+        return self._model_router
 
     def _dispatch(self, event: Any, **kwargs: Any) -> Any:
         """Dispatch a lifecycle event to all registered plugins."""
@@ -484,6 +525,8 @@ class Emperor:
         _ = self.metrics
         app.extra["metrics_plugin"] = self._metrics_plugin
         app.extra["plugin_marketplace"] = self._plugin_marketplace
+        app.extra["versioning"] = self._versioning
+        app.extra["template_manager"] = self._template_manager
 
         self._app = app
 

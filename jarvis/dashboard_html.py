@@ -1068,6 +1068,26 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   </div><!-- .panel-body -->
 </div>
 
+<!-- Version History 版本历史面板 -->
+<div class="panel panel-full" id="panel-versions">
+  <div class="panel-header">
+    <h2>Version History & Rollback</h2>
+    <button class="panel-collapse-btn" onclick="togglePanel('panel-versions')">▼</button>
+    <span class="panel-actions" style="display:flex;gap:8px;">
+      <input id="ver-snap-desc" placeholder="版本描述 (可选)" style="width:180px;background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text-primary);border-radius:4px;padding:3px 8px;font-size:12px;font-family:inherit;">
+      <button onclick="createSnapshot()" class="btn btn-sm" style="background:var(--accent);color:#fff;border:none;border-radius:4px;padding:6px 14px;cursor:pointer;font-size:12px;">+ Snapshot</button>
+      <button onclick="refreshVersions()" class="btn btn-sm" style="background:var(--bg-secondary);color:var(--text-secondary);border:1px solid var(--border-color);border-radius:4px;padding:6px 14px;cursor:pointer;font-size:12px;">Refresh</button>
+    </span>
+  </div>
+  <div class="panel-body">
+    <div id="version-list" style="font-size:12px;max-height:400px;overflow-y:auto;">
+      <div class="empty">Loading...</div>
+    </div>
+    <!-- Rollback preview area -->
+    <div id="version-diff-preview" style="display:none;margin-top:12px;padding:12px;background:var(--bg-secondary);border-radius:6px;font-size:12px;"></div>
+  </div><!-- .panel-body -->
+</div>
+
 <!-- 服务流水线面板 -->
 <div class="panel" id="panel-pipelines" style="min-width:0;">
   <div class="panel-header">
@@ -2732,6 +2752,101 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   if (templatesTimer) clearInterval(templatesTimer);
   refreshTemplates();
   templatesTimer = setInterval(refreshTemplates, 30000);
+
+  // ═══ Version History & Rollback ═════════════════════════════════
+
+  var _versionData = [];
+
+  function refreshVersions() {
+    apiGet('/api/dashboard/versions').then(function(data) {
+      _versionData = data || [];
+      renderVersions();
+    }).catch(function(err) {
+      document.getElementById('version-list').innerHTML =
+        '<div class="empty">Failed: ' + (err.message || err) + '</div>';
+    });
+  }
+
+  function renderVersions() {
+    var listEl = document.getElementById('version-list');
+    if (!_versionData || _versionData.length === 0) {
+      listEl.innerHTML = '<div class="empty">No snapshots yet. Click "+ Snapshot" to capture current state.</div>';
+      return;
+    }
+    var html = '<table class="ministers-table" style="width:100%;"><thead><tr>' +
+      '<th style="width:80px;">ID</th><th>Description</th><th>Time</th><th>Components</th><th style="width:120px;">Actions</th>' +
+      '</tr></thead><tbody>';
+    _versionData.forEach(function(v) {
+      var dt = new Date(v.timestamp * 1000);
+      var timeStr = dt.toLocaleString();
+      var compStr = (v.components || []).join(', ');
+      html += '<tr>';
+      html += '<td style="font-family:monospace;font-size:10px;">' + v.id.substr(0, 8) + '</td>';
+      html += '<td>' + (v.description || '') + '</td>';
+      html += '<td style="font-size:11px;">' + timeStr + '</td>';
+      html += '<td style="font-size:11px;">' + (compStr || v.component_count + ' components') + '</td>';
+      html += '<td>';
+      html += '<button onclick="previewRollback(\'' + v.id + '\')" style="background:var(--accent);color:#fff;border:none;border-radius:3px;padding:2px 8px;font-size:10px;cursor:pointer;margin-right:2px;">Preview</button>';
+      html += '<button onclick="doRollback(\'' + v.id + '\')" style="background:var(--warning);color:#000;border:none;border-radius:3px;padding:2px 8px;font-size:10px;cursor:pointer;">Rollback</button>';
+      html += '</td></tr>';
+    });
+    html += '</tbody></table>';
+    listEl.innerHTML = html;
+  }
+
+  function createSnapshot() {
+    var desc = document.getElementById('ver-snap-desc').value.trim();
+    document.getElementById('ver-snap-desc').value = '';
+    apiPost('/api/dashboard/versions/snapshot', {description: desc}).then(function(data) {
+      refreshVersions();
+    }).catch(function(err) {
+      alert('Snapshot failed: ' + (err.message || err));
+    });
+  }
+
+  function previewRollback(snapId) {
+    var previewDiv = document.getElementById('version-diff-preview');
+    previewDiv.style.display = 'block';
+    previewDiv.innerHTML = '<span style="color:var(--text-muted);">Computing diff...</span>';
+    apiGet('/api/dashboard/versions/' + snapId + '/diff').then(function(data) {
+      var html = '<div style="font-weight:600;margin-bottom:8px;">Rollback Preview → <code>' + snapId.substr(0,8) + '</code></div>';
+      html += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;">' + (data.summary || '') + '</div>';
+      var comps = data.components || {};
+      Object.keys(comps).forEach(function(comp) {
+        var d = comps[comp];
+        html += '<div style="margin-bottom:8px;padding:8px;background:var(--bg-primary);border-radius:4px;">';
+        html += '<strong style="color:var(--accent);">' + comp + '</strong>';
+        html += ' <span style="font-size:10px;color:var(--text-muted);">+' + d.added_keys.length + '/-' + d.removed_keys.length + '/~' + d.changed_keys.length + '</span>';
+        if (d.changes && d.changes.length > 0) {
+          html += '<div style="font-size:11px;margin-top:4px;max-height:200px;overflow-y:auto;">';
+          d.changes.forEach(function(c) {
+            html += '<div style="font-family:monospace;font-size:10px;padding:2px 0;">' + c + '</div>';
+          });
+          html += '</div>';
+        } else {
+          html += '<div style="color:var(--text-dim);font-size:10px;">No changes</div>';
+        }
+        html += '</div>';
+      });
+      previewDiv.innerHTML = html;
+    }).catch(function(err) {
+      previewDiv.innerHTML = '<span style="color:var(--danger);">Diff failed: ' + (err.message || err) + '</span>';
+    });
+  }
+
+  function doRollback(snapId) {
+    if (!confirm('确认回滚到版本 ' + snapId.substr(0,8) + '?\n\n系统将先自动创建当前状态的快照作为保护。')) return;
+    apiPost('/api/dashboard/versions/rollback', {snapshot_id: snapId}).then(function(data) {
+      refreshVersions();
+      document.getElementById('version-diff-preview').style.display = 'none';
+      alert('Rollback completed: ' + JSON.stringify(data.results));
+    }).catch(function(err) {
+      alert('Rollback failed: ' + (err.message || err));
+    });
+  }
+
+  refreshVersions();
+  setInterval(refreshVersions, 60000);
 
   // Auto-refresh Evals, Audit, and Model Costs
   refreshEvals();

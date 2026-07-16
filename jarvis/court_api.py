@@ -1334,6 +1334,124 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc))
 
+    # ══════════════════════════════════════════════════════════════
+    # Context Versioning API
+    # ══════════════════════════════════════════════════════════════
+
+    class VersionSnapshotRequest(BaseModel):
+        description: str = ""
+
+    class VersionRollbackRequest(BaseModel):
+        snapshot_id: str
+        components: list[str] = Field(default_factory=list)
+
+    @app.get("/api/dashboard/versions")
+    def list_versions(request: Request):
+        v = request.app.extra.get("versioning")
+        if v is None:
+            raise HTTPException(status_code=503, detail="Versioning not available")
+        try:
+            snapshots = v.list_snapshots(limit=30)
+            return [
+                {
+                    "id": s.id,
+                    "timestamp": s.timestamp,
+                    "description": s.description,
+                    "components": list(s.components.keys()),
+                    "component_count": len(s.components),
+                }
+                for s in snapshots
+            ]
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc))
+
+    @app.post("/api/dashboard/versions/snapshot")
+    def create_snapshot(payload: VersionSnapshotRequest, request: Request):
+        v = request.app.extra.get("versioning")
+        if v is None:
+            raise HTTPException(status_code=503, detail="Versioning not available")
+        try:
+            snap = v.snapshot(description=payload.description or "Dashboard manual snapshot")
+            return {
+                "id": snap.id,
+                "timestamp": snap.timestamp,
+                "description": snap.description,
+                "component_count": len(snap.components),
+                "components": list(snap.components.keys()),
+            }
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc))
+
+    @app.get("/api/dashboard/versions/<snapshot_id>")
+    def get_version(snapshot_id: str, request: Request):
+        v = request.app.extra.get("versioning")
+        if v is None:
+            raise HTTPException(status_code=503, detail="Versioning not available")
+        snap = v.get_snapshot(snapshot_id)
+        if snap is None:
+            raise HTTPException(status_code=404, detail=f"Snapshot not found: {snapshot_id}")
+        return {
+            "id": snap.id,
+            "timestamp": snap.timestamp,
+            "description": snap.description,
+            "metadata": snap.metadata,
+            "component_count": len(snap.components),
+            "components": {c: {"name": s.name, "checksum": s.checksum} for c, s in snap.components.items()},
+        }
+
+    @app.get("/api/dashboard/versions/<snapshot_id>/diff")
+    def diff_versions(snapshot_id: str, request: Request):
+        v = request.app.extra.get("versioning")
+        if v is None:
+            raise HTTPException(status_code=503, detail="Versioning not available")
+        try:
+            preview = v.preview_rollback(snapshot_id)
+            return {
+                "snapshot_id": preview.snapshot_id,
+                "summary": preview.summary,
+                "components": {
+                    comp: {
+                        "added_keys": d.added_keys,
+                        "removed_keys": d.removed_keys,
+                        "changed_keys": d.changed_keys,
+                        "changes": d.changes,
+                    }
+                    for comp, d in preview.per_component.items()
+                },
+            }
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc))
+
+    @app.post("/api/dashboard/versions/rollback")
+    def rollback_version(payload: VersionRollbackRequest, request: Request):
+        v = request.app.extra.get("versioning")
+        if v is None:
+            raise HTTPException(status_code=503, detail="Versioning not available")
+        try:
+            components = payload.components if payload.components else None
+            results = v.rollback(payload.snapshot_id, components=components)
+            return {
+                "snapshot_id": payload.snapshot_id,
+                "results": results,
+                "all_succeeded": all(results.values()) if results else False,
+            }
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc))
+
+    @app.delete("/api/dashboard/versions/<snapshot_id>")
+    def delete_version(snapshot_id: str, request: Request):
+        v = request.app.extra.get("versioning")
+        if v is None:
+            raise HTTPException(status_code=503, detail="Versioning not available")
+        ok = v.delete_snapshot(snapshot_id)
+        if not ok:
+            raise HTTPException(status_code=404, detail=f"Snapshot not found: {snapshot_id}")
+        return {"deleted": True, "snapshot_id": snapshot_id}
+
     return app
 
 
