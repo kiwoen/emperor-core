@@ -566,6 +566,42 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   </div>
 </div>
 
+<!-- 实时天气小部件 -->
+<div class="panel" id="panel-weather" style="min-width:0;">
+  <div class="panel-header">
+    <h2>实时天气</h2>
+    <button class="panel-collapse-btn" onclick="togglePanel('panel-weather')">▼</button>
+  </div>
+  <div class="panel-body" id="weather-body">
+    <div style="text-align:center;padding:10px 0;">
+      <div id="weather-city" style="font-size:14px;color:var(--text-secondary);margin-bottom:4px;">--</div>
+      <div id="weather-temp" style="font-size:40px;font-weight:700;">--°C</div>
+      <div id="weather-desc" style="font-size:14px;color:var(--text-secondary);margin-top:2px;">--</div>
+      <div style="display:flex;justify-content:center;gap:20px;margin-top:12px;font-size:13px;color:var(--text-secondary);">
+        <span>湿度: <span id="weather-humidity">--</span>%</span>
+        <span>风力: <span id="weather-wind">--</span></span>
+        <span>降水: <span id="weather-precip">--</span>%</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 新闻头条小部件 -->
+<div class="panel" id="panel-news" style="min-width:0;">
+  <div class="panel-header">
+    <h2>科技新闻</h2>
+    <button class="panel-collapse-btn" onclick="togglePanel('panel-news')">▼</button>
+    <span class="panel-actions">
+      <button onclick="refreshLive()" style="background:none;border:1px solid var(--border-color);color:var(--text-primary);border-radius:4px;padding:2px 8px;font-size:12px;cursor:pointer;">刷新</button>
+    </span>
+  </div>
+  <div class="panel-body" id="news-body">
+    <ul id="news-list" style="list-style:none;padding:0;margin:0;">
+      <li style="padding:8px 0;color:var(--text-muted);text-align:center;">加载中...</li>
+    </ul>
+  </div>
+</div>
+
 <!-- Control Panel -->
 <div class="card panel-full" id="panel-controls">
   <div class="panel-header">
@@ -1750,6 +1786,55 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     }
   }
 
+  // ═══ Live data (weather + news) ══════════════════════════════
+
+  async function refreshLive() {
+    try {
+      var resp = await fetch(API + '/api/dashboard/live');
+      var data = await resp.json();
+
+      // 天气
+      var weather = data.weather || {};
+      document.getElementById('weather-city').textContent = weather.city || '--';
+      document.getElementById('weather-temp').textContent = (weather.temp_c || '--') + '°C';
+      document.getElementById('weather-desc').textContent = weather.weather_desc || '--';
+      document.getElementById('weather-humidity').textContent = weather.humidity || '--';
+      document.getElementById('weather-wind').textContent = (weather.wind_speed_kmph || '--') + ' km/h';
+      document.getElementById('weather-precip').textContent = '--';
+
+      // 新闻
+      var newsContainer = document.getElementById('news-list');
+      var articles = (data.news && data.news.articles) || [];
+      var newsText = data.news_text || '';
+
+      if (articles.length > 0) {
+        newsContainer.innerHTML = articles.map(function(item, i) {
+          var title = item.title ? item.title.slice(0, 80) : 'Untitled';
+          var source = item.source || 'Unknown';
+          return '<li style="padding:8px 12px;border-bottom:1px solid var(--border-color);display:flex;align-items:flex-start;gap:8px;">' +
+            '<span style="color:var(--accent);font-weight:600;min-width:20px;">' + (i + 1) + '.</span>' +
+            '<div>' +
+            '<div style="font-size:13px;line-height:1.4;">' + title + '</div>' +
+            '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">' + source + '</div>' +
+            '</div>' +
+            '</li>';
+        }).join('');
+      } else if (newsText) {
+        var lines = newsText.split('\n').filter(function(l) { return l.trim(); });
+        newsContainer.innerHTML = lines.slice(1, 6).map(function(line) {
+          var clean = line.replace(/^\d+\.\s*/, '');
+          return '<li style="padding:8px 12px;border-bottom:1px solid var(--border-color);font-size:13px;line-height:1.4;">' +
+            clean +
+            '</li>';
+        }).join('');
+      } else {
+        newsContainer.innerHTML = '<li style="padding:8px;color:var(--text-muted);text-align:center;">暂无新闻</li>';
+      }
+    } catch (e) {
+      // 静默失败
+    }
+  }
+
   // ═══ Panel collapse management ════════════════════════════════
   function togglePanel(panelId) {
     var panel = document.getElementById(panelId);
@@ -1795,6 +1880,8 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   setInterval(fetchAlertHistory, 15000);
   refreshHealth();
   setInterval(refreshHealth, 10000);
+  refreshLive();
+  setInterval(refreshLive, 300000);
 </script>
 </body>
 </html>"""

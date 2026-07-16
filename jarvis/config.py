@@ -29,6 +29,7 @@ class DashboardConfig:
     open_browser: bool = True
     refresh_interval_seconds: int = 15
     theme: str = "dark"
+    weather_city: str = "北京"
 
 
 @dataclass
@@ -111,6 +112,7 @@ def _config_to_dict(config: EmperorConfig) -> dict:
             "open_browser": config.dashboard.open_browser,
             "refresh_interval_seconds": config.dashboard.refresh_interval_seconds,
             "theme": config.dashboard.theme,
+            "weather_city": config.dashboard.weather_city,
         },
         "scheduler": {
             "auto_schedule": config.scheduler.auto_schedule,
@@ -154,6 +156,8 @@ def _apply_raw_config(config: EmperorConfig, raw: dict) -> None:
             config.dashboard.refresh_interval_seconds = d["refresh_interval_seconds"]
         if "theme" in d:
             config.dashboard.theme = d["theme"]
+        if "weather_city" in d:
+            config.dashboard.weather_city = d["weather_city"]
 
     if "scheduler" in raw:
         s = raw["scheduler"]

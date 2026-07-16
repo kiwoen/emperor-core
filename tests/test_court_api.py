@@ -451,3 +451,16 @@ class TestHealthEndpoint:
         assert "memory" in data
         assert "disk" in data
         assert "uptime" in data
+
+
+class TestDashboardLiveEndpoint:
+    def test_dashboard_live_endpoint(self, client):
+        """GET /api/dashboard/live 返回天气和新闻数据"""
+        resp = client.get("/api/dashboard/live")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "weather" in data
+        assert "news" in data
+        assert "weather_text" in data
+        assert "news_text" in data
+        assert isinstance(data["weather"], dict)

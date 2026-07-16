@@ -844,6 +844,27 @@ def create_app(
 
         return get_system_health()
 
+    # ── Dashboard live data endpoint ────────────────────────────
+
+    @app.get("/api/dashboard/live")
+    def dashboard_live():
+        """聚合天气和新闻实时数据"""
+        from jarvis.capability import _weather_handler, _news_handler
+
+        weather_city = "北京"
+        if _emperor_config is not None:
+            weather_city = getattr(_emperor_config.dashboard, "weather_city", "北京")
+
+        weather_result = _weather_handler(weather_city + "天气")
+        news_result = _news_handler("科技新闻")
+
+        return {
+            "weather": weather_result.get("data", {}),
+            "weather_text": weather_result.get("result", "天气获取失败"),
+            "news": news_result.get("data", {}),
+            "news_text": news_result.get("result", "新闻获取失败"),
+        }
+
     # ── SSE streaming endpoint ────────────────────────────────────
 
     @app.get("/api/events")
