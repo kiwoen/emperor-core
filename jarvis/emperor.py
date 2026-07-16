@@ -185,6 +185,18 @@ class Emperor:
         self._metrics_plugin: Any = MetricsPlugin()
         self._plugin_manager.register(self._metrics_plugin)
 
+        # Audit trail — immutable execution log
+        from jarvis.audit import AuditLogger
+        audit_db = (Path(self.config.data_dir) / "audit.db"
+                    if self.config.data_dir else
+                    Path("audit.db"))
+        self._audit_logger: AuditLogger = AuditLogger(str(audit_db))
+
+        # Evals runner — regression testing
+        from jarvis.eval import EvalRunner
+        self._eval_runner: EvalRunner = EvalRunner(
+            capability_registry=self._capability_registry, emperor=self)
+
         self._dispatch(LifecycleEvent.ON_INIT, emperor=self)
 
         # Load persisted state if data_dir set
@@ -220,6 +232,16 @@ class Emperor:
     def capability_registry(self):
         """Direct access to the CapabilityRegistry."""
         return self._capability_registry
+
+    @property
+    def audit_logger(self):
+        """Direct access to the AuditLogger."""
+        return self._audit_logger
+
+    @property
+    def eval_runner(self):
+        """Direct access to the EvalRunner."""
+        return self._eval_runner
 
     def _dispatch(self, event: Any, **kwargs: Any) -> Any:
         """Dispatch a lifecycle event to all registered plugins."""
@@ -288,7 +310,15 @@ class Emperor:
         self._dispatch(LifecycleEvent.ON_TASK_BEFORE,
                        task_id=task_id, prompt=prompt, domain=domain)
 
+        # ── Audit: before ──
+        import time as _time
+        _started = _time.time()
+        self._audit_logger.log_task_before(
+            trace_id=task_id, prompt=prompt, domain=domain)
+
         outcome = self._task_engine.execute(req)
+
+        _elapsed_ms = (_time.time() - _started) * 1000
 
         result = {
             "task_id": outcome.task_id,
@@ -306,6 +336,28 @@ class Emperor:
         else:
             self._dispatch(LifecycleEvent.ON_TASK_ERROR,
                            task_id=task_id, error=outcome.error)
+
+        # ── Audit: capability invocation ──
+        if outcome.capability_name and outcome.capability_result:
+            self._audit_logger.log_capability_invoke(
+                trace_id=task_id,
+                step=1,
+                cap_name=outcome.capability_name,
+                prompt=prompt,
+                result=str(outcome.capability_result)[:500],
+                success=True,
+                duration_ms=_elapsed_ms,
+            )
+
+        # ── Audit: after ──
+        self._audit_logger.log_task_after(
+            trace_id=task_id,
+            step=2,
+            success=outcome.success,
+            result=str(outcome.raw_response or "")[:500],
+            duration_ms=_elapsed_ms,
+            error=str(outcome.error or ""),
+        )
 
         # Persist task to database
         if self._court.db is not None:

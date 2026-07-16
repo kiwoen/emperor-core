@@ -84,6 +84,8 @@ class TaskOutcome:
     execution_time_ms: float = 0.0
     merit_score: float = 0.0
     error: Optional[str] = None
+    capability_name: str = ""  # matched capability (for audit)
+    capability_result: str = ""  # capability execution result (for audit)
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -187,6 +189,8 @@ class TaskEngine:
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         # 3b. Capability execution — if registry exists, try to augment with real data
+        capability_name = ""
+        capability_result_str = ""
         capability_output = ""
         if self._capability_registry is not None:
             try:
@@ -207,6 +211,8 @@ class TaskEngine:
                     capability_output = (
                         f"\n\n[能力结果: {best_cap.name}]\n{cap_result['result']}"
                     )
+                    capability_name = best_cap.name
+                    capability_result_str = str(cap_result.get("data", cap_result))
                     logger.debug(
                         "[TaskEngine] Capability '%s' executed for task '%s'",
                         best_cap.name,
@@ -239,6 +245,8 @@ class TaskEngine:
             execution_time_ms=round(elapsed_ms, 1),
             merit_score=round(merit, 2),
             error=error,
+            capability_name=capability_name,
+            capability_result=capability_result_str,
         )
 
         self._outcomes.append(outcome)
