@@ -169,6 +169,11 @@ class CapabilityRegistry:
         "晴天": "weather", "多云": "weather", "阴天": "weather",
         "下雪": "weather", "snow": "weather", "气温": "weather",
 
+        # news
+        "新闻": "news", "资讯": "news", "头条": "news",
+        "快讯": "news", "news": "news", "headlines": "news",
+        "动态": "news", "热点": "news",
+
         # web_fetch
         "抓取": "web_fetch", "网页": "web_fetch", "链接": "web_fetch",
         "http": "web_fetch", "网站": "web_fetch", "fetch": "web_fetch",
@@ -932,6 +937,77 @@ def _extract_city_from_prompt(prompt: str) -> str:
     return "Beijing"
 
 
+# ── News handler ────────────────────────────────────────────────────
+
+
+def _extract_topic_from_prompt(prompt: str) -> str:
+    """Extract news topic from prompt. Defaults to 'technology'."""
+    import re
+
+    # Strip common Chinese query prefixes first
+    cleaned = re.sub(
+        r'^(?:查询|查一下|查\s*|搜索|搜|看看?|问一下|请问|帮我\s*|帮我查|请帮我|请查|最新|今天的?|最近|有什么|有什么?)\s*',
+        '', prompt,
+    )
+
+    patterns = [
+        r'([\u4e00-\u9fa5a-zA-Z]+?)(?:的)?(?:新闻|资讯|消息|动态)',
+        r'news\s+(?:about|on|for)\s+(\w+)',
+    ]
+    for pat in patterns:
+        match = re.search(pat, cleaned, re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+    return "technology"
+
+
+def _parse_rss_items(rss_text: str) -> list:
+    """Parse RSS XML to extract title + source from <item> blocks."""
+    import re
+    items = []
+    item_pattern = re.compile(r'<item>(.*?)</item>', re.DOTALL)
+    for match in item_pattern.finditer(rss_text):
+        block = match.group(1)
+        title_match = re.search(r'<title>(.*?)</title>', block, re.DOTALL)
+        source_match = re.search(r'<source[^>]*>(.*?)</source>', block)
+        if title_match:
+            title = title_match.group(1).strip()
+            title = title.replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>').replace('&quot;', '"')
+            source = source_match.group(1).strip() if source_match else "Unknown"
+            items.append({"title": title, "source": source})
+    return items
+
+
+def _news_handler(prompt: str, **kwargs: Any) -> dict:
+    """Query latest news using Google News RSS (free, no API key)."""
+    topic = _extract_topic_from_prompt(prompt) or "technology"
+    encoded = urllib.parse.quote(topic)
+    url = f"https://news.google.com/rss/search?q={encoded}&hl=en-US&gl=US&ceid=US:en"
+
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "EmperorCore/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            rss_data = resp.read().decode()
+    except (urllib.error.URLError, urllib.error.HTTPError, OSError, ValueError) as exc:
+        logger.warning("news query failed for topic=%r: %s", topic, exc)
+        return {"result": f"新闻查询失败: {exc}", "data": {"error": str(exc), "topic": topic, "source": "Google News RSS"}}
+
+    items = _parse_rss_items(rss_data)
+
+    lines = [f"\U0001f4f0 {topic.title()} News (Google News)"]
+    for i, item in enumerate(items[:5], 1):
+        title = item.get("title", "Untitled")[:80]
+        source = item.get("source", "Unknown")
+        lines.append(f"{i}. {title} \u2014 {source}")
+
+    return {"result": "\n".join(lines), "data": {
+        "topic": topic,
+        "count": min(len(items), 5),
+        "articles": items[:5],
+        "source": "Google News RSS",
+    }}
+
+
 # ══════════════════════════════════════════════════════════════════
 # Factory: create a registry with all built-in capabilities
 # ══════════════════════════════════════════════════════════════════
@@ -960,6 +1036,7 @@ def create_default_registry(enabled: Optional[list[str]] = None) -> CapabilityRe
     _reg("json_tool", "JSON 格式化美化 / 校验 / 压缩", ["code", "data"], _handle_json_tool)
     _reg("uuid_gen", "生成 UUID4 唯一标识符", ["code", "general"], _handle_uuid_gen)
     _reg("weather", "查询城市天气（温度/湿度/风力/降水概率）", ["network", "general"], _weather_handler)
+    _reg("news", "查询最新新闻资讯，支持中英文关键词，返回标题和来源", ["network", "general"], _news_handler)
     _reg("web_search", "搜索互联网信息（通过 DuckDuckGo）", ["general", "data"], _web_search_handler)
     _reg("web_fetch", "抓取指定网页的内容", ["general", "data", "code"], _web_fetch_handler)
 

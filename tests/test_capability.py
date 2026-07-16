@@ -10,6 +10,7 @@ from jarvis.capability import (
     Capability,
     CapabilityRegistry,
     _extract_city_from_prompt,
+    _extract_topic_from_prompt,
     _handle_datetime,
     _handle_file_info,
     _handle_hash,
@@ -18,6 +19,8 @@ from jarvis.capability import (
     _handle_random,
     _handle_text,
     _handle_uuid_gen,
+    _news_handler,
+    _parse_rss_items,
     _safe_eval_math,
     _weather_handler,
     _web_fetch_handler,
@@ -266,9 +269,9 @@ class TestCapabilityRegistry:
 
     def test_list_all(self):
         reg = create_default_registry()
-        assert reg.count == 11
+        assert reg.count == 12
         names = {c.name for c in reg.list_all()}
-        assert names == {"datetime", "math", "random", "text", "file_info", "hash", "json_tool", "uuid_gen", "weather", "web_search", "web_fetch"}
+        assert names == {"datetime", "math", "random", "text", "file_info", "hash", "json_tool", "uuid_gen", "weather", "news", "web_search", "web_fetch"}
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -357,7 +360,7 @@ class TestCourtIntegration:
         from jarvis.emperor import Emperor
         emp = Emperor()
         assert emp.capability_registry is not None
-        assert emp.capability_registry.count == 11
+        assert emp.capability_registry.count == 12
 
     def test_task_result_contains_capability_output(self):
         """When prompt matches a capability, result should contain capability output."""
@@ -497,9 +500,9 @@ class TestSafeEvalMath:
 
 
 class TestDefaultRegistry:
-    def test_has_all_eleven(self):
+    def test_has_all_twelve(self):
         reg = create_default_registry()
-        assert reg.count == 11
+        assert reg.count == 12
 
     def test_each_capability_executable(self):
         reg = create_default_registry()
@@ -697,3 +700,54 @@ class TestExtractCity:
         assert _extract_city_from_prompt("今天会不会下雨") == "Beijing"
         assert _extract_city_from_prompt("what a nice day") == "Beijing"
         assert _extract_city_from_prompt("") == "Beijing"
+
+
+# ══════════════════════════════════════════════════════════════════
+# _news_handler
+# ══════════════════════════════════════════════════════════════════
+
+
+class TestNewsHandler:
+    def test_news_capability_registered(self):
+        reg = create_default_registry()
+        cap = reg.get_by_name("news")
+        assert cap is not None
+        assert "news" in cap.domains or "network" in cap.domains
+
+    def test_news_handler_rss_fallback(self):
+        """Verify handler returns result/data structure even on error."""
+        r = _news_handler("technology news")
+        assert "result" in r
+        assert "data" in r
+        assert "topic" in r["data"]
+
+    def test_extract_topic_chinese(self):
+        assert _extract_topic_from_prompt("查询科技新闻") == "科技"
+        assert _extract_topic_from_prompt("今天的体育资讯") == "体育"
+
+    def test_extract_topic_english(self):
+        assert _extract_topic_from_prompt("news about science") == "science"
+        assert _extract_topic_from_prompt("latest news on AI") == "AI"
+
+    def test_extract_topic_default(self):
+        assert _extract_topic_from_prompt("有什么新闻") == "technology"
+        assert _extract_topic_from_prompt("") == "technology"
+
+    def test_parse_rss_items(self):
+        sample = """<rss><channel>
+        <item><title>Breaking News</title><source url="http://x.com">CNN</source></item>
+        <item><title>Markets Update</title><source url="http://y.com">Bloomberg</source></item>
+        </channel></rss>"""
+        items = _parse_rss_items(sample)
+        assert len(items) == 2
+        assert items[0]["title"] == "Breaking News"
+        assert items[0]["source"] == "CNN"
+        assert items[1]["title"] == "Markets Update"
+        assert items[1]["source"] == "Bloomberg"
+
+    def test_news_task_template(self):
+        """Verify find_best routes news-related prompts to news capability."""
+        reg = create_default_registry()
+        best = reg.find_best("查询最新科技新闻", domain="network")
+        assert best is not None
+        assert best.name == "news"

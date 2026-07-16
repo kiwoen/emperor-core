@@ -513,6 +513,8 @@ class Emperor:
             {"prompt": "查看 jarvis/emperor.py 文件的行数和文件大小", "domain": "code"},      # → file_info
             {"prompt": "查询北京的天气", "domain": "network"},                                 # → weather
             {"prompt": "查询上海的天气和温度", "domain": "network"},                           # → weather
+            {"prompt": "查询最新科技新闻", "domain": "network"},                                # → news
+            {"prompt": "今天有什么重要新闻", "domain": "network"},                              # → news
             {"prompt": "搜索一下 Python 3.12 的新特性", "domain": "general"},                  # → web_search
             {"prompt": "搜索天气预报相关的新闻", "domain": "general"},                         # → web_search
         ]

@@ -118,7 +118,7 @@ class TestAutoStartScheduler:
             assert mock_batch.call_count == 1
             # Templates passed to execute_batch
             tmpls = mock_batch.call_args.args[0]
-            assert len(tmpls) == 9
+            assert len(tmpls) == 11
             assert all("prompt" in t and "domain" in t for t in tmpls)
 
     def test_task_templates_cover_all_capabilities(self):

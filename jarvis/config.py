@@ -58,7 +58,7 @@ class CapabilityConfig:
     enabled_capabilities: list = field(default_factory=lambda: [
         "datetime", "math", "random", "text", "file_info",
         "hash", "json_tool", "uuid_gen",
-        "weather", "web_search", "web_fetch",
+        "weather", "news", "web_search", "web_fetch",
     ])
     web_search_timeout: int = 10
     web_fetch_timeout: int = 10
