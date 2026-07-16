@@ -240,6 +240,16 @@ class Emperor:
         # Auto-snapshot on startup so there's always a baseline
         self._versioning.auto_snapshot(trigger="emperor-init")
 
+        # HITL Approval engine — pre-execution human gate for risky ops
+        from jarvis.approval import ApprovalEngine
+        approval_db = (Path(self.config.data_dir) / "approval.db"
+                       if self.config.data_dir else
+                       Path("approval.db"))
+        self._approval_engine: ApprovalEngine = ApprovalEngine(
+            str(approval_db),
+            audit_logger=self._audit_logger,
+        )
+
         self._dispatch(LifecycleEvent.ON_INIT, emperor=self)
 
         # Load persisted state if data_dir set
@@ -305,6 +315,11 @@ class Emperor:
     def model_router(self):
         """Direct access to the ModelRouter."""
         return self._model_router
+
+    @property
+    def approval_engine(self):
+        """Direct access to the ApprovalEngine."""
+        return self._approval_engine
 
     def _dispatch(self, event: Any, **kwargs: Any) -> Any:
         """Dispatch a lifecycle event to all registered plugins."""
@@ -372,6 +387,21 @@ class Emperor:
 
         self._dispatch(LifecycleEvent.ON_TASK_BEFORE,
                        task_id=task_id, prompt=prompt, domain=domain)
+
+        # ── HITL Approval check ──
+        if self._approval_engine.require_approval(
+            task_id=task_id, prompt=prompt, domain=domain,
+        ):
+            req = self._approval_engine.create_request(
+                task_id=task_id, prompt=prompt, domain=domain,
+            )
+            return {
+                "task_id": task_id,
+                "status": "pending_approval",
+                "approval_id": req.id,
+                "risk_level": req.risk_level,
+                "message": f"Task requires human approval (risk={req.risk_level}). Approval ID: {req.id}",
+            }
 
         # ── Audit: before ──
         import time as _time
@@ -527,6 +557,7 @@ class Emperor:
         app.extra["plugin_marketplace"] = self._plugin_marketplace
         app.extra["versioning"] = self._versioning
         app.extra["template_manager"] = self._template_manager
+        app.extra["approval_engine"] = self._approval_engine
 
         self._app = app
 

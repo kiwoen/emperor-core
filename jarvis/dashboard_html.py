@@ -1068,6 +1068,25 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   </div><!-- .panel-body -->
 </div>
 
+<!-- Approval 审批面板 -->
+<div class="panel panel-full" id="panel-approval">
+  <div class="panel-header">
+    <h2>Approval 审批队列</h2>
+    <button class="panel-collapse-btn" onclick="togglePanel('panel-approval')">▼</button>
+    <span id="approval-badge" style="display:none;background:var(--danger);color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;margin-left:8px;"></span>
+  </div>
+  <div class="panel-body">
+    <div class="tab-bar" style="display:flex;gap:2px;margin-bottom:12px;border-bottom:1px solid var(--card-border);">
+      <button class="approval-tab active" onclick="switchApprovalTab('pending')" id="approval-tab-pending" style="background:none;border:none;color:var(--accent);padding:6px 14px;cursor:pointer;font-family:inherit;font-size:0.78rem;border-bottom:2px solid var(--accent);margin-bottom:-1px;">待审批</button>
+      <button class="approval-tab" onclick="switchApprovalTab('history')" id="approval-tab-history" style="background:none;border:none;color:var(--text-secondary);padding:6px 14px;cursor:pointer;font-family:inherit;font-size:0.78rem;border-bottom:2px solid transparent;margin-bottom:-1px;">审批历史</button>
+      <button class="approval-tab" onclick="switchApprovalTab('policies')" id="approval-tab-policies" style="background:none;border:none;color:var(--text-secondary);padding:6px 14px;cursor:pointer;font-family:inherit;font-size:0.78rem;border-bottom:2px solid transparent;margin-bottom:-1px;">策略配置</button>
+    </div>
+    <div id="approval-tab-content" style="font-size:12px;max-height:400px;overflow-y:auto;">
+      <div class="empty">Loading...</div>
+    </div>
+  </div><!-- .panel-body -->
+</div>
+
 <!-- Version History 版本历史面板 -->
 <div class="panel panel-full" id="panel-versions">
   <div class="panel-header">
@@ -3012,6 +3031,191 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   // Load plugins on page load
   fetchPlugins();
   setInterval(fetchPlugins, 30000);
+
+  // ── Approval Queue ──
+  var _approvalTab = 'pending';
+
+  function switchApprovalTab(tab) {
+    _approvalTab = tab;
+    document.querySelectorAll('.approval-tab').forEach(function(btn) {
+      btn.style.color = 'var(--text-secondary)';
+      btn.style.borderBottomColor = 'transparent';
+      btn.classList.remove('active');
+    });
+    var activeBtn = document.getElementById('approval-tab-' + tab);
+    if (activeBtn) {
+      activeBtn.style.color = 'var(--accent)';
+      activeBtn.style.borderBottomColor = 'var(--accent)';
+      activeBtn.classList.add('active');
+    }
+    refreshApproval();
+  }
+
+  async function refreshApproval() {
+    var container = document.getElementById('approval-tab-content');
+    try {
+      if (_approvalTab === 'pending') {
+        var res = await fetch(API + '/api/approvals/pending');
+        var data = await res.json();
+        renderPendingApprovals(data, container);
+      } else if (_approvalTab === 'history') {
+        var res = await fetch(API + '/api/approvals/history?limit=50');
+        var data = await res.json();
+        renderApprovalHistory(data, container);
+      } else if (_approvalTab === 'policies') {
+        var res = await fetch(API + '/api/approvals/policies');
+        var data = await res.json();
+        renderApprovalPolicies(data, container);
+      }
+    } catch(e) {
+      container.innerHTML = '<div class="empty">Fetch error: ' + e.message + '</div>';
+    }
+  }
+
+  function renderPendingApprovals(data, container) {
+    var badge = document.getElementById('approval-badge');
+    var count = data.count || 0;
+    if (count > 0) {
+      badge.style.display = 'inline';
+      badge.textContent = count;
+    } else {
+      badge.style.display = 'none';
+    }
+    var list = data.requests || [];
+    if (list.length === 0) {
+      container.innerHTML = '<div class="empty" style="color:var(--success);">No pending approvals — all clear.</div>';
+      return;
+    }
+    var html = '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11px;">';
+    html += '<thead><tr style="border-bottom:1px solid var(--card-border);color:var(--text-secondary);text-align:left;">';
+    html += '<th style="padding:4px 8px;">Task</th>';
+    html += '<th style="padding:4px 8px;">Domain</th>';
+    html += '<th style="padding:4px 8px;">Risk</th>';
+    html += '<th style="padding:4px 8px;">Requested</th>';
+    html += '<th style="padding:4px 8px;">Actions</th>';
+    html += '</tr></thead><tbody>';
+    list.forEach(function(r) {
+      var riskColor = r.risk_level === 'critical' ? 'var(--danger)' :
+                      r.risk_level === 'high' ? '#ff9800' :
+                      r.risk_level === 'medium' ? 'var(--warning)' : 'var(--text-muted)';
+      html += '<tr style="border-bottom:1px solid var(--card-border);">';
+      html += '<td style="padding:3px 8px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + (r.prompt || '') + '">' + (r.prompt || '') + '</td>';
+      html += '<td style="padding:3px 8px;">' + (r.domain || '') + '</td>';
+      html += '<td style="padding:3px 8px;color:' + riskColor + ';font-weight:600;">' + (r.risk_level || '') + '</td>';
+      html += '<td style="padding:3px 8px;color:var(--text-muted);white-space:nowrap;">' + (r.requested_at || '').slice(0, 19) + '</td>';
+      html += '<td style="padding:3px 8px;white-space:nowrap;">';
+      html += '<button onclick="approveRequest(\'' + r.id + '\')" style="background:var(--success);color:#fff;border:none;border-radius:3px;padding:2px 10px;cursor:pointer;font-size:11px;margin-right:4px;">Approve</button>';
+      html += '<button onclick="denyRequest(\'' + r.id + '\')" style="background:var(--danger);color:#fff;border:none;border-radius:3px;padding:2px 10px;cursor:pointer;font-size:11px;">Deny</button>';
+      html += '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+  }
+
+  function renderApprovalHistory(data, container) {
+    var list = data.requests || [];
+    if (list.length === 0) {
+      container.innerHTML = '<div class="empty">No approval history.</div>';
+      return;
+    }
+    var html = '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11px;">';
+    html += '<thead><tr style="border-bottom:1px solid var(--card-border);color:var(--text-secondary);text-align:left;">';
+    html += '<th style="padding:4px 8px;">Task</th>';
+    html += '<th style="padding:4px 8px;">Status</th>';
+    html += '<th style="padding:4px 8px;">Risk</th>';
+    html += '<th style="padding:4px 8px;">Resolved</th>';
+    html += '<th style="padding:4px 8px;">Note</th>';
+    html += '</tr></thead><tbody>';
+    list.forEach(function(r) {
+      var statusColor = r.status === 'approved' ? 'var(--success)' :
+                        r.status === 'denied' ? 'var(--danger)' :
+                        r.status === 'timed_out' ? '#ff9800' : 'var(--text-muted)';
+      html += '<tr style="border-bottom:1px solid var(--card-border);">';
+      html += '<td style="padding:3px 8px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + (r.prompt || '') + '">' + (r.prompt || '') + '</td>';
+      html += '<td style="padding:3px 8px;color:' + statusColor + ';font-weight:600;">' + (r.status || '') + '</td>';
+      html += '<td style="padding:3px 8px;">' + (r.risk_level || '') + '</td>';
+      html += '<td style="padding:3px 8px;color:var(--text-muted);white-space:nowrap;">' + ((r.resolved_at || '').slice(0, 19)) + '</td>';
+      html += '<td style="padding:3px 8px;color:var(--text-muted);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (r.approver_note || '') + '</td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+  }
+
+  function renderApprovalPolicies(data, container) {
+    var policies = data.policies || [];
+    var html = '<div style="margin-bottom:12px;">';
+    html += '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">';
+    html += '<select id="policy-type" style="background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text-primary);border-radius:4px;padding:4px 8px;font-size:11px;font-family:inherit;">';
+    html += '<option value="domain">Domain</option><option value="risk_level">Risk Level</option><option value="capability">Capability</option><option value="keyword">Keyword</option></select>';
+    html += '<input id="policy-value" placeholder="rule value" style="background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text-primary);border-radius:4px;padding:4px 8px;font-size:11px;font-family:inherit;width:160px;">';
+    html += '<button onclick="addPolicy()" style="background:var(--accent);color:#fff;border:none;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:11px;">Save</button>';
+    html += '</div></div>';
+
+    if (policies.length === 0) {
+      html += '<div class="empty" style="color:var(--text-muted);">No policies configured. Default: critical & high risk require approval.</div>';
+    } else {
+      html += '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
+      html += '<thead><tr style="border-bottom:1px solid var(--card-border);color:var(--text-secondary);text-align:left;">';
+      html += '<th style="padding:4px 8px;">Type</th><th style="padding:4px 8px;">Value</th><th style="padding:4px 8px;">Enabled</th><th style="padding:4px 8px;">Actions</th>';
+      html += '</tr></thead><tbody>';
+      policies.forEach(function(p) {
+        html += '<tr style="border-bottom:1px solid var(--card-border);">';
+        html += '<td style="padding:3px 8px;">' + p.rule_type + '</td>';
+        html += '<td style="padding:3px 8px;">' + p.rule_value + '</td>';
+        html += '<td style="padding:3px 8px;color:' + (p.enabled ? 'var(--success)' : 'var(--text-muted)') + ';">' + (p.enabled ? 'Yes' : 'No') + '</td>';
+        html += '<td style="padding:3px 8px;"><button onclick="deletePolicy(' + p.id + ')" style="background:var(--danger);color:#fff;border:none;border-radius:3px;padding:1px 8px;cursor:pointer;font-size:10px;">Delete</button></td>';
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+    }
+    container.innerHTML = html;
+  }
+
+  async function approveRequest(id) {
+    try {
+      await fetch(API + '/api/approvals/' + id + '/approve', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({note: ''})
+      });
+      refreshApproval();
+    } catch(e) { alert('Approve failed: ' + e.message); }
+  }
+
+  async function denyRequest(id) {
+    var note = prompt('Reason for denial (optional):');
+    if (note === null) return; // cancelled
+    try {
+      await fetch(API + '/api/approvals/' + id + '/deny', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({note: note || ''})
+      });
+      refreshApproval();
+    } catch(e) { alert('Deny failed: ' + e.message); }
+  }
+
+  async function addPolicy() {
+    var type = document.getElementById('policy-type').value;
+    var value = document.getElementById('policy-value').value.trim();
+    if (!value) { alert('Rule value required'); return; }
+    try {
+      await fetch(API + '/api/approvals/policies', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({rule_type: type, rule_value: value, enabled: true})
+      });
+      _approvalTab = 'policies';
+      switchApprovalTab('policies');
+    } catch(e) { alert('Add policy failed: ' + e.message); }
+  }
+
+  async function deletePolicy(id) {
+    if (!confirm('Delete this policy?')) return;
+    try {
+      await fetch(API + '/api/approvals/policies/' + id, {method: 'DELETE'});
+      refreshApproval();
+    } catch(e) { alert('Delete policy failed: ' + e.message); }
+  }
+
+  // Auto-refresh approval queue
+  refreshApproval();
+  setInterval(refreshApproval, 15000);
 </script>
 </body>
 </html>"""

@@ -123,6 +123,16 @@ class TemplateRollbackRequest(BaseModel):
     version: int = Field(..., ge=1, description="Target version to rollback to")
 
 
+class ApprovalActionRequest(BaseModel):
+    note: str = ""
+
+
+class ApprovalPolicyRequest(BaseModel):
+    rule_type: str = Field(..., description="domain | risk_level | capability | keyword")
+    rule_value: str = Field(..., description="Matching value")
+    enabled: bool = True
+
+
 # ══════════════════════════════════════════════════════════════════
 # Module-level scheduler state (shared with Emperor.serve)
 # ══════════════════════════════════════════════════════════════════
@@ -1451,6 +1461,79 @@ def create_app(
         if not ok:
             raise HTTPException(status_code=404, detail=f"Snapshot not found: {snapshot_id}")
         return {"deleted": True, "snapshot_id": snapshot_id}
+
+    # ── HITL Approval endpoints ──
+
+    @app.get("/api/approvals/pending")
+    def get_pending_approvals(request: Request):
+        engine = request.app.extra.get("approval_engine")
+        if engine is None:
+            raise HTTPException(status_code=503, detail="Approval engine not available")
+        pending = engine.get_pending()
+        return {
+            "count": len(pending),
+            "requests": [r.to_dict() for r in pending],
+        }
+
+    @app.get("/api/approvals/history")
+    def get_approval_history(request: Request, limit: int = 50, offset: int = 0):
+        engine = request.app.extra.get("approval_engine")
+        if engine is None:
+            raise HTTPException(status_code=503, detail="Approval engine not available")
+        history = engine.get_history(limit=limit, offset=offset)
+        return {
+            "count": len(history),
+            "requests": [r.to_dict() for r in history],
+        }
+
+    @app.post("/api/approvals/{request_id}/approve")
+    def approve_request(request_id: str, body: ApprovalActionRequest, request: Request):
+        engine = request.app.extra.get("approval_engine")
+        if engine is None:
+            raise HTTPException(status_code=503, detail="Approval engine not available")
+        result = engine.approve(request_id, note=body.note)
+        if result is None:
+            raise HTTPException(status_code=404, detail=f"Approval request not found or already resolved: {request_id}")
+        return result.to_dict()
+
+    @app.post("/api/approvals/{request_id}/deny")
+    def deny_request(request_id: str, body: ApprovalActionRequest, request: Request):
+        engine = request.app.extra.get("approval_engine")
+        if engine is None:
+            raise HTTPException(status_code=503, detail="Approval engine not available")
+        result = engine.deny(request_id, note=body.note)
+        if result is None:
+            raise HTTPException(status_code=404, detail=f"Approval request not found or already resolved: {request_id}")
+        return result.to_dict()
+
+    @app.get("/api/approvals/policies")
+    def get_approval_policies(request: Request):
+        engine = request.app.extra.get("approval_engine")
+        if engine is None:
+            raise HTTPException(status_code=503, detail="Approval engine not available")
+        policies = engine.get_policies()
+        return {
+            "count": len(policies),
+            "policies": [p.to_dict() for p in policies],
+        }
+
+    @app.post("/api/approvals/policies")
+    def set_approval_policy(body: ApprovalPolicyRequest, request: Request):
+        engine = request.app.extra.get("approval_engine")
+        if engine is None:
+            raise HTTPException(status_code=503, detail="Approval engine not available")
+        policy = engine.set_policy(body.rule_type, body.rule_value, body.enabled)
+        return policy.to_dict()
+
+    @app.delete("/api/approvals/policies/{policy_id}")
+    def delete_approval_policy(policy_id: int, request: Request):
+        engine = request.app.extra.get("approval_engine")
+        if engine is None:
+            raise HTTPException(status_code=503, detail="Approval engine not available")
+        ok = engine.remove_policy(policy_id)
+        if not ok:
+            raise HTTPException(status_code=404, detail=f"Policy not found: {policy_id}")
+        return {"deleted": True, "policy_id": policy_id}
 
     return app
 
