@@ -1718,6 +1718,7 @@ def create_app(
             "audits": [],
             "healing": [],
             "context_versions": [],
+            "memories": [],
         }
 
         if not query:
@@ -1805,6 +1806,24 @@ def create_app(
                         "timestamp": getattr(v, "timestamp", 0),
                     })
             results["context_versions"] = results["context_versions"][-limit:]
+
+        # ── Hierarchical Memories ──
+        mem_engine = app.extra.get("hierarchical_memory_engine")
+        if mem_engine is not None:
+            try:
+                mem_results = mem_engine.retrieve(query, top_k=limit,
+                    tiers=[MemoryTier.EPISODIC, MemoryTier.SEMANTIC, MemoryTier.PROCEDURAL])
+                for node in mem_results:
+                    results["memories"].append({
+                        "node_id": node.node_id,
+                        "content": node.content[:200],
+                        "tier": node.tier.name,
+                        "importance": round(node.importance, 3),
+                        "retention": round(node.decay_retention(), 3),
+                        "created_at": node.created_at,
+                    })
+            except Exception:
+                pass  # Non-critical; skip memory search on error
 
         return results
 

@@ -2609,7 +2609,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     try {
       var resp = await fetch(API + '/api/dashboard/search?q=' + encodeURIComponent(q) + '&limit=5');
       var data = await resp.json();
-      var total = (data.tasks || []).length + (data.evals || []).length + (data.audits || []).length + (data.healing || []).length + (data.context_versions || []).length;
+      var total = (data.tasks || []).length + (data.evals || []).length + (data.audits || []).length + (data.healing || []).length + (data.context_versions || []).length + (data.memories || []).length;
       badge.textContent = total + ' 条结果';
       badge.style.display = 'inline';
       renderSearchResults(data);
@@ -2624,10 +2624,10 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     el.style.display = 'block';
 
     var sections = [];
-    var sectionIcon = {tasks: '📋', evals: '🧪', audits: '📜', healing: '🩺', context_versions: '🏷️'};
-    var sectionName = {tasks: '任务', evals: '评测', audits: '审计', healing: '自愈', context_versions: '版本快照'};
+    var sectionIcon = {tasks: '📋', evals: '🧪', audits: '📜', healing: '🩺', context_versions: '🏷️', memories: '🧠'};
+    var sectionName = {tasks: '任务', evals: '评测', audits: '审计', healing: '自愈', context_versions: '版本快照', memories: '记忆'};
 
-    ['tasks', 'evals', 'audits', 'healing', 'context_versions'].forEach(function(key) {
+    ['tasks', 'evals', 'audits', 'healing', 'context_versions', 'memories'].forEach(function(key) {
       var items = data[key] || [];
       if (items.length === 0) return;
 
@@ -2648,6 +2648,11 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
           return '<tr><td style="font-weight:500;">' + esc(item.action_name) + '</td>'
             + '<td style="color:var(--text-secondary);">← ' + item.alert_rule + '</td>'
             + '<td style="color:' + (item.success ? 'var(--success)' : 'var(--danger)') + ';">' + (item.success ? '✓' : '✗') + '</td></tr>';
+        } else if (key === 'memories') {
+          var tierColor = item.tier === 'SEMANTIC' ? '#f59e0b' : item.tier === 'EPISODIC' ? '#818cf8' : '#10b981';
+          return '<tr><td style="font-weight:500;">' + esc(item.content).substring(0, 80) + '</td>'
+            + '<td style="color:' + tierColor + ';font-size:10px;">' + item.tier + '</td>'
+            + '<td style="color:var(--text-muted);font-size:10px;">imp:' + item.importance + ' ret:' + item.retention + '</td></tr>';
         } else {
           return '<tr><td style="font-weight:500;">' + esc(item.tag) + '</td>'
             + '<td style="color:var(--text-secondary);">' + (item.component || '') + '</td>'
