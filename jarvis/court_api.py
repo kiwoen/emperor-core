@@ -35,6 +35,9 @@ from pydantic import BaseModel, Field
 from jarvis.court.config import SurvivalConfig
 from jarvis.court.court import Court
 
+# Sandbox imports
+from jarvis.sandbox import SandboxManager
+
 # P0 module imports for API endpoints
 from jarvis.governance_agent import GovernanceAgent, GovernanceRule, RulePriority
 from jarvis.bounded_autonomy import ActionZone, ActionSpace, BoundedAutonomyEngine
@@ -137,6 +140,19 @@ class TemplateFeedbackRequest(BaseModel):
 class TemplateRollbackRequest(BaseModel):
     capability: str = Field(..., description="Capability name")
     version: int = Field(..., ge=1, description="Target version to rollback to")
+
+
+# ── Sandbox request models (module-level for FastAPI resolution) ─
+
+class SandboxRunRequest(BaseModel):
+    code: str = Field(..., description="Python code to execute")
+    engine: str = Field(default="local_subprocess", description="Sandbox engine: local_subprocess | local_direct")
+    timeout: int = Field(default=30, ge=1, le=300, description="Timeout in seconds (1-300)")
+
+
+class SandboxShellRequest(BaseModel):
+    command: str = Field(..., description="Shell command to execute")
+    timeout: int = Field(default=30, ge=1, le=300)
 
 
 class ApprovalActionRequest(BaseModel):
@@ -2401,6 +2417,67 @@ def create_app(
         if node is None:
             raise HTTPException(status_code=404, detail="Node not found")
         return node
+
+    # ── Sandbox Code Runner ───────────────────────────────────────
+
+    import asyncio as _asyncio
+
+    @app.get("/api/dashboard/sandbox/status")
+    def sandbox_status(request: Request):
+        """Get sandbox manager status."""
+        sm: SandboxManager | None = request.app.extra.get("sandbox_manager")
+        if sm is None:
+            raise HTTPException(status_code=503, detail="Sandbox Manager not available")
+        return {
+            "engine": sm.engine,
+            "timeout_seconds": sm.timeout_seconds,
+            "network_enabled": sm.network_enabled,
+            "history_count": len(sm.execution_history),
+            "available_engines": ["local_subprocess", "local_direct"],
+        }
+
+    @app.post("/api/dashboard/sandbox/run")
+    async def sandbox_run(payload: SandboxRunRequest, request: Request):
+        """Execute Python code in the sandbox."""
+        sm: SandboxManager | None = request.app.extra.get("sandbox_manager")
+        if sm is None:
+            raise HTTPException(status_code=503, detail="Sandbox Manager not available")
+        sm.engine = payload.engine
+        result = await sm.execute_python(payload.code, timeout=payload.timeout)
+        return {
+            "exit_code": result.exit_code,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "execution_time_ms": round(result.execution_time_ms, 1),
+            "truncated": result.truncated,
+        }
+
+    @app.post("/api/dashboard/sandbox/shell")
+    async def sandbox_shell(payload: SandboxShellRequest, request: Request):
+        """Execute a shell command in the sandbox."""
+        sm: SandboxManager | None = request.app.extra.get("sandbox_manager")
+        if sm is None:
+            raise HTTPException(status_code=503, detail="Sandbox Manager not available")
+        result = await sm.execute_shell(payload.command, timeout=payload.timeout)
+        return {
+            "exit_code": result.exit_code,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "execution_time_ms": round(result.execution_time_ms, 1),
+            "truncated": result.truncated,
+        }
+
+    @app.get("/api/dashboard/sandbox/history")
+    def sandbox_history(request: Request, limit: int = 20):
+        """Get execution history."""
+        sm: SandboxManager | None = request.app.extra.get("sandbox_manager")
+        if sm is None:
+            raise HTTPException(status_code=503, detail="Sandbox Manager not available")
+        history = sm.execution_history[-limit:]
+        return {
+            "history": list(reversed(history)),
+            "total": len(sm.execution_history),
+        }
 
     return app
 

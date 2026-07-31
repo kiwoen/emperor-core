@@ -848,6 +848,54 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   </div><!-- .panel-body -->
 </div>
 
+<!-- Sandbox Code Runner 代码沙箱面板 -->
+<div class="panel-full" id="panel-sandbox">
+  <div class="panel-header">
+    <h2>Sandbox Code Runner</h2>
+    <button class="panel-collapse-btn" onclick="togglePanel('panel-sandbox')">▼</button>
+    <span class="panel-actions" style="display:flex;gap:8px;">
+      <select id="sandbox-engine" onchange="updateSandboxEngine()"
+        style="padding:4px 8px;border-radius:4px;border:1px solid var(--card-border);background:rgba(255,255,255,0.06);color:var(--text);font-size:0.75rem;">
+        <option value="local_subprocess">local_subprocess</option>
+        <option value="local_direct">local_direct</option>
+      </select>
+      <span id="sandbox-status-dot" style="width:8px;height:8px;border-radius:50%;background:var(--success);display:inline-block;margin-left:4px;"></span>
+    </span>
+  </div>
+  <div class="panel-body">
+    <textarea id="sandbox-editor" placeholder="# Write Python code here&#10;print('Hello, JARVIS Sandbox!')&#10;&#10;for i in range(5):&#10;    print(f'Iteration {i}')"
+      style="width:100%;height:160px;background:rgba(0,0,0,0.3);color:var(--text);border:1px solid var(--card-border);border-radius:6px;padding:12px;font-family:'Cascadia Code','Fira Code','Consolas',monospace;font-size:0.8rem;line-height:1.5;resize:vertical;outline:none;tab-size:4;"></textarea>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;">
+      <button id="sandbox-run-btn" onclick="runSandboxCode()" class="btn btn-sm"
+        style="background:var(--accent);color:#fff;border:none;border-radius:4px;padding:6px 16px;cursor:pointer;font-family:inherit;font-size:0.8rem;">
+        Run
+      </button>
+      <label style="font-size:0.75rem;color:var(--text-secondary);display:flex;align-items:center;gap:4px;cursor:pointer;">
+        Timeout (s): <input type="number" id="sandbox-timeout" value="30" min="1" max="300"
+          style="width:55px;padding:3px 6px;border-radius:4px;border:1px solid var(--card-border);background:rgba(255,255,255,0.06);color:var(--text);font-size:0.75rem;">
+      </label>
+      <span id="sandbox-exec-time" style="font-size:0.72rem;color:var(--text-dim);margin-left:auto;"></span>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:10px;">
+      <div style="flex:1;">
+        <div style="font-size:0.7rem;color:var(--text-secondary);margin-bottom:4px;font-weight:600;">STDOUT</div>
+        <pre id="sandbox-stdout" style="min-height:60px;max-height:240px;overflow-y:auto;background:rgba(0,0,0,0.2);color:#b8f5b8;border:1px solid var(--card-border);border-radius:4px;padding:8px;font-size:0.75rem;font-family:monospace;margin:0;white-space:pre-wrap;word-break:break-all;"></pre>
+      </div>
+      <div style="flex:1;">
+        <div style="font-size:0.7rem;color:var(--text-secondary);margin-bottom:4px;font-weight:600;">STDERR / Exit Code</div>
+        <pre id="sandbox-stderr" style="min-height:60px;max-height:240px;overflow-y:auto;background:rgba(0,0,0,0.2);color:#ff9494;border:1px solid var(--card-border);border-radius:4px;padding:8px;font-size:0.75rem;font-family:monospace;margin:0;white-space:pre-wrap;word-break:break-all;"></pre>
+      </div>
+    </div>
+    <!-- Execution History -->
+    <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;">
+      <div style="font-size:0.72rem;color:var(--text-secondary);font-weight:600;">Execution History</div>
+      <button onclick="refreshSandboxHistory()" class="btn btn-sm"
+        style="background:transparent;color:var(--text-secondary);border:1px solid var(--card-border);border-radius:4px;padding:2px 10px;cursor:pointer;font-size:0.7rem;">Refresh</button>
+    </div>
+    <div id="sandbox-history" style="font-size:0.7rem;max-height:160px;overflow-y:auto;margin-top:6px;"></div>
+  </div>
+</div>
+
 <!-- Plugin Marketplace Panel -->
 <div class="panel-full" id="panel-plugins">
   <div class="panel-header">
@@ -3767,6 +3815,111 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       alert('Consolidation failed: ' + e.message);
     }
   }
+
+  // ═══ Sandbox Code Runner ══════════════════════════════════════
+
+  var _sandboxHistory = [];
+
+  async function updateSandboxEngine() {
+    var engine = document.getElementById('sandbox-engine').value;
+    try {
+      var resp = await fetch('/api/dashboard/sandbox/status');
+      if (resp.ok) {
+        var dot = document.getElementById('sandbox-status-dot');
+        if (dot) dot.style.background = 'var(--success)';
+      }
+    } catch(e) {
+      var dot = document.getElementById('sandbox-status-dot');
+      if (dot) dot.style.background = 'var(--danger)';
+    }
+  }
+
+  async function runSandboxCode() {
+    var code = document.getElementById('sandbox-editor').value.trim();
+    if (!code) { document.getElementById('sandbox-stderr').textContent = 'No code provided'; return; }
+
+    var btn = document.getElementById('sandbox-run-btn');
+    var origText = btn.textContent;
+    btn.textContent = 'Running...';
+    btn.disabled = true;
+
+    var engine = document.getElementById('sandbox-engine').value;
+    var timeout = parseInt(document.getElementById('sandbox-timeout').value) || 30;
+
+    var startTime = performance.now();
+    try {
+      var resp = await fetch('/api/dashboard/sandbox/run', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({code: code, engine: engine, timeout: timeout})
+      });
+      var data = await resp.json();
+      var elapsed = (performance.now() - startTime).toFixed(0);
+
+      document.getElementById('sandbox-stdout').textContent = data.stdout || '(empty)';
+      var stderrText = (data.stderr || '') + (data.exit_code !== 0 ? '\nExit code: ' + data.exit_code : '');
+      document.getElementById('sandbox-stderr').textContent = stderrText || '(none)';
+      document.getElementById('sandbox-exec-time').textContent =
+        'Done in ' + data.execution_time_ms + 'ms (API: ' + elapsed + 'ms)';
+
+      refreshSandboxHistory();
+    } catch(e) {
+      document.getElementById('sandbox-stderr').textContent = 'Error: ' + e.message;
+      document.getElementById('sandbox-exec-time').textContent = '';
+    } finally {
+      btn.textContent = origText;
+      btn.disabled = false;
+    }
+  }
+
+  async function refreshSandboxHistory() {
+    try {
+      var resp = await fetch('/api/dashboard/sandbox/history?limit=15');
+      var data = await resp.json();
+      _sandboxHistory = data.history || [];
+
+      var container = document.getElementById('sandbox-history');
+      if (_sandboxHistory.length === 0) {
+        container.innerHTML = '<div class="empty" style="font-size:0.7rem;">No executions yet</div>';
+        return;
+      }
+      var html = '<table style="width:100%;font-size:0.7rem;border-collapse:collapse;">';
+      html += '<thead><tr style="color:var(--text-secondary);border-bottom:1px solid var(--card-border);">';
+      html += '<th style="padding:4px 6px;text-align:left;">Time</th>';
+      html += '<th style="padding:4px 6px;text-align:left;">Command</th>';
+      html += '<th style="padding:4px 6px;text-align:center;">Exit</th>';
+      html += '<th style="padding:4px 6px;text-align:right;">Duration</th>';
+      html += '</tr></thead><tbody>';
+      for (var i = 0; i < _sandboxHistory.length; i++) {
+        var h = _sandboxHistory[i];
+        var ts = new Date(h.timestamp * 1000).toLocaleTimeString();
+        var cmd = (h.command || '').substring(0, 60) + (h.command && h.command.length > 60 ? '...' : '');
+        var exitColor = h.exit_code === 0 ? 'var(--success)' : 'var(--danger)';
+        html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">';
+        html += '<td style="padding:3px 6px;color:var(--text-dim);">' + ts + '</td>';
+        html += '<td style="padding:3px 6px;font-family:monospace;">' + cmd + '</td>';
+        html += '<td style="padding:3px 6px;text-align:center;color:' + exitColor + ';">' + h.exit_code + '</td>';
+        html += '<td style="padding:3px 6px;text-align:right;color:var(--text-dim);">' + h.execution_time_ms.toFixed(0) + 'ms</td>';
+        html += '</tr>';
+      }
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    } catch(e) {
+      document.getElementById('sandbox-history').innerHTML =
+        '<div style="color:var(--danger);font-size:0.7rem;">Failed: ' + e.message + '</div>';
+    }
+  }
+
+  // Keyboard shortcut: Ctrl+Enter to run sandbox
+  document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.key === 'Enter') {
+      var editor = document.getElementById('sandbox-editor');
+      if (editor && document.activeElement === editor) {
+        e.preventDefault();
+        runSandboxCode();
+      }
+    }
+  });
 
   // ═══ Plugin Marketplace ═══════════════════════════════════════
 

@@ -186,6 +186,14 @@ class Emperor:
         from jarvis.plugin_marketplace import PluginMarketplace
         self._plugin_marketplace = PluginMarketplace(data_dir=self.config.data_dir)
 
+        # Sandbox manager — secure code execution environment
+        from jarvis.sandbox import SandboxManager
+        self._sandbox_manager = SandboxManager(
+            engine="local_subprocess",
+            timeout_seconds=60,
+            network_enabled=False,
+        )
+
         # Eagerly register MetricsPlugin so every event from the very
         # first dispatch is captured.
         from jarvis.plugins import MetricsPlugin
@@ -303,6 +311,11 @@ class Emperor:
     def plugin_marketplace(self):
         """Direct access to the PluginMarketplace."""
         return self._plugin_marketplace
+
+    @property
+    def sandbox_manager(self):
+        """Direct access to the SandboxManager."""
+        return self._sandbox_manager
 
     @property
     def versioning(self):
@@ -558,6 +571,7 @@ class Emperor:
         _ = self.metrics
         app.extra["metrics_plugin"] = self._metrics_plugin
         app.extra["plugin_marketplace"] = self._plugin_marketplace
+        app.extra["sandbox_manager"] = self._sandbox_manager
         app.extra["versioning"] = self._versioning
         app.extra["template_manager"] = self._template_manager
         app.extra["approval_engine"] = self._approval_engine
