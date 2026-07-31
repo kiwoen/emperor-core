@@ -1389,6 +1389,48 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   </div>
 </div>
 
+<!-- Hierarchical Memory Panel -->
+<div class="panel" id="panel-memory">
+  <div class="panel-header">
+    <h2>Memory Hierarchy</h2>
+    <button class="panel-collapse-btn" onclick="togglePanel('panel-memory')">&#9660;</button>
+  </div>
+  <div class="panel-body">
+    <div style="display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:55px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;border-left:3px solid #a78bfa;">
+        <div style="font-size:13px;font-weight:700;color:#a78bfa;" id="mem-working">0</div>
+        <div style="font-size:10px;color:var(--text-secondary);">Working</div>
+      </div>
+      <div style="flex:1;min-width:55px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;border-left:3px solid #818cf8;">
+        <div style="font-size:13px;font-weight:700;color:#818cf8;" id="mem-episodic">0</div>
+        <div style="font-size:10px;color:var(--text-secondary);">Episodic</div>
+      </div>
+      <div style="flex:1;min-width:55px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;border-left:3px solid #f59e0b;">
+        <div style="font-size:13px;font-weight:700;color:#f59e0b;" id="mem-semantic">0</div>
+        <div style="font-size:10px;color:var(--text-secondary);">Semantic</div>
+      </div>
+      <div style="flex:1;min-width:55px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;border-left:3px solid #10b981;">
+        <div style="font-size:13px;font-weight:700;color:#10b981;" id="mem-procedural">0</div>
+        <div style="font-size:10px;color:var(--text-secondary);">Procedural</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;">
+      <span style="font-size:11px;color:var(--text-secondary);">Consolidation:</span>
+      <span style="font-size:11px;font-weight:600;" id="mem-consolidation-status">idle</span>
+      <span style="font-size:10px;color:var(--text-muted);margin-left:auto;" id="mem-last-consolidation">--</span>
+      <button style="font-size:10px;padding:3px 8px;background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text-primary);border-radius:4px;cursor:pointer;" onclick="triggerConsolidation()">Consolidate</button>
+    </div>
+    <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;">
+      Retention: Epi <span id="mem-ret-epi">--</span> | Sem <span id="mem-ret-sem">--</span> &nbsp;
+      Threshold: <span id="mem-threshold">0.55</span>
+    </div>
+    <div style="font-size:10px;color:var(--text-secondary);margin-bottom:4px;">Last Consolidation</div>
+    <div id="mem-history" style="max-height:100px;overflow-y:auto;font-size:10px;">
+      <div class="empty">No consolidation yet</div>
+    </div>
+  </div>
+</div>
+
 <script>
   var API = "{{API_BASE}}";
   var MAX_POINTS = 40;   // rolling window for charts
@@ -3591,10 +3633,12 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   refreshRecovery();
   refreshToolGuard();
   refreshHallucination();
+  refreshMemory();
   setInterval(refreshGovernance, 15000);
   setInterval(refreshRecovery, 15000);
   setInterval(refreshToolGuard, 20000);
   setInterval(refreshHallucination, 30000);
+  setInterval(refreshMemory, 20000);
 
   // ═══ Tool Guard Panel ═════════════════════════════════════════
 
@@ -3663,6 +3707,59 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       }).join('');
     } catch(e) {
       console.error('Hallucination refresh failed:', e);
+    }
+  }
+
+  // ═══ Hierarchical Memory Panel ════════════════════════════════
+
+  async function refreshMemory() {
+    try {
+      var res = await fetch(API + '/memory/stats');
+      var data = await res.json();
+      document.getElementById('mem-working').textContent = data.working_count || 0;
+      document.getElementById('mem-episodic').textContent = data.episodic_count || 0;
+      document.getElementById('mem-semantic').textContent = data.semantic_count || 0;
+      document.getElementById('mem-procedural').textContent = data.procedural_count || 0;
+      document.getElementById('mem-consolidation-status').textContent = data.consolidation_status || 'idle';
+      document.getElementById('mem-threshold').textContent = (data.importance_threshold || 0.55).toFixed(2);
+      document.getElementById('mem-ret-epi').textContent = ((data.avg_retention_episodic || 0) * 100).toFixed(0) + '%';
+      document.getElementById('mem-ret-sem').textContent = ((data.avg_retention_semantic || 0) * 100).toFixed(0) + '%';
+      if (data.last_consolidation > 0) {
+        var d = new Date(data.last_consolidation * 1000);
+        document.getElementById('mem-last-consolidation').textContent = d.toLocaleTimeString();
+      }
+    } catch(e) {
+      console.error('Memory refresh failed:', e);
+    }
+
+    // Refresh consolidation history
+    try {
+      var histRes = await fetch(API + '/memory/consolidation-history?limit=5');
+      var histData = await histRes.json();
+      var container = document.getElementById('mem-history');
+      if (!histData || histData.length === 0) {
+        container.innerHTML = '<div class="empty">No consolidation yet</div>';
+        return;
+      }
+      container.innerHTML = histData.map(function(c) {
+        var statusColor = c.status === 'completed' ? 'var(--success)' : c.status === 'failed' ? 'var(--danger)' : 'var(--text-muted)';
+        return '<div style="padding:2px 0;border-bottom:1px solid var(--border-color);">' +
+          '<span style="color:' + statusColor + ';">' + c.status + '</span> ' +
+          'W→E:' + c.promoted_to_episodic + ' E→S:' + c.episodic_to_semantic + ' Sum:' + c.facts_summarized + '</div>';
+      }).join('');
+    } catch(e) {
+      console.error('Memory history refresh failed:', e);
+    }
+  }
+
+  async function triggerConsolidation() {
+    try {
+      var res = await fetch(API + '/memory/consolidate', {method: 'POST'});
+      var data = await res.json();
+      alert('Consolidation ' + data.status + ' (W→E:' + data.promoted_to_episodic + ' E→S:' + data.episodic_to_semantic + ')');
+      refreshMemory();
+    } catch(e) {
+      alert('Consolidation failed: ' + e.message);
     }
   }
 

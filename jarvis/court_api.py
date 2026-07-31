@@ -47,6 +47,9 @@ from jarvis.tool_guard import (
 from jarvis.hallucination_detector import (
     HallucinationDetector, HallucinationResult, RiskLevel,
 )
+from jarvis.hierarchical_memory import (
+    HierarchicalMemoryEngine, MemoryTier, ConsolidationStatus,
+)
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -148,6 +151,13 @@ class ApprovalPolicyRequest(BaseModel):
 
 class HealingToggleRequest(BaseModel):
     enabled: bool = True
+
+
+class MemoryAddRequest(BaseModel):
+    content: str = Field(..., description="Memory content")
+    tier: str = Field(default="working", description="Memory tier: working | episodic | semantic | procedural")
+    importance: float = Field(default=0.5, ge=0.0, le=1.0, description="Importance score 0.0~1.0")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Optional metadata")
 
 
 # ════════════════════════ Governance API Models ═══════════════════
@@ -273,6 +283,7 @@ def create_app(
     governance_agent: Optional[Any] = None,
     bounded_autonomy_engine: Optional[Any] = None,
     recovery_engine: Optional[Any] = None,
+    hierarchical_memory_engine: Optional[HierarchicalMemoryEngine] = None,
 ) -> FastAPI:
     """Create a FastAPI app wired to a Court instance.
 
@@ -306,6 +317,11 @@ def create_app(
     # Inject P1 modules
     app.extra["tool_guard_middleware"] = ToolGuardMiddleware()
     app.extra["hallucination_detector"] = HallucinationDetector(governance_agent=governance_agent)
+
+    # Inject Hierarchical Memory Engine
+    if hierarchical_memory_engine is None:
+        hierarchical_memory_engine = HierarchicalMemoryEngine()
+    app.extra["hierarchical_memory_engine"] = hierarchical_memory_engine
 
     # ── Endpoints ──────────────────────────────────────────────────
 
@@ -2277,6 +2293,95 @@ def create_app(
         if detector is None:
             raise HTTPException(status_code=503, detail="HallucinationDetector not available")
         return detector.get_stats()
+
+    # ═══ Hierarchical Memory API ═══════════════════════════════════
+
+    @app.get("/memory/stats")
+    def memory_stats():
+        """层级记忆统计"""
+        engine: HierarchicalMemoryEngine = app.extra.get("hierarchical_memory_engine")
+        if engine is None:
+            raise HTTPException(status_code=503, detail="HierarchicalMemoryEngine not available")
+        return engine.stats()
+
+    @app.get("/memory/consolidation-history")
+    def memory_consolidation_history(limit: int = 10):
+        """合并历史记录"""
+        engine: HierarchicalMemoryEngine = app.extra.get("hierarchical_memory_engine")
+        if engine is None:
+            raise HTTPException(status_code=503, detail="HierarchicalMemoryEngine not available")
+        return engine.consolidation_history(limit)
+
+    @app.post("/memory/consolidate")
+    def memory_consolidate():
+        """触发记忆合并周期"""
+        engine: HierarchicalMemoryEngine = app.extra.get("hierarchical_memory_engine")
+        if engine is None:
+            raise HTTPException(status_code=503, detail="HierarchicalMemoryEngine not available")
+        cycle = engine.consolidate()
+        return {
+            "cycle_id": cycle.cycle_id,
+            "status": cycle.status.value,
+            "working_processed": cycle.working_processed,
+            "promoted_to_episodic": cycle.promoted_to_episodic,
+            "episodic_to_semantic": cycle.episodic_to_semantic,
+            "facts_summarized": cycle.facts_summarized,
+            "error": cycle.error,
+        }
+
+    @app.get("/memory/search")
+    def memory_search(q: str = "", top_k: int = 10):
+        """语义搜索记忆"""
+        engine: HierarchicalMemoryEngine = app.extra.get("hierarchical_memory_engine")
+        if engine is None:
+            raise HTTPException(status_code=503, detail="HierarchicalMemoryEngine not available")
+        if not q:
+            raise HTTPException(status_code=400, detail="Query parameter 'q' is required")
+        results = engine.retrieve(q, top_k=top_k)
+        return [r.to_dict() for r in results]
+
+    @app.get("/memory/graph")
+    def memory_graph(tier: str = ""):
+        """记忆图数据"""
+        engine: HierarchicalMemoryEngine = app.extra.get("hierarchical_memory_engine")
+        if engine is None:
+            raise HTTPException(status_code=503, detail="HierarchicalMemoryEngine not available")
+        return engine.memory_graph(tier or None)
+
+    @app.post("/memory/add")
+    def memory_add(req: MemoryAddRequest):
+        """添加记忆节点"""
+        engine: HierarchicalMemoryEngine = app.extra.get("hierarchical_memory_engine")
+        if engine is None:
+            raise HTTPException(status_code=503, detail="HierarchicalMemoryEngine not available")
+        tier = MemoryTier[req.tier.upper()] if req.tier else MemoryTier.WORKING
+        node_id = engine.add(
+            content=req.content,
+            tier=tier,
+            importance=req.importance,
+            metadata=req.metadata,
+        )
+        return {"node_id": node_id, "status": "stored"}
+
+    @app.post("/memory/forget")
+    def memory_forget():
+        """应用遗忘曲线，清除已遗忘节点"""
+        engine: HierarchicalMemoryEngine = app.extra.get("hierarchical_memory_engine")
+        if engine is None:
+            raise HTTPException(status_code=503, detail="HierarchicalMemoryEngine not available")
+        purged = engine.apply_forgetting()
+        return {"purged": purged, "status": "ok"}
+
+    @app.get("/memory/node/{node_id}")
+    def memory_node(node_id: str):
+        """获取单个记忆节点详情"""
+        engine: HierarchicalMemoryEngine = app.extra.get("hierarchical_memory_engine")
+        if engine is None:
+            raise HTTPException(status_code=503, detail="HierarchicalMemoryEngine not available")
+        node = engine.get_node(node_id)
+        if node is None:
+            raise HTTPException(status_code=404, detail="Node not found")
+        return node
 
     return app
 
