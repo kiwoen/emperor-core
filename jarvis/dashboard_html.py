@@ -722,6 +722,46 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   .ht-card-meta .ht-source { color: var(--text-muted); }
   .ht-card-meta .ht-elapsed { margin-left: auto; font-variant-numeric: tabular-nums; }
   .ht-card-meta .ht-time { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+  /* ── Keyboard shortcuts help overlay ── */
+  .kbd-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+    z-index: 10000; display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  }
+  .kbd-overlay.show { opacity: 1; pointer-events: auto; }
+  .kbd-card {
+    background: var(--bg-card); border: 1px solid var(--card-border);
+    border-radius: 14px; padding: 28px 32px 24px;
+    max-width: 560px; width: 90vw; box-shadow: 0 12px 48px rgba(0,0,0,0.5);
+    backdrop-filter: blur(20px); position: relative;
+  }
+  .kbd-card h2 {
+    font-size: 1.15rem; font-weight: 700; color: var(--text-primary);
+    margin: 0 0 18px 0; letter-spacing: -0.3px;
+  }
+  .kbd-card .kbd-close {
+    position: absolute; top: 14px; right: 18px;
+    background: none; border: none; color: var(--text-dim); font-size: 1.3rem;
+    cursor: pointer; padding: 4px 8px; border-radius: 6px; line-height: 1;
+    transition: color 0.2s, background 0.2s;
+  }
+  .kbd-card .kbd-close:hover { color: var(--text-primary); background: rgba(255,255,255,0.06); }
+  .kbd-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .kbd-table th {
+    text-align: left; padding: 7px 12px; color: var(--text-dim); font-size: 0.68rem;
+    text-transform: uppercase; letter-spacing: 0.6px; border-bottom: 1px solid var(--card-border);
+  }
+  .kbd-table td { padding: 8px 12px; color: var(--text-secondary); border-bottom: 1px solid rgba(255,255,255,0.03); }
+  .kbd-table tr:last-child td { border-bottom: none; }
+  .kbd-key {
+    display: inline-block; padding: 3px 9px; border-radius: 5px;
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+    font-family: 'Cascadia Code','Fira Code','Consolas',monospace;
+    font-size: 0.78rem; font-weight: 600; color: var(--text-primary);
+    min-width: 20px; text-align: center;
+  }
+  .kbd-table .kbd-desc { color: var(--text-dim); font-size: 0.75rem; }
 </style>
 </head>
 <body>
@@ -740,7 +780,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 <!-- Smart Search Bar -->
 <div class="panel-full" style="margin-bottom:0;">
   <div style="position:relative;">
-    <input id="global-search" type="text" placeholder="全局搜索 — 跨任务 / 评测 / 审计 / 自愈 / 版本快照…" 
+    <input id="dashboard-search-input" type="text" placeholder="全局搜索 — 跨任务 / 评测 / 审计 / 自愈 / 版本快照…" 
       style="width:100%;background:var(--card-bg);border:2px solid var(--border-color);color:var(--text-primary);padding:14px 16px;border-radius:10px;font-size:15px;font-family:inherit;box-sizing:border-box;transition:border-color 0.2s;"
       onfocus="this.style.borderColor='var(--accent)';" 
       onblur="this.style.borderColor='var(--border-color)';"
@@ -2946,7 +2986,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   }
 
   async function doSearch() {
-    var q = document.getElementById('global-search').value.trim();
+    var q = document.getElementById('dashboard-search-input').value.trim();
     var badge = document.getElementById('search-badge');
     var results = document.getElementById('search-results');
 
@@ -4835,6 +4875,168 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   // Auto-refresh approval queue
   refreshApproval();
   setInterval(refreshApproval, 15000);
+
+  // ═══ Keyboard shortcuts ════════════════════════════════════
+  (function() {
+    var kbdOverlay = null;
+
+    function createKbdOverlay() {
+      if (kbdOverlay) return;
+      kbdOverlay = document.createElement('div');
+      kbdOverlay.className = 'kbd-overlay';
+      kbdOverlay.innerHTML =
+        '<div class="kbd-card">' +
+          '<button class="kbd-close" title="关闭">&times;</button>' +
+          '<h2>⌨ 键盘快捷键</h2>' +
+          '<table class="kbd-table">' +
+            '<thead><tr><th>按键</th><th>功能</th><th>说明</th></tr></thead>' +
+            '<tbody>' +
+              '<tr><td><kbd class="kbd-key">?</kbd></td><td>快捷键帮助</td><td class="kbd-desc">显示/隐藏此帮助面板</td></tr>' +
+              '<tr><td><kbd class="kbd-key">/</kbd></td><td>聚焦搜索</td><td class="kbd-desc">跳转到全局搜索输入框</td></tr>' +
+              '<tr><td><kbd class="kbd-key">Esc</kbd></td><td>关闭面板</td><td class="kbd-desc">关闭帮助 / 搜索面板 / 事件日志</td></tr>' +
+              '<tr><td><kbd class="kbd-key">r</kbd></td><td>刷新面板</td><td class="kbd-desc">强制刷新所有数据面板</td></tr>' +
+              '<tr><td><kbd class="kbd-key">t</kbd></td><td>切换主题</td><td class="kbd-desc">在暗色 / 亮色 / 自动之间切换</td></tr>' +
+            '</tbody>' +
+          '</table>' +
+        '</div>';
+      document.body.appendChild(kbdOverlay);
+
+      // Close handlers
+      kbdOverlay.addEventListener('click', function(e) {
+        if (e.target === kbdOverlay) hideKbdOverlay();
+      });
+      kbdOverlay.querySelector('.kbd-close').addEventListener('click', hideKbdOverlay);
+    }
+
+    function showKbdOverlay() {
+      createKbdOverlay();
+      kbdOverlay.classList.add('show');
+    }
+
+    function hideKbdOverlay() {
+      if (kbdOverlay) kbdOverlay.classList.remove('show');
+    }
+
+    function isKbdOverlayVisible() {
+      return kbdOverlay && kbdOverlay.classList.contains('show');
+    }
+
+    function isSearchPanelOpen() {
+      var results = document.getElementById('search-results');
+      return results && results.style.display !== 'none';
+    }
+
+    function closeSearchPanel() {
+      var results = document.getElementById('search-results');
+      var badge = document.getElementById('search-badge');
+      if (results) results.style.display = 'none';
+      if (badge) badge.style.display = 'none';
+    }
+
+    function isEventLogOpen() {
+      var panel = document.getElementById('event-log-panel');
+      return panel && !panel.classList.contains('collapsed');
+    }
+
+    function closeEventLog() {
+      var panel = document.getElementById('event-log-panel');
+      if (panel && !panel.classList.contains('collapsed')) {
+        panel.classList.add('collapsed');
+      }
+    }
+
+    function refreshAllPanels() {
+      refreshSummary();
+      fetchStatus();
+      fetchMetrics();
+      fetchAlerts();
+      fetchTaskHistory();
+      fetchAlertHistory();
+      refreshHealth();
+      refreshLive();
+      refreshCapabilityStats();
+      refreshPipelineHistory();
+      refreshPipelineSchedules();
+      refreshPipelineMonitor();
+      refreshHealing();
+      refreshHealingTimeline();
+      refreshModelCosts();
+      refreshGovernance();
+      refreshRecovery();
+      refreshToolGuard();
+      refreshHallucination();
+      refreshMemory();
+      if (typeof refreshEvals === 'function') refreshEvals();
+      if (typeof refreshAudit === 'function') refreshAudit();
+      if (typeof refreshVersions === 'function') refreshVersions();
+      if (typeof refreshTemplates === 'function') refreshTemplates();
+      loadMinisters();
+    }
+
+    document.addEventListener('keydown', function(e) {
+      // Skip if focus is on input/textarea/select
+      var tag = document.activeElement ? document.activeElement.tagName : '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      var key = e.key;
+
+      // ? — toggle keyboard shortcuts help
+      if (key === '?') {
+        e.preventDefault();
+        if (isKbdOverlayVisible()) {
+          hideKbdOverlay();
+        } else {
+          showKbdOverlay();
+        }
+        return;
+      }
+
+      // Escape — close overlays / panels
+      if (key === 'Escape') {
+        if (isKbdOverlayVisible()) {
+          e.preventDefault();
+          hideKbdOverlay();
+          return;
+        }
+        if (isSearchPanelOpen()) {
+          e.preventDefault();
+          closeSearchPanel();
+          return;
+        }
+        if (isEventLogOpen()) {
+          e.preventDefault();
+          closeEventLog();
+          return;
+        }
+        return;
+      }
+
+      // / — focus search
+      if (key === '/') {
+        e.preventDefault();
+        var searchInput = document.getElementById('dashboard-search-input');
+        if (searchInput) {
+          searchInput.focus();
+          searchInput.select();
+        }
+        return;
+      }
+
+      // r — refresh all panels
+      if (key === 'r' || key === 'R') {
+        e.preventDefault();
+        refreshAllPanels();
+        return;
+      }
+
+      // t — toggle theme
+      if (key === 't' || key === 'T') {
+        e.preventDefault();
+        cycleTheme();
+        return;
+      }
+    });
+  })();
 </script>
 <div id="toast-container"></div>
 <div id="event-log-panel" class="collapsed">
