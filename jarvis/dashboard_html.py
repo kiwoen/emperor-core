@@ -951,6 +951,93 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   .gov-btn-submit:hover { background: #7c3aed; }
   .gov-btn-cancel { background: transparent; color: var(--text-secondary); }
   .gov-btn-cancel:hover { background: rgba(255,255,255,0.05); }
+
+  /* ── Alert Rules Panel ── */
+  .alert-rule-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px; border-bottom: 1px solid var(--card-border);
+    transition: background 0.15s;
+  }
+  .alert-rule-row:hover { background: rgba(108,140,255,0.04); }
+  .alert-rule-row:last-child { border-bottom: none; }
+
+  .alert-severity-badge {
+    display: inline-block; min-width: 36px; text-align: center;
+    padding: 2px 8px; border-radius: 4px; font-size: 0.7rem;
+    font-weight: 700; letter-spacing: 0.5px; flex-shrink: 0;
+  }
+  .alert-severity-critical { background: rgba(239,68,68,0.2); color: #ef4444; }
+  .alert-severity-warning { background: rgba(249,115,22,0.2); color: #f97316; }
+  .alert-severity-info { background: rgba(59,130,246,0.2); color: #3b82f6; }
+
+  .alert-rule-main { flex: 1; min-width: 0; }
+  .alert-rule-name { font-size: 0.82rem; font-weight: 600; color: var(--text-primary); }
+  .alert-rule-condition { font-size: 0.72rem; color: var(--text-muted); }
+  .alert-rule-threshold {
+    font-family: 'Courier New', monospace; font-size: 0.78rem;
+    color: var(--accent); flex-shrink: 0; min-width: 48px; text-align: right;
+  }
+
+  /* Alert rule toggle — green / gray (distinct from governance purple) */
+  .alert-toggle { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
+  .alert-toggle input { opacity: 0; width: 0; height: 0; }
+  .alert-toggle-slider {
+    position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+    background: #555; border-radius: 22px; transition: 0.25s;
+  }
+  .alert-toggle-slider::before {
+    content: ""; position: absolute; height: 16px; width: 16px;
+    left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: 0.25s;
+  }
+  .alert-toggle input:checked + .alert-toggle-slider { background: #22c55e; }
+  .alert-toggle input:checked + .alert-toggle-slider::before { transform: translateX(18px); }
+
+  .alert-delete-btn {
+    background: none; border: 1px solid transparent; color: var(--text-muted);
+    cursor: pointer; font-size: 0.75rem; padding: 3px 8px; border-radius: 4px;
+    flex-shrink: 0; transition: all 0.2s;
+  }
+  .alert-delete-btn:hover { color: #ef4444; border-color: rgba(239,68,68,0.4); background: rgba(239,68,68,0.08); }
+
+  .alert-empty {
+    text-align: center; padding: 32px 16px; color: var(--text-muted); font-size: 0.82rem;
+  }
+
+  /* ── Alert Rules New Rule Modal ── */
+  .alert-modal-overlay {
+    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.55); z-index: 1000; justify-content: center; align-items: center;
+  }
+  .alert-modal-overlay.active { display: flex; }
+  .alert-modal-card {
+    background: var(--panel-bg); border: 1px solid var(--card-border);
+    border-radius: 12px; padding: 24px; width: 460px; max-width: 90vw;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+  }
+  .alert-modal-card h3 { margin: 0 0 18px 0; font-size: 1.1rem; color: var(--text-primary); }
+  .alert-modal-card label {
+    display: block; margin-bottom: 4px; font-size: 0.78rem; color: var(--text-secondary);
+  }
+  .alert-modal-card input, .alert-modal-card select {
+    width: 100%; box-sizing: border-box; padding: 8px 10px; margin-bottom: 14px;
+    background: rgba(255,255,255,0.05); border: 1px solid var(--card-border);
+    border-radius: 6px; color: var(--text-primary); font-size: 0.82rem;
+    font-family: inherit;
+  }
+  .alert-modal-card input:focus, .alert-modal-card select:focus {
+    outline: none; border-color: var(--accent);
+  }
+  .alert-modal-actions {
+    display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px;
+  }
+  .alert-modal-actions button {
+    padding: 8px 20px; border-radius: 6px; font-size: 0.82rem; cursor: pointer;
+    border: 1px solid var(--card-border); transition: background 0.2s;
+  }
+  .alert-btn-submit { background: var(--accent); color: #fff; border-color: var(--accent) !important; }
+  .alert-btn-submit:hover { background: #7c3aed; }
+  .alert-btn-cancel { background: transparent; color: var(--text-secondary); }
+  .alert-btn-cancel:hover { background: rgba(255,255,255,0.05); }
 </style>
 </head>
 <body>
@@ -1293,6 +1380,44 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   </div>
   <div class="panel-body" id="gov-rules-container">
     <div class="gov-empty">暂无治理规则，点击「新建规则」添加</div>
+  </div>
+</div>
+
+<!-- Alert Rules Panel -->
+<div class="panel-full" id="panel-alert-rules">
+  <div class="panel-header">
+    <h2>Alert Rules</h2>
+    <button class="panel-collapse-btn" onclick="togglePanel('panel-alert-rules')">▼</button>
+    <span class="panel-actions" style="display:flex;gap:8px;">
+      <span id="alert-rule-count" style="color:var(--text-secondary);font-size:13px;"></span>
+      <button onclick="openAlertRuleModal()" style="background:var(--accent);color:#fff;border:none;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:0.75rem;">+ 新建规则</button>
+    </span>
+  </div>
+  <div class="panel-body" id="alert-rules-container">
+    <div class="alert-empty">暂无告警规则，点击「新建规则」添加</div>
+  </div>
+</div>
+
+<!-- Alert Rules New Rule Modal -->
+<div class="alert-modal-overlay" id="alert-rule-modal">
+  <div class="alert-modal-card">
+    <h3>新建告警规则</h3>
+    <label>规则名称</label>
+    <input type="text" id="ar-new-name" placeholder="规则名称...">
+    <label>触发条件描述</label>
+    <input type="text" id="ar-new-condition" placeholder="当 任务失败率 > 10%">
+    <label>阈值</label>
+    <input type="number" id="ar-new-threshold" placeholder="阈值数值" step="0.01">
+    <label>严重级别</label>
+    <select id="ar-new-severity">
+      <option value="critical">critical — 严重 (红色)</option>
+      <option value="warning" selected>warning — 警告 (橙色)</option>
+      <option value="info">info — 提示 (蓝色)</option>
+    </select>
+    <div class="alert-modal-actions">
+      <button class="alert-btn-cancel" onclick="closeAlertRuleModal()">取消</button>
+      <button class="alert-btn-submit" onclick="createAlertRule()">提交</button>
+    </div>
   </div>
 </div>
 
@@ -3694,6 +3819,110 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     }
   }
 
+  // ═══ Alert Rules ═════════════════════════════════════
+
+  async function refreshAlertRules() {
+    var container = document.getElementById('alert-rules-container');
+    var countEl = document.getElementById('alert-rule-count');
+    if (!container || !countEl) return;
+
+    try {
+      var res = await fetch(API + '/api/alerts/rules');
+      if (!res.ok) { container.innerHTML = '<div class="alert-empty">Failed to load rules</div>'; return; }
+      var data = await res.json();
+      var rules = (data.rules || []).slice(0, 20);
+
+      countEl.textContent = data.total + ' rules';
+
+      if (rules.length === 0) {
+        container.innerHTML = '<div class="alert-empty">暂无告警规则，点击「新建规则」添加</div>';
+        return;
+      }
+
+      var html = '';
+      for (var i = 0; i < rules.length; i++) {
+        var r = rules[i];
+        var checked = r.enabled ? ' checked' : '';
+        var sevClass = 'alert-severity-' + (r.severity || 'info');
+        var sevLabel = (r.severity || 'info');
+        html +=
+          '<div class="alert-rule-row">' +
+            '<span class="alert-severity-badge ' + sevClass + '">' + _esc(sevLabel) + '</span>' +
+            '<div class="alert-rule-main">' +
+              '<div class="alert-rule-name">' + _esc(r.name || '') + '</div>' +
+              '<div class="alert-rule-condition">' + _esc(r.condition || '') + '</div>' +
+            '</div>' +
+            '<span class="alert-rule-threshold">' + _esc(String(r.threshold)) + '</span>' +
+            '<label class="alert-toggle">' +
+              '<input type="checkbox" ' + checked + ' onchange="toggleAlertRule(\'' + _esc(r.rule_id) + '\', this)" />' +
+              '<span class="alert-toggle-slider"></span>' +
+            '</label>' +
+            '<button class="alert-delete-btn" onclick="deleteAlertRule(\'' + _esc(r.rule_id) + '\')" title="删除规则">✕</button>' +
+          '</div>';
+      }
+      container.innerHTML = html;
+    } catch(e) {
+      container.innerHTML = '<div class="alert-empty">无法加载告警规则</div>';
+    }
+  }
+
+  async function toggleAlertRule(ruleId, checkbox) {
+    try {
+      var res = await fetch(API + '/api/alerts/rules/' + encodeURIComponent(ruleId) + '/toggle', { method: 'PUT' });
+      if (!res.ok) { checkbox.checked = !checkbox.checked; return; }
+    } catch(e) {
+      checkbox.checked = !checkbox.checked;
+    }
+  }
+
+  async function deleteAlertRule(ruleId) {
+    if (!confirm('确认删除此告警规则？此操作不可撤销。')) return;
+    try {
+      var res = await fetch(API + '/api/alerts/rules/' + encodeURIComponent(ruleId), { method: 'DELETE' });
+      if (!res.ok) { var err = await res.json(); alert('删除失败: ' + (err.detail || '未知错误')); return; }
+      refreshAlertRules();
+    } catch(e) {
+      alert('删除失败: ' + e.message);
+    }
+  }
+
+  function openAlertRuleModal() {
+    document.getElementById('alert-rule-modal').classList.add('active');
+    document.getElementById('ar-new-name').value = '';
+    document.getElementById('ar-new-condition').value = '';
+    document.getElementById('ar-new-threshold').value = '';
+    document.getElementById('ar-new-severity').value = 'warning';
+  }
+
+  function closeAlertRuleModal() {
+    document.getElementById('alert-rule-modal').classList.remove('active');
+  }
+
+  async function createAlertRule() {
+    var name = document.getElementById('ar-new-name').value.trim();
+    var condition = document.getElementById('ar-new-condition').value.trim();
+    var severity = document.getElementById('ar-new-severity').value;
+    var thresholdRaw = document.getElementById('ar-new-threshold').value.trim();
+    var threshold = parseFloat(thresholdRaw);
+
+    if (!name) { alert('请输入规则名称'); return; }
+    if (!condition) { alert('请输入触发条件描述'); return; }
+    if (isNaN(threshold)) { alert('请输入有效的阈值数值'); return; }
+
+    try {
+      var res = await fetch(API + '/api/alerts/rules', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name: name, condition: condition, threshold: threshold, severity: severity})
+      });
+      if (!res.ok) { var err = await res.json(); alert('创建失败: ' + (err.detail || '未知错误')); return; }
+      closeAlertRuleModal();
+      refreshAlertRules();
+    } catch(e) {
+      alert('创建失败: ' + e.message);
+    }
+  }
+
   // ═══ Pipeline functions ════════════════════════════════════
 
   async function executePipeline(template) {
@@ -4609,11 +4838,13 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   }
 
   refreshGovernance();
+  refreshAlertRules();
   refreshRecovery();
   refreshToolGuard();
   refreshHallucination();
   refreshMemory();
   setInterval(refreshGovernance, 15000);
+  setInterval(refreshAlertRules, 30000);
   setInterval(refreshRecovery, 15000);
   setInterval(refreshToolGuard, 20000);
   setInterval(refreshHallucination, 30000);

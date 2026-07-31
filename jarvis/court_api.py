@@ -203,6 +203,15 @@ class GovernanceCreateRequest(BaseModel):
     remediation: str = Field(default="", description="Optional remediation suggestion")
 
 
+# ── Dashboard Alert Rules API Models ────────────────────────────
+
+class AlertRuleCreateRequest(BaseModel):
+    name: str = Field(..., description="Rule name")
+    condition: str = Field(..., description="Trigger condition description")
+    threshold: float = Field(..., description="Threshold value")
+    severity: str = Field(default="warning", description="critical | warning | info")
+
+
 # ════════════════════ Bounded Autonomy API Models ═════════════════
 
 class AutonomySpaceRequest(BaseModel):
@@ -2363,6 +2372,59 @@ def create_app(
         state = "enabled" if rule["enabled"] else "disabled"
         publish_governance_rule("toggle", rule_id, rule["priority"],
                                 description=f"Rule {state}")
+
+        return {"rule_id": rule_id, "enabled": rule["enabled"], "rule": rule}
+
+    # ═══════════════════ Dashboard Alert Rules API ═══════════════════
+
+    @app.get("/api/alerts/rules")
+    def api_alert_rules():
+        """返回所有告警规则列表，供 Dashboard Alert Rules 面板消费"""
+        from jarvis.alert_rule_store import alert_rule_store
+
+        rules = alert_rule_store.get_all()
+        return {
+            "rules": rules,
+            "total": len(rules),
+        }
+
+    @app.post("/api/alerts/rules")
+    def api_alert_create_rule(req: AlertRuleCreateRequest):
+        """创建新告警规则"""
+        from jarvis.alert_rule_store import alert_rule_store
+
+        try:
+            rule = alert_rule_store.add(
+                name=req.name,
+                condition=req.condition,
+                threshold=req.threshold,
+                severity=req.severity,
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+        return {"rule": rule, "message": "规则已创建"}
+
+    @app.delete("/api/alerts/rules/{rule_id}")
+    def api_alert_delete_rule(rule_id: str):
+        """删除告警规则"""
+        from jarvis.alert_rule_store import alert_rule_store
+
+        rule = alert_rule_store.get_by_id(rule_id)
+        if rule is None:
+            raise HTTPException(status_code=404, detail=f"Rule '{rule_id}' not found")
+
+        alert_rule_store.delete(rule_id)
+        return {"ok": True, "rule_id": rule_id}
+
+    @app.put("/api/alerts/rules/{rule_id}/toggle")
+    def api_alert_toggle_rule(rule_id: str):
+        """切换告警规则启用/禁用状态"""
+        from jarvis.alert_rule_store import alert_rule_store
+
+        rule = alert_rule_store.toggle(rule_id)
+        if rule is None:
+            raise HTTPException(status_code=404, detail=f"Rule '{rule_id}' not found")
 
         return {"rule_id": rule_id, "enabled": rule["enabled"], "rule": rule}
 
