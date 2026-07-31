@@ -625,6 +625,40 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     resize: vertical; box-sizing: border-box;
   }
   .plugin-config-content .config-label { display: block; color: var(--text-secondary); font-size: 0.78rem; margin-bottom: 4px; margin-top: 10px; }
+  /* ── Toast notifications ── */
+  #toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; max-width: 400px; width: 100%; pointer-events: none; }
+  .toast { display: flex; align-items: flex-start; gap: 10px; background: var(--bg-card); border: 1px solid var(--card-border); border-left: 4px solid var(--accent); border-radius: 8px; padding: 12px 16px; backdrop-filter: blur(12px); box-shadow: 0 8px 32px rgba(0,0,0,0.4); animation: toastIn 0.35s cubic-bezier(0.21, 1.02, 0.73, 1); pointer-events: auto; transition: opacity 0.3s, transform 0.3s; }
+  .toast.removing { opacity: 0; transform: translateX(120%); }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(120%); } to { opacity: 1; transform: translateX(0); } }
+  .toast-icon { font-size: 1.2rem; flex-shrink: 0; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 6px; }
+  .toast-body { flex: 1; min-width: 0; }
+  .toast-body .toast-title { font-size: 0.82rem; font-weight: 700; color: var(--text-primary); margin-bottom: 2px; }
+  .toast-body .toast-detail { font-size: 0.72rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .toast-close { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1rem; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
+  .toast-close:hover { color: var(--text-primary); background: rgba(255,255,255,0.06); }
+  /* event type colors */
+  .toast.type-dispatch { border-left-color: #6366f1; } .toast.type-dispatch .toast-icon { background: rgba(99,102,241,0.15); }
+  .toast.type-sandbox { border-left-color: #06b6d4; } .toast.type-sandbox .toast-icon { background: rgba(6,182,212,0.15); }
+  .toast.type-pipeline { border-left-color: #8b5cf6; } .toast.type-pipeline .toast-icon { background: rgba(139,92,246,0.15); }
+  .toast.type-governance { border-left-color: #f59e0b; } .toast.type-governance .toast-icon { background: rgba(245,158,11,0.15); }
+  .toast.type-healing { border-left-color: #10b981; } .toast.type-healing .toast-icon { background: rgba(16,185,129,0.15); }
+  .toast.type-approval { border-left-color: #f43f5e; } .toast.type-approval .toast-icon { background: rgba(244,63,94,0.15); }
+  .toast.type-memory { border-left-color: #a78bfa; } .toast.type-memory .toast-icon { background: rgba(167,139,250,0.15); }
+  .toast.type-eval { border-left-color: #22d3ee; } .toast.type-eval .toast-icon { background: rgba(34,211,238,0.15); }
+  .toast.type-alert { border-left-color: #ef4444; } .toast.type-alert .toast-icon { background: rgba(239,68,68,0.15); }
+  /* Event log panel */
+  #event-log-panel { position: fixed; bottom: 20px; right: 20px; z-index: 9998; width: 360px; max-height: 320px; background: var(--bg-card); border: 1px solid var(--card-border); border-radius: 10px; backdrop-filter: blur(12px); box-shadow: 0 8px 32px rgba(0,0,0,0.4); display: flex; flex-direction: column; overflow: hidden; }
+  #event-log-panel.collapsed .event-log-body { display: none; }
+  .event-log-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--border-color); cursor: pointer; user-select: none; }
+  .event-log-header:hover { background: rgba(255,255,255,0.02); }
+  .event-log-header .log-title { font-size: 0.8rem; font-weight: 700; color: var(--text-primary); }
+  .event-log-header .log-count { font-size: 0.7rem; color: var(--text-muted); background: rgba(255,255,255,0.06); padding: 2px 8px; border-radius: 10px; }
+  .event-log-body { overflow-y: auto; max-height: 260px; padding: 4px 0; scrollbar-width: thin; scrollbar-color: var(--border-color) transparent; }
+  .event-log-entry { display: flex; align-items: center; gap: 8px; padding: 6px 14px; font-size: 0.72rem; color: var(--text-secondary); border-bottom: 1px solid rgba(255,255,255,0.02); }
+  .event-log-entry .log-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .event-log-entry .log-time { color: var(--text-muted); font-size: 0.65rem; flex-shrink: 0; min-width: 48px; }
+  .event-log-entry .log-msg { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .event-log-empty { padding: 20px; text-align: center; color: var(--text-muted); font-size: 0.75rem; }
 </style>
 </head>
 <body>
@@ -2444,24 +2478,129 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     };
   }
 
+  // ── Toast notification helpers ──
+  var _toastId = 0;
+  var _eventLog = [];
+  var _MAX_LOG = 100;
+
+  function showToast(type, title, detail) {
+    var id = ++_toastId;
+    var icons = {
+      dispatch: '⚡', sandbox: '🔧', pipeline: '📋', governance: '⚖️',
+      healing: '💚', approval: '🛡️', memory: '🧠', eval: '🧪', alert: '🚨'
+    };
+    var container = document.getElementById('toast-container');
+    var el = document.createElement('div');
+    el.className = 'toast type-' + type;
+    el.id = 'toast-' + id;
+    el.innerHTML = '<div class="toast-icon">' + (icons[type] || '📌') + '</div>'
+      + '<div class="toast-body"><div class="toast-title">' + _esc(title) + '</div>'
+      + '<div class="toast-detail">' + _esc(detail) + '</div></div>'
+      + '<button class="toast-close" onclick="dismissToast(' + id + ')">×</button>';
+    container.appendChild(el);
+    setTimeout(function() { dismissToast(id); }, 6000);
+  }
+
+  function dismissToast(id) {
+    var el = document.getElementById('toast-' + id);
+    if (!el) return;
+    el.classList.add('removing');
+    setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 300);
+  }
+
+  function addEventLog(type, msg) {
+    var now = new Date();
+    var time = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0') + ':' + now.getSeconds().toString().padStart(2,'0');
+    _eventLog.unshift({type: type, msg: msg, time: time});
+    if (_eventLog.length > _MAX_LOG) _eventLog.length = _MAX_LOG;
+    renderEventLog();
+  }
+
+  function renderEventLog() {
+    var body = document.getElementById('event-log-body');
+    var countEl = document.getElementById('event-log-count');
+    countEl.textContent = _eventLog.length;
+    if (_eventLog.length === 0) {
+      body.innerHTML = '<div class="event-log-empty">暂无事件</div>';
+      return;
+    }
+    var colors = { dispatch:'#6366f1', sandbox:'#06b6d4', pipeline:'#8b5cf6', governance:'#f59e0b', healing:'#10b981', approval:'#f43f5e', memory:'#a78bfa', eval:'#22d3ee', alert:'#ef4444' };
+    var html = '';
+    for (var i = 0; i < _eventLog.length; i++) {
+      var e = _eventLog[i];
+      html += '<div class="event-log-entry"><span class="log-dot" style="background:' + (colors[e.type]||'#888') + ';"></span><span class="log-time">' + e.time + '</span><span class="log-msg">' + _esc(e.msg) + '</span></div>';
+    }
+    body.innerHTML = html;
+  }
+
+  function toggleEventLog() {
+    var panel = document.getElementById('event-log-panel');
+    panel.classList.toggle('collapsed');
+  }
+
+  function _esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
   function handleSSEEvent(msg) {
-    switch(msg.type) {
-      case 'task_completed':
-        fetchTaskHistory();
+    var type = msg.type || 'unknown';
+    var data = msg.data || msg;
+
+    // Show toast for all substantive event types
+    switch(type) {
+      case 'dispatch':
+        var minister = data.minister || 'unknown';
+        var ok = data.success ? '✓' : '✗';
+        showToast('dispatch', 'Dispatch ' + ok, minister + ' — ' + (data.intent || '') + ' (' + (data.elapsed_ms||0) + 'ms)');
+        addEventLog('dispatch', 'Dispatch → ' + minister + ' ' + ok);
+        fetchTaskHistory(); loadMinisters();
+        break;
+      case 'sandbox':
+        showToast('sandbox', 'Sandbox Exec', (data.engine||'?') + ' · exit ' + data.exit_code + ' · ' + (data.elapsed_ms||0) + 'ms');
+        addEventLog('sandbox', 'Sandbox ' + (data.engine||'?') + ' exit=' + data.exit_code);
+        break;
+      case 'pipeline':
+        showToast('pipeline', 'Pipeline ' + (data.status||'?'), (data.template||'') + (data.steps!=null ? ' · ' + data.steps + ' steps' : '') + ' · ' + (data.elapsed_ms||0) + 'ms');
+        addEventLog('pipeline', 'Pipeline ' + (data.template||'') + ' → ' + (data.status||''));
+        break;
+      case 'governance':
+        showToast('governance', 'Governance ' + (data.action||'?'), (data.description||data.rule_id||''));
+        addEventLog('governance', 'Governance ' + (data.action||'') + ' rule=' + (data.rule_id||''));
+        break;
+      case 'healing':
+        showToast('healing', 'Healing: ' + (data.action_name||'?'), (data.result||'') + (data.triggered_by ? ' by ' + data.triggered_by : ''));
+        addEventLog('healing', 'Healing ' + (data.action_name||'') + ' → ' + (data.result||''));
         loadMinisters();
         break;
-      case 'evolution':
-        loadMeritBoard();
-        updateCharts();
+      case 'approval':
+        var approved = data.approved != null ? (data.approved ? 'Approved' : 'Denied') : 'Requested';
+        showToast('approval', 'Approval ' + approved, (data.action||'') + ' · risk=' + (data.risk_level||'?'));
+        addEventLog('approval', 'Approval ' + approved + ' ' + (data.action||''));
+        break;
+      case 'memory':
+        showToast('memory', 'Memory ' + (data.operation||'update'), (data.layer||'') + ' · ' + (data.detail||''));
+        addEventLog('memory', 'Memory ' + (data.operation||'') + ' @ ' + (data.layer||''));
         loadMinisters();
+        break;
+      case 'eval':
+        showToast('eval', 'Eval ' + (data.status||'completed'), (data.name||'') + ' · ' + (data.score!=null ? 'score=' + data.score : ''));
+        addEventLog('eval', 'Eval ' + (data.name||'') + ' → ' + (data.status||'completed'));
         break;
       case 'alert':
+        showToast('alert', '⚠ Alert: ' + (data.title||data.message||''), (data.message||data.detail||''));
+        addEventLog('alert', 'Alert: ' + (data.title||data.message||''));
         fetchAlertHistory();
+        break;
+      case 'task_completed':
+        fetchTaskHistory(); loadMinisters();
+        break;
+      case 'evolution':
+        loadMeritBoard(); updateCharts(); loadMinisters();
         break;
       case 'heartbeat':
       case 'connected':
-        // Keep-alive, no refresh needed
         break;
+      default:
+        // unknown event type — log only
+        addEventLog(type, JSON.stringify(data).substring(0, 100));
     }
   }
 
@@ -4264,5 +4403,15 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   refreshApproval();
   setInterval(refreshApproval, 15000);
 </script>
+<div id="toast-container"></div>
+<div id="event-log-panel" class="collapsed">
+  <div class="event-log-header" onclick="toggleEventLog()">
+    <span class="log-title">📡 实时事件</span>
+    <span class="log-count" id="event-log-count">0</span>
+  </div>
+  <div class="event-log-body" id="event-log-body">
+    <div class="event-log-empty">暂无事件</div>
+  </div>
+</div>
 </body>
 </html>"""
