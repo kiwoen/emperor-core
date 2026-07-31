@@ -134,6 +134,48 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   .card-value.danger { color: var(--danger); }
   .card-sub { font-size: 0.75rem; color: var(--text-dim); margin-top: 4px; }
 
+  /* ── Summary bar ── */
+  @keyframes alertPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+    50%      { box-shadow: 0 0 0 8px rgba(239,68,68,0); }
+  }
+  .summary-bar {
+    display: flex; gap: 12px; margin-bottom: var(--gap);
+    flex-wrap: wrap;
+  }
+  .summary-card {
+    flex: 1 1 0; min-width: 110px;
+    background: var(--card-bg); backdrop-filter: blur(16px);
+    border: 1px solid var(--card-border); border-radius: var(--radius);
+    padding: 16px 18px; text-align: center;
+    position: relative; overflow: hidden;
+    background-image: linear-gradient(135deg, rgba(108,140,255,0.04) 0%, transparent 100%);
+    transition: transform 0.2s, border-color 0.3s;
+  }
+  .summary-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255,255,255,0.14);
+  }
+  .summary-card.alert-pulse {
+    animation: alertPulse 2s infinite;
+    background-image: linear-gradient(135deg, rgba(239,68,68,0.08) 0%, transparent 100%);
+    border-color: rgba(239,68,68,0.35);
+  }
+  .summary-icon {
+    font-size: 1.1rem; margin-bottom: 4px;
+  }
+  .summary-value {
+    font-size: 1.65rem; font-weight: 700; line-height: 1.1;
+  }
+  .summary-value.accent { color: var(--accent); }
+  .summary-value.success { color: var(--success); }
+  .summary-value.warning { color: var(--warning); }
+  .summary-value.danger { color: var(--danger); }
+  .summary-label {
+    font-size: 0.68rem; color: var(--text-dim);
+    margin-top: 2px; letter-spacing: 0.3px;
+  }
+
   .table-wrap { background: var(--card-bg); border: 1px solid var(--card-border);
     border-radius: var(--radius); overflow-x: auto; backdrop-filter: blur(16px);
     margin-bottom: var(--gap);
@@ -708,8 +750,34 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   <div id="search-results" style="display:none;margin-top:12px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:10px;padding:16px;max-height:480px;overflow-y:auto;"></div>
 </div>
 
-<!-- Top stat cards -->
-<div class="panel-full grid grid-stats" id="statCards"></div>
+<!-- Status summary bar -->
+<div class="summary-bar" id="summaryBar">
+  <div class="summary-card" id="sc-ministers">
+    <div class="summary-icon">👥</div>
+    <div class="summary-value accent" id="sv-ministers">--</div>
+    <div class="summary-label">活跃 Minister</div>
+  </div>
+  <div class="summary-card" id="sc-success">
+    <div class="summary-icon">✅</div>
+    <div class="summary-value" id="sv-success">--</div>
+    <div class="summary-label">成功率（1h）</div>
+  </div>
+  <div class="summary-card" id="sc-alerts">
+    <div class="summary-icon">🚨</div>
+    <div class="summary-value" id="sv-alerts">--</div>
+    <div class="summary-label">活动告警</div>
+  </div>
+  <div class="summary-card" id="sc-healing">
+    <div class="summary-icon">💚</div>
+    <div class="summary-value" id="sv-healing">--</div>
+    <div class="summary-label">今日自愈</div>
+  </div>
+  <div class="summary-card" id="sc-pipelines">
+    <div class="summary-icon">📋</div>
+    <div class="summary-value" id="sv-pipelines">--</div>
+    <div class="summary-label">今日 Pipeline</div>
+  </div>
+</div>
 
 <!-- 系统健康面板 -->
 <div class="panel panel-full" id="panel-health">
@@ -1680,48 +1748,58 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     svg.innerHTML = html;
   }
 
-  // ── Stat cards ──
-  function renderStatCards(d) {
-    var c = d.court || {};
-    var t = d.tasks || {};
-    var m = d.metrics || {};
-    var rate = t.success_rate != null ? (t.success_rate * 100).toFixed(1) : '--';
-    var avgConf = m.avg_confidence != null ? m.avg_confidence.toFixed(3) : '--';
-    var avgExec = m.avg_execution_time_ms != null ? m.avg_execution_time_ms.toFixed(0) : '--';
-    var evoCount = m.total_evolution_cycles != null ? m.total_evolution_cycles : 0;
+  // ── Summary bar ──
+  function renderSummaryBar(data) {
+    setSummaryValue('sv-ministers', data.active_ministers, 'accent');
+    var rate = data.success_rate;
+    var rateClass = rate >= 95 ? 'success' : rate >= 80 ? 'warning' : 'danger';
+    setSummaryValue('sv-success', rate != null ? rate + '%' : '--', rateClass);
+    setSummaryValue('sv-alerts', data.active_alerts);
+    setSummaryValue('sv-healing', data.healings_today);
+    setSummaryValue('sv-pipelines', data.pipelines_today);
 
-    document.getElementById('statCards').innerHTML = [
-      '<div class="card">' +
-        '<div class="card-label">Active Ministers <span class="badge-mini">cycle #' + (c.cycle || 0) + '</span></div>' +
-        '<div class="card-value accent">' + (c.active_ministers || 0) + '</div>' +
-        '<div class="card-sub">top: ' + (c.top_minister || '--') + '</div>' +
-      '</div>',
-      '<div class="card">' +
-        '<div class="card-label">Tasks <span class="badge-mini">' + (m.samples_in_buffer || 0) + ' samples</span></div>' +
-        '<div class="card-value">' + (t.total || 0) + '</div>' +
-        '<div class="card-sub">' + (t.completed || 0) + ' done / ' + (t.failed || 0) + ' failed</div>' +
-      '</div>',
-      '<div class="card">' +
-        '<div class="card-label">Success Rate</div>' +
-        '<div class="card-value ' + (rate > 80 ? 'success' : rate > 50 ? 'warning' : 'danger') + '">' + rate + '%</div>' +
-        '<div class="meter"><div class="meter-fill" style="width:' + (rate === '--' ? 0 : rate) + '%"></div></div>' +
-      '</div>',
-      '<div class="card">' +
-        '<div class="card-label">Avg Confidence</div>' +
-        '<div class="card-value accent">' + avgConf + '</div>' +
-        '<div class="card-sub">higher = more reliable</div>' +
-      '</div>',
-      '<div class="card">' +
-        '<div class="card-label">Avg Exec Time</div>' +
-        '<div class="card-value">' + avgExec + ' <span style="font-size:0.9rem;color:var(--text-dim);">ms</span></div>' +
-        '<div class="card-sub">per task</div>' +
-      '</div>',
-      '<div class="card">' +
-        '<div class="card-label">Evolution Cycles</div>' +
-        '<div class="card-value accent">' + evoCount + '</div>' +
-        '<div class="card-sub">' + (m.total_evolutions || 0) + ' sessions</div>' +
-      '</div>',
-    ].join('');
+    // Alert pulse animation
+    var alertCard = document.getElementById('sc-alerts');
+    if (data.active_alerts > 0) {
+      alertCard.classList.add('alert-pulse');
+    } else {
+      alertCard.classList.remove('alert-pulse');
+    }
+
+    // Update header uptime
+    var hu = document.getElementById('health-uptime');
+    if (hu && data.uptime_seconds != null) {
+      var h = Math.floor(data.uptime_seconds / 3600);
+      var m = Math.floor((data.uptime_seconds % 3600) / 60);
+      hu.textContent = '运行 ' + h + 'h ' + m + 'm';
+    }
+  }
+
+  function setSummaryValue(id, val, cls) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = val != null ? val : '--';
+    if (cls) {
+      el.className = 'summary-value ' + cls;
+    } else {
+      el.className = 'summary-value';
+    }
+  }
+
+  function refreshSummary() {
+    fetch(API + '/api/dashboard/summary')
+      .then(function(r) { return r.json(); })
+      .then(function(d) { renderSummaryBar(d); })
+      .catch(function() {});
+  }
+
+  function _bumpSummaryCounter(elId) {
+    var el = document.getElementById(elId);
+    if (!el) return;
+    var v = parseInt(el.textContent, 10);
+    if (!isNaN(v)) {
+      el.textContent = v + 1;
+    }
   }
 
   // ── Minister leaderboard ──
@@ -1842,7 +1920,6 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
         // Store minister list for dropdown
         window._lastMinisters = d.ministers || [];
         if (d.metrics) { d.tasks.success_rate = d.metrics.success_rate; }
-        renderStatCards(d);
         renderMinisterTable(d);
         populateMinisterDropdown();
       })
@@ -2632,6 +2709,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
         showToast('dispatch', 'Dispatch ' + ok, minister + ' — ' + (data.intent || '') + ' (' + (data.elapsed_ms||0) + 'ms)');
         addEventLog('dispatch', 'Dispatch → ' + minister + ' ' + ok);
         fetchTaskHistory(); loadMinisters();
+        refreshSummary();
         break;
       case 'sandbox':
         showToast('sandbox', 'Sandbox Exec', (data.engine||'?') + ' · exit ' + data.exit_code + ' · ' + (data.elapsed_ms||0) + 'ms');
@@ -2641,6 +2719,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
         showToast('pipeline', 'Pipeline ' + (data.status||'?'), (data.template||'') + (data.steps!=null ? ' · ' + data.steps + ' steps' : '') + ' · ' + (data.elapsed_ms||0) + 'ms');
         addEventLog('pipeline', 'Pipeline ' + (data.template||'') + ' → ' + (data.status||''));
         refreshPipelineList();
+        _bumpSummaryCounter('sv-pipelines');
         break;
       case 'governance':
         showToast('governance', 'Governance ' + (data.action||'?'), (data.description||data.rule_id||''));
@@ -2651,6 +2730,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
         addEventLog('healing', 'Healing ' + (data.action_name||'') + ' → ' + (data.result||''));
         loadMinisters();
         refreshHealingTimeline();
+        _bumpSummaryCounter('sv-healing');
         break;
       case 'approval':
         var approved = data.approved != null ? (data.approved ? 'Approved' : 'Denied') : 'Requested';
@@ -2670,6 +2750,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
         showToast('alert', '⚠ Alert: ' + (data.title||data.message||''), (data.message||data.detail||''));
         addEventLog('alert', 'Alert: ' + (data.title||data.message||''));
         fetchAlertHistory();
+        refreshSummary();
         break;
       case 'task_completed':
         fetchTaskHistory(); loadMinisters();
@@ -3190,6 +3271,8 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   setInterval(fetchAlertHistory, 15000);
   refreshHealth();
   setInterval(refreshHealth, 10000);
+  refreshSummary();
+  setInterval(refreshSummary, 5000);
   refreshLive();
   setInterval(refreshLive, 300000);
   refreshCapabilityStats();

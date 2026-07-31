@@ -595,6 +595,68 @@ def create_app(
             "evolutions": evos,
         }
 
+    # ── Dashboard summary (aggregated stats bar) ──────────────────
+
+    @app.get("/api/dashboard/summary")
+    def dashboard_summary():
+        """聚合指标摘要：活跃 Minister / 成功率 / 活动告警 / 今日自愈 / 今日 Pipeline / 运行时长"""
+        import time as _time
+        from datetime import datetime as _datetime
+        from jarvis.health import get_uptime_seconds
+
+        now = _time.time()
+        today = _datetime.now().date()
+
+        # ─── active ministers ───
+        snap = court.inspect.snapshot()
+        active_ministers = snap.active_count
+
+        # ─── success rate (last hour) ───
+        db = app.extra.get("db")
+        success_rate = 0.0
+        if db is not None:
+            tasks = db.get_task_history(limit=10000)
+            recent = [t for t in tasks if (now - t.get("timestamp", 0)) < 3600]
+            total = len(recent)
+            if total > 0:
+                success_rate = round(sum(1 for t in recent if t.get("success")) / total * 100, 1)
+
+        # ─── active alerts (last hour) ───
+        mgr = app.extra.get("alert_manager")
+        active_alerts = 0
+        if mgr is not None:
+            active_alerts = sum(1 for a in mgr._fired_history if now - a.timestamp < 3600)
+
+        # ─── healings today ───
+        emperor = app.extra.get("emperor")
+        healings_today = 0
+        if emperor is not None:
+            healer = emperor.healing
+            records = healer.history(limit=500)
+            healings_today = sum(
+                1 for r in records
+                if _datetime.fromtimestamp(r.timestamp).date() == today
+            )
+
+        # ─── pipelines today ───
+        ps = app.extra.get("pipeline_store")
+        pipelines_today = 0
+        if ps is not None:
+            all_p = ps.get_recent(limit=200)
+            pipelines_today = sum(
+                1 for p in all_p
+                if _datetime.fromtimestamp(p["created_at"]).date() == today
+            )
+
+        return {
+            "active_ministers": active_ministers,
+            "success_rate": success_rate,
+            "active_alerts": active_alerts,
+            "healings_today": healings_today,
+            "pipelines_today": pipelines_today,
+            "uptime_seconds": round(get_uptime_seconds(), 0),
+        }
+
     # ── Dashboard control panel endpoints ──────────────────────────
 
     @app.post("/dashboard/evolve")
