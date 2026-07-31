@@ -35,6 +35,10 @@ from pydantic import BaseModel, Field
 from jarvis.court.config import SurvivalConfig
 from jarvis.court.court import Court
 
+# P0 module imports for API endpoints
+from jarvis.governance_agent import GovernanceAgent, GovernanceRule, RulePriority
+from jarvis.bounded_autonomy import ActionZone, ActionSpace, BoundedAutonomyEngine
+
 
 # ══════════════════════════════════════════════════════════════════
 # Request models (module-level for FastAPI type resolution)
@@ -137,6 +141,49 @@ class HealingToggleRequest(BaseModel):
     enabled: bool = True
 
 
+# ════════════════════════ Governance API Models ═══════════════════
+
+class GovernanceRuleRequest(BaseModel):
+    name: str = Field(..., description="Unique rule name")
+    rule_type: str = Field(..., description="policy | rbac | regulatory | business_logic")
+    description: str = ""
+    priority: str = Field(default="MEDIUM", description="CRITICAL | HIGH | MEDIUM | LOW")
+    check_logic: str = Field(..., description="Python lambda expression for the check function, e.g. 'lambda action, ctx: ...'")
+
+
+class GovernanceToggleRequest(BaseModel):
+    enabled: bool = True
+
+
+class GovernanceValidateRequest(BaseModel):
+    action: dict = Field(..., description="Action to validate, e.g. {'tool': 'read', 'prompt': 'list files'}")
+    context: dict = Field(default_factory=dict, description="Optional context, e.g. {'domain': 'general'}")
+
+
+# ════════════════════ Bounded Autonomy API Models ═════════════════
+
+class AutonomySpaceRequest(BaseModel):
+    name: str = Field(..., description="Unique space name")
+    zone: str = Field(..., description="GREEN | YELLOW | RED")
+    keywords: list[str] = Field(default_factory=list)
+    domains: list[str] = Field(default_factory=list)
+    capabilities: list[str] = Field(default_factory=list)
+    risk_levels: list[str] = Field(default_factory=list)
+    priority: int = Field(default=100, ge=0, le=1000)
+    description: str = ""
+
+
+class AutonomyClassifyRequest(BaseModel):
+    action: dict = Field(..., description="Action to classify, e.g. {'tool': 'read'}")
+    context: dict = Field(default_factory=dict)
+
+
+# ═══════════════════════ Failure Recovery API Models ══════════════
+
+class CircuitBreakerResetRequest(BaseModel):
+    pass  # no body needed for reset
+
+
 # ══════════════════════════════════════════════════════════════════
 # Module-level scheduler state (shared with Emperor.serve)
 # ══════════════════════════════════════════════════════════════════
@@ -173,6 +220,9 @@ def create_app(
     eval_runner: Optional[Any] = None,
     audit_logger: Optional[Any] = None,
     template_manager: Optional[Any] = None,
+    governance_agent: Optional[Any] = None,
+    bounded_autonomy_engine: Optional[Any] = None,
+    recovery_engine: Optional[Any] = None,
 ) -> FastAPI:
     """Create a FastAPI app wired to a Court instance.
 
@@ -182,6 +232,9 @@ def create_app(
         eval_runner: Optional EvalRunner instance for /api/dashboard/evals endpoints.
         audit_logger: Optional AuditLogger instance for /api/dashboard/audit endpoints.
         template_manager: Optional PromptTemplateManager for adaptive prompt templates.
+        governance_agent: Optional GovernanceAgent for /governance endpoints.
+        bounded_autonomy_engine: Optional BoundedAutonomyEngine for /autonomy endpoints.
+        recovery_engine: Optional RecoveryEngine for /recovery endpoints.
     """
     app = FastAPI(title="Emperor Court API", version="0.1.0")
     if court is None:
@@ -194,6 +247,11 @@ def create_app(
     app.extra["eval_runner"] = eval_runner
     app.extra["audit_logger"] = audit_logger
     app.extra["template_manager"] = template_manager
+
+    # Inject P0 governance modules
+    app.extra["governance_agent"] = governance_agent
+    app.extra["bounded_autonomy_engine"] = bounded_autonomy_engine
+    app.extra["recovery_engine"] = recovery_engine
 
     # ── Endpoints ──────────────────────────────────────────────────
 
@@ -1845,6 +1903,237 @@ def create_app(
                 for r in records
             ],
         }
+
+    # ══════════════════════════════════════════════════════════════
+    # P0 Governance Agent Endpoints
+    # ══════════════════════════════════════════════════════════════
+
+    @app.get("/governance/rules")
+    def governance_rules(rule_type: str = "", enabled_only: bool = False):
+        """列出所有治理规则，支持按类型和启用状态过滤"""
+        gov = app.extra.get("governance_agent")
+        if gov is None:
+            raise HTTPException(status_code=503, detail="GovernanceAgent not available")
+        rules = gov.list_rules(rule_type=rule_type or None, enabled_only=enabled_only)
+        return {
+            "rules": [r.to_dict() for r in rules],
+            "total": len(rules),
+        }
+
+    @app.post("/governance/rules")
+    def governance_register_rule(req: GovernanceRuleRequest):
+        """注册新治理规则"""
+        gov = app.extra.get("governance_agent")
+        if gov is None:
+            raise HTTPException(status_code=503, detail="GovernanceAgent not available")
+
+        if gov.get_rule(req.name) is not None:
+            raise HTTPException(status_code=409, detail=f"Rule '{req.name}' already exists")
+
+        # Dynamically compile the check logic
+        try:
+            check_fn = eval(req.check_logic, {"__builtins__": {}})
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid check logic: {e}")
+
+        rule = GovernanceRule(
+            name=req.name,
+            rule_type=req.rule_type,
+            description=req.description,
+            priority=RulePriority[req.priority],
+            check_fn=check_fn,
+        )
+
+        try:
+            gov.register_rule(rule)
+        except ValueError as e:
+            raise HTTPException(status_code=409, detail=str(e))
+
+        return {"name": rule.name, "rule_type": rule.rule_type, "priority": rule.priority.value}
+
+    @app.delete("/governance/rules/{rule_id}")
+    def governance_delete_rule(rule_id: str):
+        """删除治理规则"""
+        gov = app.extra.get("governance_agent")
+        if gov is None:
+            raise HTTPException(status_code=503, detail="GovernanceAgent not available")
+        if gov.get_rule(rule_id) is None:
+            raise HTTPException(status_code=404, detail=f"Rule '{rule_id}' not found")
+        gov.deregister_rule(rule_id)
+        return {"ok": True, "rule_id": rule_id}
+
+    @app.put("/governance/rules/{rule_id}/toggle")
+    def governance_toggle_rule(rule_id: str, req: GovernanceToggleRequest):
+        """启用/禁用治理规则"""
+        gov = app.extra.get("governance_agent")
+        if gov is None:
+            raise HTTPException(status_code=503, detail="GovernanceAgent not available")
+        if gov.get_rule(rule_id) is None:
+            raise HTTPException(status_code=404, detail=f"Rule '{rule_id}' not found")
+        if req.enabled:
+            gov.enable_rule(rule_id)
+        else:
+            gov.disable_rule(rule_id)
+        return {"rule_id": rule_id, "enabled": req.enabled}
+
+    @app.post("/governance/validate")
+    def governance_validate(req: GovernanceValidateRequest):
+        """校验一个 action，返回 GovernanceResult"""
+        gov = app.extra.get("governance_agent")
+        if gov is None:
+            raise HTTPException(status_code=503, detail="GovernanceAgent not available")
+        result = gov.validate(action=req.action, context=req.context)
+        return result.to_dict()
+
+    @app.get("/governance/stats")
+    def governance_stats():
+        """治理统计（通过/阻止/待审批数量）"""
+        gov = app.extra.get("governance_agent")
+        if gov is None:
+            raise HTTPException(status_code=503, detail="GovernanceAgent not available")
+        rules = gov.list_rules()
+        enabled = sum(1 for r in rules if r.enabled)
+        return {
+            "total_rules": len(rules),
+            "enabled_rules": enabled,
+            "disabled_rules": len(rules) - enabled,
+            "by_type": {
+                "policy": sum(1 for r in rules if r.rule_type == "policy"),
+                "rbac": sum(1 for r in rules if r.rule_type == "rbac"),
+                "regulatory": sum(1 for r in rules if r.rule_type == "regulatory"),
+                "business_logic": sum(1 for r in rules if r.rule_type == "business_logic"),
+            },
+        }
+
+    # ══════════════════════════════════════════════════════════════
+    # P0 Bounded Autonomy Endpoints
+    # ══════════════════════════════════════════════════════════════
+
+    @app.get("/autonomy/spaces")
+    def autonomy_spaces(zone: str = ""):
+        """列出所有动作空间定义，按 zone 过滤"""
+        engine = app.extra.get("bounded_autonomy_engine")
+        if engine is None:
+            raise HTTPException(status_code=503, detail="BoundedAutonomyEngine not available")
+
+        if zone:
+            try:
+                zone_enum = ActionZone[zone.upper()]
+            except KeyError:
+                raise HTTPException(status_code=400, detail=f"Invalid zone: {zone}")
+            spaces = engine.list_spaces(zone_enum)
+        else:
+            spaces = engine.list_spaces()
+
+        return {
+            "spaces": [s.to_dict() for s in spaces],
+            "total": len(spaces),
+        }
+
+    @app.post("/autonomy/spaces")
+    def autonomy_register_space(req: AutonomySpaceRequest):
+        """注册新动作空间"""
+        engine = app.extra.get("bounded_autonomy_engine")
+        if engine is None:
+            raise HTTPException(status_code=503, detail="BoundedAutonomyEngine not available")
+
+        try:
+            zone_enum = ActionZone[req.zone.upper()]
+        except KeyError:
+            raise HTTPException(status_code=400, detail=f"Invalid zone: {req.zone}")
+
+        space = ActionSpace(
+            name=req.name,
+            zone=zone_enum,
+            keywords=set(req.keywords),
+            domains=set(req.domains),
+            capabilities=set(req.capabilities),
+            risk_levels=set(req.risk_levels),
+            priority=req.priority,
+            description=req.description,
+        )
+        engine.register_space(space)
+        return {"name": space.name, "zone": space.zone.value, "priority": space.priority}
+
+    @app.delete("/autonomy/spaces/{space_id}")
+    def autonomy_delete_space(space_id: str):
+        """删除动作空间（按名称）"""
+        engine = app.extra.get("bounded_autonomy_engine")
+        if engine is None:
+            raise HTTPException(status_code=503, detail="BoundedAutonomyEngine not available")
+        removed = engine.deregister_space(space_id)
+        if not removed:
+            raise HTTPException(status_code=404, detail=f"Space '{space_id}' not found")
+        return {"ok": True, "space_id": space_id}
+
+    @app.post("/autonomy/classify")
+    def autonomy_classify(req: AutonomyClassifyRequest):
+        """对 action 进行分类，返回 ActionZone"""
+        engine = app.extra.get("bounded_autonomy_engine")
+        if engine is None:
+            raise HTTPException(status_code=503, detail="BoundedAutonomyEngine not available")
+        zone = engine.classify(action=req.action, context=req.context)
+        result = engine.evaluate(action=req.action, context=req.context)
+        return {
+            "zone": zone.value,
+            "can_proceed": result.can_proceed,
+            "needs_approval": result.needs_approval,
+            "reason": result.reason,
+        }
+
+    @app.get("/autonomy/stats")
+    def autonomy_stats():
+        """三区统计"""
+        engine = app.extra.get("bounded_autonomy_engine")
+        if engine is None:
+            raise HTTPException(status_code=503, detail="BoundedAutonomyEngine not available")
+        return {
+            "green_spaces": len(engine.list_spaces(ActionZone.GREEN)),
+            "yellow_spaces": len(engine.list_spaces(ActionZone.YELLOW)),
+            "red_spaces": len(engine.list_spaces(ActionZone.RED)),
+            "total_spaces": len(engine.list_spaces()),
+        }
+
+    # ══════════════════════════════════════════════════════════════
+    # P0 Failure Recovery Endpoints
+    # ══════════════════════════════════════════════════════════════
+
+    @app.get("/recovery/circuit-breakers")
+    def recovery_circuit_breakers():
+        """所有熔断器状态"""
+        engine = app.extra.get("recovery_engine")
+        if engine is None:
+            raise HTTPException(status_code=503, detail="RecoveryEngine not available")
+
+        cb_stats = engine.circuit_breaker.get_stats()
+        return {
+            "circuit_breakers": [cb_stats],
+            "total": 1,
+        }
+
+    @app.post("/recovery/circuit-breakers/{name}/reset")
+    def recovery_circuit_breaker_reset(name: str):
+        """手动重置熔断器"""
+        engine = app.extra.get("recovery_engine")
+        if engine is None:
+            raise HTTPException(status_code=503, detail="RecoveryEngine not available")
+        if name != engine.circuit_breaker.name:
+            raise HTTPException(status_code=404, detail=f"Circuit breaker '{name}' not found")
+        engine.circuit_breaker.reset()
+        return {
+            "ok": True,
+            "name": name,
+            "state": engine.circuit_breaker.state.value,
+        }
+
+    @app.get("/recovery/stats")
+    def recovery_stats():
+        """恢复统计（成功/重试/降级/失败）"""
+        engine = app.extra.get("recovery_engine")
+        if engine is None:
+            raise HTTPException(status_code=503, detail="RecoveryEngine not available")
+        stats = engine.get_stats()
+        return stats
 
     return app
 

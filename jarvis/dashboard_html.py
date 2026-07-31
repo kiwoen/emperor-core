@@ -1228,6 +1228,72 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   </div><!-- .panel-body -->
 </div>
 
+<!-- Governance & Autonomy Panel -->
+<div class="panel" id="panel-governance">
+  <div class="panel-header">
+    <h2>治理与自主权 <span class="count" id="govRuleCount">0</span></h2>
+    <button class="panel-collapse-btn" onclick="togglePanel('panel-governance')">&#9660;</button>
+  </div>
+  <div class="panel-body">
+    <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:70px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">
+        <div style="font-size:18px;font-weight:700;color:var(--success);" id="gov-green">0</div>
+        <div style="font-size:10px;color:var(--text-secondary);">GREEN</div>
+      </div>
+      <div style="flex:1;min-width:70px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">
+        <div style="font-size:18px;font-weight:700;color:var(--warning);" id="gov-yellow">0</div>
+        <div style="font-size:10px;color:var(--text-secondary);">YELLOW</div>
+      </div>
+      <div style="flex:1;min-width:70px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">
+        <div style="font-size:18px;font-weight:700;color:var(--danger);" id="gov-red">0</div>
+        <div style="font-size:10px;color:var(--text-secondary);">RED</div>
+      </div>
+      <div style="flex:1;min-width:70px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">
+        <div style="font-size:18px;font-weight:700;color:var(--accent);" id="gov-rules-total">0</div>
+        <div style="font-size:10px;color:var(--text-secondary);">规则</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px;">治理规则</div>
+    <div id="gov-rules-list" style="max-height:180px;overflow-y:auto;font-size:12px;">
+      <div class="empty">No governance rules</div>
+    </div>
+  </div>
+</div>
+
+<!-- Failure Recovery Panel -->
+<div class="panel" id="panel-recovery">
+  <div class="panel-header">
+    <h2>故障恢复</h2>
+    <button class="panel-collapse-btn" onclick="togglePanel('panel-recovery')">&#9660;</button>
+  </div>
+  <div class="panel-body">
+    <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:60px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">
+        <div style="font-size:18px;font-weight:700;color:var(--success);" id="rec-success">0</div>
+        <div style="font-size:10px;color:var(--text-secondary);">成功</div>
+      </div>
+      <div style="flex:1;min-width:60px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">
+        <div style="font-size:18px;font-weight:700;color:var(--warning);" id="rec-retry">0</div>
+        <div style="font-size:10px;color:var(--text-secondary);">重试成功</div>
+      </div>
+      <div style="flex:1;min-width:60px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">
+        <div style="font-size:18px;font-weight:700;color:var(--accent);" id="rec-degraded">0</div>
+        <div style="font-size:10px;color:var(--text-secondary);">降级</div>
+      </div>
+      <div style="flex:1;min-width:60px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">
+        <div style="font-size:18px;font-weight:700;color:var(--danger);" id="rec-failed">0</div>
+        <div style="font-size:10px;color:var(--text-secondary);">失败</div>
+      </div>
+    </div>
+    <div style="margin-bottom:8px;">
+      <span style="font-size:11px;color:var(--text-secondary);">熔断器: </span>
+      <span id="cb-state" style="font-size:12px;font-weight:600;padding:2px 8px;border-radius:4px;">--</span>
+      <button onclick="resetCircuitBreaker()" id="cb-reset-btn" class="btn btn-sm" style="margin-left:8px;background:var(--accent);color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:11px;">重置</button>
+    </div>
+    <div id="cb-stats" style="font-size:11px;color:var(--text-secondary);"></div>
+  </div>
+</div>
+
 </div><!-- .dashboard-grid -->
 
 <div class="footer">
@@ -3371,6 +3437,96 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   refreshModelCosts();
   setInterval(refreshAudit, 60000);
   setInterval(refreshModelCosts, 60000);
+
+  // ═══ Governance & Autonomy Panel ═══════════════════════════════
+
+  async function refreshGovernance() {
+    try {
+      var [govRes, autoRes] = await Promise.all([
+        fetch(API + '/governance/stats'),
+        fetch(API + '/autonomy/stats'),
+      ]);
+      var govData = await govRes.json();
+      var autoData = await autoRes.json();
+
+      document.getElementById('gov-green').textContent = autoData.green_spaces || 0;
+      document.getElementById('gov-yellow').textContent = autoData.yellow_spaces || 0;
+      document.getElementById('gov-red').textContent = autoData.red_spaces || 0;
+      document.getElementById('gov-rules-total').textContent = govData.total_rules || 0;
+      document.getElementById('govRuleCount').textContent = (govData.enabled_rules || 0) + '/' + (govData.total_rules || 0);
+
+      // Render rules list
+      var rulesRes = await fetch(API + '/governance/rules');
+      var rulesData = await rulesRes.json();
+      var rules = rulesData.rules || [];
+      var list = document.getElementById('gov-rules-list');
+      if (!rules.length) {
+        list.innerHTML = '<div class="empty">No governance rules</div>';
+        return;
+      }
+      list.innerHTML = rules.map(function(r) {
+        var color = '#8892b0';
+        if (r.priority === 'CRITICAL') color = 'var(--danger)';
+        else if (r.priority === 'HIGH') color = 'var(--warning)';
+        else if (r.priority === 'MEDIUM') color = 'var(--accent)';
+        return '<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid var(--card-border);gap:8px;">' +
+          '<span style="font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">' + r.name + '</span>' +
+          '<span style="font-size:10px;color:' + color + ';">' + r.priority + '</span>' +
+          '<span style="font-size:10px;color:var(--text-muted);">' + r.rule_type + '</span>' +
+          '<span style="font-size:10px;' + (r.enabled ? 'color:var(--success)' : 'color:var(--text-muted)') + ';">' + (r.enabled ? 'ON' : 'OFF') + '</span>' +
+          '</div>';
+      }).join('');
+    } catch(e) {
+      console.error('Governance refresh failed:', e);
+    }
+  }
+
+  // ═══ Failure Recovery Panel ════════════════════════════════════
+
+  async function refreshRecovery() {
+    try {
+      var [cbRes, statsRes] = await Promise.all([
+        fetch(API + '/recovery/circuit-breakers'),
+        fetch(API + '/recovery/stats'),
+      ]);
+      var cbData = await cbRes.json();
+      var stats = await statsRes.json();
+
+      document.getElementById('rec-success').textContent = stats.success || 0;
+      document.getElementById('rec-retry').textContent = stats.retry_success || 0;
+      document.getElementById('rec-degraded').textContent = stats.degraded || 0;
+      document.getElementById('rec-failed').textContent = stats.failed || 0;
+
+      var cbs = cbData.circuit_breakers || [];
+      if (cbs.length > 0) {
+        var cb = cbs[0];
+        var stateEl = document.getElementById('cb-state');
+        stateEl.textContent = cb.state || 'UNKNOWN';
+        if (cb.state === 'CLOSED') stateEl.style.background = 'rgba(0,200,83,0.15)';
+        else if (cb.state === 'OPEN') stateEl.style.background = 'rgba(255,23,68,0.15)';
+        else stateEl.style.background = 'rgba(255,171,0,0.15)';
+        document.getElementById('cb-stats').textContent =
+          '失败数: ' + (cb.failure_count || 0) + ' | 成功数: ' + (cb.success_count || 0);
+        document.getElementById('cb-reset-btn').style.display = (cb.state === 'OPEN') ? '' : 'none';
+      }
+    } catch(e) {
+      console.error('Recovery refresh failed:', e);
+    }
+  }
+
+  async function resetCircuitBreaker() {
+    try {
+      await fetch(API + '/recovery/circuit-breakers/default/reset', {method: 'POST'});
+      refreshRecovery();
+    } catch(e) {
+      alert('Reset circuit breaker failed: ' + e.message);
+    }
+  }
+
+  refreshGovernance();
+  refreshRecovery();
+  setInterval(refreshGovernance, 15000);
+  setInterval(refreshRecovery, 15000);
 
   // ═══ Plugin Marketplace ═══════════════════════════════════════
 
