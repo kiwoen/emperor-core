@@ -1458,6 +1458,55 @@ def create_app(
         from jarvis.pipeline_monitor import pipeline_monitor
         return pipeline_monitor.get_live()
 
+    # ── Pipeline store query endpoints (Dashboard Pipeline panel) ──
+
+    @app.get("/api/pipelines")
+    def list_pipelines(limit: int = 10, status: str | None = None):
+        """返回最近 N 条 pipeline 执行记录（最新在前）。
+
+        Query params:
+            limit: 最大返回条数，默认 10，上限 100
+            status: 可选过滤（running / completed / failed）
+        """
+        from jarvis.pipeline_store import pipeline_store
+
+        records = pipeline_store.get_recent(limit=limit, status=status)
+        return {
+            "total": pipeline_store.count,
+            "limit": limit,
+            "records": [
+                {
+                    "template": r["template"],
+                    "pipeline_id": r["pipeline_id"],
+                    "status": r["status"],
+                    "steps": r["steps"],
+                    "total_steps": r["total_steps"],
+                    "elapsed_ms": r["elapsed_ms"],
+                    "created_at": r["created_at"],
+                }
+                for r in records
+            ],
+        }
+
+    @app.get("/api/pipelines/{pipeline_id}")
+    def get_pipeline(pipeline_id: str):
+        """返回单条 pipeline 详情（含步骤列表）。"""
+        from jarvis.pipeline_store import pipeline_store
+
+        record = pipeline_store.get_by_id(pipeline_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail=f"Pipeline '{pipeline_id}' not found")
+        return {
+            "template": record["template"],
+            "pipeline_id": record["pipeline_id"],
+            "status": record["status"],
+            "steps": record["steps"],
+            "total_steps": record["total_steps"],
+            "elapsed_ms": record["elapsed_ms"],
+            "created_at": record["created_at"],
+            "step_details": record.get("step_details", []),
+        }
+
     # ── Background heartbeat thread ───────────────────────────────
 
     import threading

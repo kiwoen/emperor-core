@@ -30,7 +30,9 @@ def publish_dispatch(minister: str, edict_id: str, intent: str,
 
 
 def publish_pipeline(template: str, pipeline_id: str, status: str,
-                     steps: int | None = None, elapsed_ms: float = 0.0) -> None:
+                     steps: int | None = None, elapsed_ms: float = 0.0,
+                     total_steps: int | None = None,
+                     step_details: list[dict] | None = None) -> None:
     """Published when a pipeline execution starts or completes."""
     event_bus.publish(Event("pipeline", {
         "template": template,
@@ -39,6 +41,28 @@ def publish_pipeline(template: str, pipeline_id: str, status: str,
         "steps": steps,
         "elapsed_ms": round(elapsed_ms, 1),
     }))
+    # Also persist to the in-memory pipeline store for Dashboard queries
+    from jarvis.pipeline_store import pipeline_store  # noqa: E402
+
+    existing = pipeline_store.get_by_id(pipeline_id)
+    if existing:
+        pipeline_store.update(
+            pipeline_id=pipeline_id,
+            status=status,
+            steps=steps,
+            elapsed_ms=elapsed_ms,
+            step_details=step_details,
+        )
+    else:
+        pipeline_store.add(
+            template=template,
+            pipeline_id=pipeline_id,
+            status=status,
+            steps=steps,
+            total_steps=total_steps,
+            elapsed_ms=elapsed_ms,
+            step_details=step_details,
+        )
 
 
 def publish_sandbox(code_snippet: str, exit_code: int, engine: str,

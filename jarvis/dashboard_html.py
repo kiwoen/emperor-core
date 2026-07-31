@@ -930,6 +930,23 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   </div>
 </div>
 
+<!-- Pipeline Execution Visualization Panel -->
+<div class="panel-full" id="panel-pipeline">
+  <div class="panel-header">
+    <h2>Pipeline <span id="pipeline-badge" style="font-size:11px;padding:2px 8px;border-radius:10px;background:var(--bg-secondary);color:var(--text-muted);">0</span></h2>
+    <button class="panel-collapse-btn" onclick="togglePanel('panel-pipeline')">▼</button>
+    <span class="panel-actions">
+      <button onclick="refreshPipelineList()" style="background:transparent;color:var(--text-secondary);border:1px solid var(--card-border);border-radius:4px;padding:2px 10px;cursor:pointer;font-size:0.7rem;">Refresh</button>
+    </span>
+  </div>
+  <div class="panel-body">
+    <div id="pipeline-list" style="font-size:0.75rem;">
+      <div style="color:var(--text-muted);text-align:center;padding:16px;">尚无 Pipeline 执行记录</div>
+    </div>
+    <div id="pipeline-detail" style="display:none;margin-top:12px;padding:10px;background:rgba(255,255,255,0.03);border-radius:6px;border:1px solid var(--card-border);"></div>
+  </div>
+</div>
+
 <!-- Plugin Marketplace Panel -->
 <div class="panel-full" id="panel-plugins">
   <div class="panel-header">
@@ -2560,6 +2577,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       case 'pipeline':
         showToast('pipeline', 'Pipeline ' + (data.status||'?'), (data.template||'') + (data.steps!=null ? ' · ' + data.steps + ' steps' : '') + ' · ' + (data.elapsed_ms||0) + 'ms');
         addEventLog('pipeline', 'Pipeline ' + (data.template||'') + ' → ' + (data.status||''));
+        refreshPipelineList();
         break;
       case 'governance':
         showToast('governance', 'Governance ' + (data.action||'?'), (data.description||data.rule_id||''));
@@ -4191,6 +4209,140 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       }
     }
   });
+
+  // ═══ Pipeline Visualization ═══════════════════════════════════
+
+  var _pipelineSelectedId = null;
+
+  function statusBadge(status) {
+    var color = status === 'completed' ? 'var(--success)' :
+                status === 'running' ? 'var(--accent)' :
+                status === 'failed' ? 'var(--danger)' : 'var(--text-muted)';
+    return '<span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:0.65rem;background:' + color + ';color:#fff;">' + status + '</span>';
+  }
+
+  function statusIcon(status) {
+    if (status === 'success' || status === 'completed') return '<span style="color:var(--success);">&#10003;</span>';
+    if (status === 'failed') return '<span style="color:var(--danger);">&#10007;</span>';
+    if (status === 'running') return '<span style="color:var(--accent);">&#8987;</span>';
+    return '<span style="color:var(--text-muted);">&#9679;</span>';
+  }
+
+  function formatMs(ms) {
+    if (ms == null || ms === 0) return '--';
+    if (ms < 1000) return ms.toFixed(0) + 'ms';
+    if (ms < 60000) return (ms / 1000).toFixed(1) + 's';
+    var m = Math.floor(ms / 60000);
+    var s = Math.round((ms % 60000) / 1000);
+    return m + 'm ' + s + 's';
+  }
+
+  async function refreshPipelineList() {
+    try {
+      var resp = await fetch(API + '/api/pipelines?limit=10');
+      if (!resp.ok) return;
+      var data = await resp.json();
+      var records = data.records || [];
+      var container = document.getElementById('pipeline-list');
+      var badge = document.getElementById('pipeline-badge');
+      badge.textContent = data.total || 0;
+
+      if (records.length === 0) {
+        container.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:16px;">尚无 Pipeline 执行记录</div>';
+        return;
+      }
+
+      var html = '<table style="width:100%;font-size:0.75rem;border-collapse:collapse;">';
+      html += '<thead><tr style="color:var(--text-secondary);border-bottom:1px solid var(--card-border);">';
+      html += '<th style="padding:4px 6px;text-align:left;">Template</th>';
+      html += '<th style="padding:4px 6px;text-align:center;">Status</th>';
+      html += '<th style="padding:4px 6px;text-align:center;">Progress</th>';
+      html += '<th style="padding:4px 6px;text-align:right;">Duration</th>';
+      html += '</tr></thead><tbody>';
+
+      for (var i = 0; i < records.length; i++) {
+        var r = records[i];
+        var stepsDone = r.steps != null ? r.steps : 0;
+        var stepsTotal = r.total_steps != null ? r.total_steps : '?';
+        var selected = _pipelineSelectedId === r.pipeline_id ? 'background:rgba(108,140,255,0.1);' : '';
+        html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer;' + selected + '" onclick="showPipelineDetail(\'' + r.pipeline_id + '\')">';
+        html += '<td style="padding:4px 6px;">' + _esc(r.template || 'N/A') + '</td>';
+        html += '<td style="padding:4px 6px;text-align:center;">' + statusBadge(r.status) + '</td>';
+        html += '<td style="padding:4px 6px;text-align:center;color:var(--text-dim);">' + stepsDone + '/' + stepsTotal + ' steps</td>';
+        html += '<td style="padding:4px 6px;text-align:right;color:var(--text-dim);">' + formatMs(r.elapsed_ms) + '</td>';
+        html += '</tr>';
+      }
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    } catch(e) {
+      // Silently fail on refresh
+    }
+  }
+
+  async function showPipelineDetail(pipelineId) {
+    var detailDiv = document.getElementById('pipeline-detail');
+    if (_pipelineSelectedId === pipelineId) {
+      // Toggle off
+      _pipelineSelectedId = null;
+      detailDiv.style.display = 'none';
+      refreshPipelineList();
+      return;
+    }
+    _pipelineSelectedId = pipelineId;
+
+    try {
+      var resp = await fetch(API + '/api/pipelines/' + pipelineId);
+      if (!resp.ok) {
+        detailDiv.style.display = 'none';
+        _pipelineSelectedId = null;
+        return;
+      }
+      var detail = await resp.json();
+      var steps = detail.step_details || [];
+
+      var html = '<div style="font-size:0.7rem;color:var(--text-secondary);margin-bottom:8px;">';
+      html += '<b>' + _esc(detail.template || 'N/A') + '</b>';
+      html += ' &middot; ' + statusBadge(detail.status);
+      html += ' &middot; ' + (detail.steps || 0) + '/' + (detail.total_steps || '?') + ' steps';
+      html += ' &middot; ' + formatMs(detail.elapsed_ms);
+      html += ' <span style="float:right;cursor:pointer;color:var(--text-dim);" onclick="showPipelineDetail(\'' + pipelineId + '\')">&#10005;</span>';
+      html += '</div>';
+
+      if (steps.length === 0) {
+        html += '<div style="color:var(--text-muted);font-size:0.7rem;">No step details available</div>';
+      } else {
+        html += '<table style="width:100%;font-size:0.7rem;border-collapse:collapse;">';
+        html += '<thead><tr style="color:var(--text-secondary);border-bottom:1px solid var(--card-border);">';
+        html += '<th style="padding:3px 6px;text-align:left;">Step</th>';
+        html += '<th style="padding:3px 6px;text-align:center;">Status</th>';
+        html += '<th style="padding:3px 6px;text-align:right;">Duration</th>';
+        html += '</tr></thead><tbody>';
+        for (var i = 0; i < steps.length; i++) {
+          var s = steps[i];
+          var stepStatus = s.status || 'pending';
+          html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.03);">';
+          html += '<td style="padding:3px 6px;">' + statusIcon(stepStatus) + ' ' + _esc(s.step_name || 'Step ' + (i+1)) + '</td>';
+          html += '<td style="padding:3px 6px;text-align:center;font-size:0.65rem;">' + stepStatus + '</td>';
+          html += '<td style="padding:3px 6px;text-align:right;color:var(--text-dim);">' + (s.elapsed_ms != null ? formatMs(s.elapsed_ms) : '--') + '</td>';
+          html += '</tr>';
+          if (s.error) {
+            html += '<tr><td colspan="3" style="padding:2px 6px;color:var(--danger);font-size:0.65rem;">&nbsp;&nbsp;&nbsp;Error: ' + _esc(String(s.error)) + '</td></tr>';
+          }
+        }
+        html += '</tbody></table>';
+      }
+      detailDiv.innerHTML = html;
+      detailDiv.style.display = 'block';
+      refreshPipelineList();
+    } catch(e) {
+      detailDiv.style.display = 'none';
+      _pipelineSelectedId = null;
+    }
+  }
+
+  // Auto-refresh pipeline list (polling + SSE triggers instant refresh)
+  refreshPipelineList();
+  setInterval(refreshPipelineList, 5000);
 
   // ═══ Plugin Marketplace ═══════════════════════════════════════
 
