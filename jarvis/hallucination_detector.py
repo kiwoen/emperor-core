@@ -814,3 +814,16 @@ class HallucinationDetector:
             )
         except Exception as e:
             logger.debug("Governance notification failed: %s", e)
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Return hallucination detector statistics and configuration."""
+        return {
+            "enabled": self.enabled,
+            "risk_thresholds": self.risk_thresholds,
+            "governance_agent_configured": self.governance_agent is not None,
+            "detector_type": "SelfCheckGPT-inspired + FacTool-inspired",
+        }
+
+    def reset_stats(self):
+        """Reset statistics (no-op for stateless detector, kept for API consistency)."""
+        pass

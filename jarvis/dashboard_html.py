@@ -1294,6 +1294,70 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   </div>
 </div>
 
+<!-- Tool Guard Panel -->
+<div class="panel" id="panel-toolguard">
+  <div class="panel-header">
+    <h2>Tool Guard</h2>
+    <button class="panel-collapse-btn" onclick="togglePanel('panel-toolguard')">&#9660;</button>
+  </div>
+  <div class="panel-body">
+    <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:60px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">
+        <div style="font-size:18px;font-weight:700;color:var(--success);" id="tg-passed">0</div>
+        <div style="font-size:10px;color:var(--text-secondary);">Passed</div>
+      </div>
+      <div style="flex:1;min-width:60px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">
+        <div style="font-size:18px;font-weight:700;color:var(--danger);" id="tg-blocked">0</div>
+        <div style="font-size:10px;color:var(--text-secondary);">Blocked</div>
+      </div>
+      <div style="flex:1;min-width:60px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">
+        <div style="font-size:18px;font-weight:700;color:var(--warning);" id="tg-pii">0</div>
+        <div style="font-size:10px;color:var(--text-secondary);">PII Hits</div>
+      </div>
+      <div style="flex:1;min-width:60px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">
+        <div style="font-size:18px;font-weight:700;color:var(--accent);" id="tg-rate-limited">0</div>
+        <div style="font-size:10px;color:var(--text-secondary);">Rate Limited</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text-secondary);margin-bottom:4px;">Recent Intercepts</div>
+    <div id="tg-intercepts" style="max-height:140px;overflow-y:auto;font-size:11px;">
+      <div class="empty">No intercepts</div>
+    </div>
+  </div>
+</div>
+
+<!-- Hallucination Watch Panel -->
+<div class="panel" id="panel-hallucination">
+  <div class="panel-header">
+    <h2>Hallucination Watch</h2>
+    <button class="panel-collapse-btn" onclick="togglePanel('panel-hallucination')">&#9660;</button>
+  </div>
+  <div class="panel-body">
+    <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:60px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">
+        <div style="font-size:14px;font-weight:700;color:var(--accent);" id="hall-threshold-critical">0.90</div>
+        <div style="font-size:10px;color:var(--text-secondary);">CRITICAL</div>
+      </div>
+      <div style="flex:1;min-width:60px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">
+        <div style="font-size:14px;font-weight:700;color:var(--danger);" id="hall-threshold-high">0.75</div>
+        <div style="font-size:10px;color:var(--text-secondary);">HIGH</div>
+      </div>
+      <div style="flex:1;min-width:60px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">
+        <div style="font-size:14px;font-weight:700;color:var(--warning);" id="hall-threshold-med">0.50</div>
+        <div style="font-size:10px;color:var(--text-secondary);">MEDIUM</div>
+      </div>
+      <div style="flex:1;min-width:60px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">
+        <div style="font-size:14px;font-weight:700;color:var(--text-secondary);" id="hall-status">--</div>
+        <div style="font-size:10px;color:var(--text-secondary);">Status</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text-secondary);margin-bottom:4px;">High-Risk Detections</div>
+    <div id="hall-recent" style="max-height:140px;overflow-y:auto;font-size:11px;">
+      <div class="empty">No detections yet</div>
+    </div>
+  </div>
+</div>
+
 </div><!-- .dashboard-grid -->
 
 <div class="footer">
@@ -3525,8 +3589,82 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 
   refreshGovernance();
   refreshRecovery();
+  refreshToolGuard();
+  refreshHallucination();
   setInterval(refreshGovernance, 15000);
   setInterval(refreshRecovery, 15000);
+  setInterval(refreshToolGuard, 20000);
+  setInterval(refreshHallucination, 30000);
+
+  // ═══ Tool Guard Panel ═════════════════════════════════════════
+
+  async function refreshToolGuard() {
+    try {
+      var res = await fetch(API + '/tools/guard/stats');
+      var data = await res.json();
+      document.getElementById('tg-passed').textContent = data.passed || 0;
+      document.getElementById('tg-blocked').textContent = data.blocked || 0;
+      document.getElementById('tg-pii').textContent = data.pii_events || 0;
+      document.getElementById('tg-rate-limited').textContent = data.rate_limited || 0;
+
+      var intercepts = data.recent_intercepts || [];
+      var container = document.getElementById('tg-intercepts');
+      if (intercepts.length === 0) {
+        container.innerHTML = '<div class="empty">No intercepts</div>';
+        return;
+      }
+      container.innerHTML = intercepts.map(function(evt) {
+        var sevColor = evt.severity === 'CRITICAL' ? 'var(--danger)' :
+                       evt.severity === 'HIGH' ? '#ff9800' :
+                       evt.severity === 'MEDIUM' ? 'var(--warning)' : 'var(--text-muted)';
+        var timeStr = evt.timestamp ? new Date(evt.timestamp * 1000).toLocaleTimeString() : '--';
+        return '<div style="padding:3px 0;border-bottom:1px solid var(--border-color);display:flex;gap:8px;align-items:center;">'
+          + '<span style="color:' + sevColor + ';font-weight:600;min-width:40px;">' + (evt.severity || '--') + '</span>'
+          + '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (evt.tool_name || '--') + '</span>'
+          + '<span style="color:var(--text-muted);">' + timeStr + '</span>'
+          + '</div>';
+      }).join('');
+    } catch(e) {
+      console.error('ToolGuard refresh failed:', e);
+    }
+  }
+
+  // ═══ Hallucination Watch Panel ═════════════════════════════════
+
+  async function refreshHallucination() {
+    try {
+      var res = await fetch(API + '/hallucination/stats');
+      var data = await res.json();
+      var thresholds = data.risk_thresholds || {};
+      document.getElementById('hall-threshold-critical').textContent =
+        thresholds.CRITICAL != null ? thresholds.CRITICAL.toFixed(2) : '0.90';
+      document.getElementById('hall-threshold-high').textContent =
+        thresholds.HIGH != null ? thresholds.HIGH.toFixed(2) : '0.75';
+      document.getElementById('hall-threshold-med').textContent =
+        thresholds.MEDIUM != null ? thresholds.MEDIUM.toFixed(2) : '0.50';
+      document.getElementById('hall-status').textContent = data.enabled ? 'Active' : 'Disabled';
+      document.getElementById('hall-status').style.color = data.enabled ? 'var(--success)' : 'var(--text-muted)';
+
+      var detections = data.recent_detections || [];
+      var container = document.getElementById('hall-recent');
+      if (detections.length === 0) {
+        container.innerHTML = '<div class="empty">No detections yet</div>';
+        return;
+      }
+      container.innerHTML = detections.map(function(d) {
+        var levelColor = d.risk_level === 'CRITICAL' ? 'var(--danger)' :
+                         d.risk_level === 'HIGH' ? '#ff9800' :
+                         d.risk_level === 'MEDIUM' ? 'var(--warning)' : 'var(--success)';
+        return '<div style="padding:3px 0;border-bottom:1px solid var(--border-color);display:flex;gap:8px;align-items:center;">'
+          + '<span style="color:' + levelColor + ';font-weight:600;min-width:50px;">' + (d.risk_level || '--') + '</span>'
+          + '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">score: ' + (d.risk_score != null ? d.risk_score.toFixed(2) : '--') + '</span>'
+          + '<span style="color:var(--text-muted);font-size:10px;">' + (d.suggested_action || '') + '</span>'
+          + '</div>';
+      }).join('');
+    } catch(e) {
+      console.error('Hallucination refresh failed:', e);
+    }
+  }
 
   // ═══ Plugin Marketplace ═══════════════════════════════════════
 

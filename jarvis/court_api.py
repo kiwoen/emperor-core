@@ -39,6 +39,15 @@ from jarvis.court.court import Court
 from jarvis.governance_agent import GovernanceAgent, GovernanceRule, RulePriority
 from jarvis.bounded_autonomy import ActionZone, ActionSpace, BoundedAutonomyEngine
 
+# P1 module imports for API endpoints
+from jarvis.tool_guard import (
+    ToolGuardMiddleware, InputValidator, RateLimiter, OutputFilter,
+    GuardEvent, GuardEventType, GuardResult,
+)
+from jarvis.hallucination_detector import (
+    HallucinationDetector, HallucinationResult, RiskLevel,
+)
+
 
 # ══════════════════════════════════════════════════════════════════
 # Request models (module-level for FastAPI type resolution)
@@ -184,6 +193,35 @@ class CircuitBreakerResetRequest(BaseModel):
     pass  # no body needed for reset
 
 
+# ══════════════════════ Tool Guard API Models ═════════════════════
+
+class ValidateInputRequest(BaseModel):
+    tool_name: str = Field(default="unknown", description="Tool name for context")
+    input_data: dict = Field(..., description="Tool call input to validate")
+
+
+class FilterOutputRequest(BaseModel):
+    tool_name: str = Field(default="unknown", description="Tool name for context")
+    output_data: str = Field(..., description="Raw output string to filter")
+
+
+class RateLimitResetRequest(BaseModel):
+    tool_name: str = Field(default="", description="Tool name to reset; empty = all")
+
+
+# ══════════════════ Hallucination Detector API Models ═════════════
+
+class HallucinationDetectRequest(BaseModel):
+    output: str = Field(..., description="LLM-generated output text")
+    context: dict = Field(default_factory=dict, description="Ground truth context")
+
+
+class HallucinationMultiDetectRequest(BaseModel):
+    outputs: list[str] = Field(..., min_length=2, max_length=5,
+                                description="2-5 output samples from repeated LLM calls")
+    context: dict = Field(default_factory=dict, description="Ground truth context")
+
+
 # ══════════════════════════════════════════════════════════════════
 # Module-level scheduler state (shared with Emperor.serve)
 # ══════════════════════════════════════════════════════════════════
@@ -213,6 +251,18 @@ def configure_app(emperor_config=None):
 # ══════════════════════════════════════════════════════════════════
 # Factory
 # ══════════════════════════════════════════════════════════════════
+
+
+def _hallucination_result_dict(result: HallucinationResult) -> dict:
+    """Convert HallucinationResult to JSON-safe dict for API responses."""
+    return {
+        "risk_score": result.risk_score,
+        "risk_level": result.risk_level.value,
+        "issues": result.issues,
+        "suggested_action": result.suggested_action,
+        "blocked": result.blocked,
+    }
+
 
 def create_app(
     config: SurvivalConfig | None = None,
@@ -252,6 +302,10 @@ def create_app(
     app.extra["governance_agent"] = governance_agent
     app.extra["bounded_autonomy_engine"] = bounded_autonomy_engine
     app.extra["recovery_engine"] = recovery_engine
+
+    # Inject P1 modules
+    app.extra["tool_guard_middleware"] = ToolGuardMiddleware()
+    app.extra["hallucination_detector"] = HallucinationDetector(governance_agent=governance_agent)
 
     # ── Endpoints ──────────────────────────────────────────────────
 
@@ -2134,6 +2188,95 @@ def create_app(
             raise HTTPException(status_code=503, detail="RecoveryEngine not available")
         stats = engine.get_stats()
         return stats
+
+    # ════════════════ Tool Guard Endpoints ════════════════════════
+
+    @app.get("/tools/guard/stats")
+    def tool_guard_stats():
+        """各工具限流状态 + 拦截统计"""
+        guard: ToolGuardMiddleware = app.extra.get("tool_guard_middleware")
+        if guard is None:
+            raise HTTPException(status_code=503, detail="ToolGuardMiddleware not available")
+        return guard.get_stats()
+
+    @app.post("/tools/guard/validate-input")
+    def tool_guard_validate_input(req: ValidateInputRequest):
+        """输入校验测试"""
+        guard: ToolGuardMiddleware = app.extra.get("tool_guard_middleware")
+        if guard is None:
+            raise HTTPException(status_code=503, detail="ToolGuardMiddleware not available")
+        result = guard.input_validator.validate(req.input_data)
+        return {
+            "passed": result.passed,
+            "has_critical": result.has_critical,
+            "findings": [
+                {
+                    "severity": f.severity.value,
+                    "rule": f.rule,
+                    "message": f.message,
+                    "location": f.location,
+                }
+                for f in result.findings
+            ],
+        }
+
+    @app.post("/tools/guard/filter-output")
+    def tool_guard_filter_output(req: FilterOutputRequest):
+        """输出过滤测试"""
+        guard: ToolGuardMiddleware = app.extra.get("tool_guard_middleware")
+        if guard is None:
+            raise HTTPException(status_code=503, detail="ToolGuardMiddleware not available")
+        result = guard.output_filter.filter(req.output_data, context={"tool_name": req.tool_name})
+        return {
+            "truncated": result.truncated,
+            "original_length": result.original_length,
+            "output_length": result.filtered_length,
+            "pii_matches": [
+                {"type": m.pii_type, "severity": m.severity.value, "match": m.match}
+                for m in result.pii_matches
+            ],
+            "sensitive_keywords_found": result.sensitive_keywords_found,
+        }
+
+    @app.post("/tools/guard/rate-limit/reset")
+    def tool_guard_rate_limit_reset(req: RateLimitResetRequest):
+        """重置限流器"""
+        guard: ToolGuardMiddleware = app.extra.get("tool_guard_middleware")
+        if guard is None:
+            raise HTTPException(status_code=503, detail="ToolGuardMiddleware not available")
+        if req.tool_name:
+            guard.rate_limiter.reset(req.tool_name)
+        else:
+            guard.rate_limiter.reset()
+        return {"ok": True, "tool_name": req.tool_name or "all"}
+
+    # ═════════════ Hallucination Detector Endpoints ═══════════════
+
+    @app.post("/hallucination/detect")
+    def hallucination_detect(req: HallucinationDetectRequest):
+        """单样本幻觉检测"""
+        detector: HallucinationDetector = app.extra.get("hallucination_detector")
+        if detector is None:
+            raise HTTPException(status_code=503, detail="HallucinationDetector not available")
+        result = detector.detect(req.output, req.context)
+        return _hallucination_result_dict(result)
+
+    @app.post("/hallucination/detect/multi")
+    def hallucination_detect_multi(req: HallucinationMultiDetectRequest):
+        """多样本幻觉检测"""
+        detector: HallucinationDetector = app.extra.get("hallucination_detector")
+        if detector is None:
+            raise HTTPException(status_code=503, detail="HallucinationDetector not available")
+        result = detector.detect_multi(req.outputs, req.context)
+        return _hallucination_result_dict(result)
+
+    @app.get("/hallucination/stats")
+    def hallucination_stats():
+        """检测统计"""
+        detector: HallucinationDetector = app.extra.get("hallucination_detector")
+        if detector is None:
+            raise HTTPException(status_code=503, detail="HallucinationDetector not available")
+        return detector.get_stats()
 
     return app
 
