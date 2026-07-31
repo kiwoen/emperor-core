@@ -494,6 +494,37 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     font-size: 0.6rem; color: var(--text-dim); text-transform: uppercase;
     letter-spacing: 0.5px;
   }
+  /* Evals donut chart */
+  .evals-donut { position: relative; width: 140px; height: 140px; margin: 0 auto 10px; }
+  .evals-donut svg { transform: rotate(-90deg); }
+  .evals-donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .evals-donut-pct { font-size: 1.6rem; font-weight: 700; color: var(--text-primary); line-height: 1; }
+  .evals-donut-label { font-size: 0.55rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+  .evals-donut-legend { display: flex; justify-content: center; gap: 18px; margin-bottom: 14px; font-size: 0.68rem; }
+  .evals-donut-legend span { display: flex; align-items: center; gap: 5px; }
+  .evals-donut-legend .leg-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .evals-donut-legend .leg-dot.pass { background: var(--success); }
+  .evals-donut-legend .leg-dot.fail { background: var(--danger); }
+  .evals-donut-legend .leg-dot.warn { background: var(--warning); }
+  /* Evals suite accordion */
+  .evals-toggle-bar { display: flex; justify-content: flex-end; margin-bottom: 6px; }
+  .evals-toggle-bar button { font-size: 0.65rem; background: rgba(255,255,255,0.04); color: var(--text-dim); border: 1px solid var(--border-color); border-radius: 4px; padding: 2px 10px; cursor: pointer; }
+  .evals-toggle-bar button:hover { color: var(--text-primary); border-color: var(--text-dim); }
+  .evals-suite-item { border-bottom: 1px solid var(--card-border); }
+  .evals-suite-header { display: flex; justify-content: space-between; align-items: center; padding: 7px 4px; cursor: pointer; user-select: none; }
+  .evals-suite-header:hover { background: rgba(255,255,255,0.02); }
+  .evals-suite-header .suite-title { font-weight: 600; font-size: 0.78rem; color: var(--text-primary); }
+  .evals-suite-header .suite-meta { display: flex; align-items: center; gap: 10px; font-size: 0.68rem; color: var(--text-dim); }
+  .evals-suite-header .suite-arrow { font-size: 0.6rem; transition: transform 0.2s; color: var(--text-muted); }
+  .evals-suite-header.open .suite-arrow { transform: rotate(90deg); }
+  .evals-suite-body { display: none; padding: 0 4px 6px 16px; }
+  .evals-suite-body.open { display: block; }
+  .evals-case-row { display: flex; align-items: center; padding: 3px 0; font-size: 0.7rem; color: var(--text-secondary); gap: 8px; }
+  .evals-case-row .case-icon { width: 16px; text-align: center; flex-shrink: 0; }
+  .evals-case-row .case-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .evals-case-row .case-duration { font-size: 0.65rem; color: var(--text-muted); white-space: nowrap; }
+  .evals-case-row .case-error { font-size: 0.62rem; color: var(--danger); margin-top: 1px; padding-left: 24px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .evals-empty { text-align: center; padding: 30px 10px; color: var(--text-muted); font-size: 0.75rem; }
   .tier-bars { display: flex; flex-direction: column; gap: 8px; }
   .tier-bar-row { display: flex; align-items: center; gap: 10px; }
   .tier-bar-label {
@@ -1235,16 +1266,32 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     <button class="panel-collapse-btn" onclick="togglePanel('panel-evals')">▼</button>
   </div>
   <div class="panel-body">
-    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
       <button onclick="runEvals()" id="evals-run-btn" class="btn btn-sm" style="background:var(--accent);color:#fff;border:none;border-radius:4px;padding:6px 14px;cursor:pointer;">Run All Evals</button>
       <span id="evals-status" style="font-size:11px;color:var(--text-muted);"></span>
     </div>
-    <div id="evals-summary" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
-      <div class="mini-stat"><span class="mini-stat-val" id="evals-total">--</span><span class="mini-stat-label">Total</span></div>
-      <div class="mini-stat"><span class="mini-stat-val" id="evals-passed" style="color:var(--success);">--</span><span class="mini-stat-label">Passed</span></div>
-      <div class="mini-stat"><span class="mini-stat-val" id="evals-failed" style="color:var(--danger);">--</span><span class="mini-stat-label">Failed</span></div>
-      <div class="mini-stat"><span class="mini-stat-val" id="evals-errored" style="color:var(--warning);">--</span><span class="mini-stat-label">Errored</span></div>
-      <div class="mini-stat"><span class="mini-stat-val" id="evals-rate">--</span><span class="mini-stat-label">Pass Rate</span></div>
+    <div id="evals-donut-area">
+      <div class="evals-donut">
+        <svg width="140" height="140" viewBox="0 0 140 140">
+          <circle cx="70" cy="70" r="52" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="12"/>
+          <circle id="evals-arc-pass" cx="70" cy="70" r="52" fill="none" stroke="var(--success)" stroke-width="12" stroke-linecap="butt" stroke-dasharray="0 326.7"/>
+          <circle id="evals-arc-fail" cx="70" cy="70" r="52" fill="none" stroke="var(--danger)" stroke-width="12" stroke-linecap="butt" stroke-dasharray="0 326.7"/>
+          <circle id="evals-arc-error" cx="70" cy="70" r="52" fill="none" stroke="var(--warning)" stroke-width="12" stroke-linecap="butt" stroke-dasharray="0 326.7"/>
+        </svg>
+        <div class="evals-donut-center">
+          <div class="evals-donut-pct" id="evals-donut-pct">--</div>
+          <div class="evals-donut-label">Pass Rate</div>
+        </div>
+      </div>
+      <div class="evals-donut-legend">
+        <span><span class="leg-dot pass"></span> Passed <strong id="evals-passed" style="color:var(--success);margin-left:2px;">--</strong></span>
+        <span><span class="leg-dot fail"></span> Failed <strong id="evals-failed" style="color:var(--danger);margin-left:2px;">--</strong></span>
+        <span><span class="leg-dot warn"></span> Errored <strong id="evals-errored" style="color:var(--warning);margin-left:2px;">--</strong></span>
+      </div>
+    </div>
+    <div class="evals-toggle-bar">
+      <button onclick="toggleAllSuites(true)">Expand All</button>
+      <button onclick="toggleAllSuites(false)" style="margin-left:4px;">Collapse All</button>
     </div>
     <div id="evals-suites" style="max-height:360px;overflow-y:auto;font-size:12px;"></div>
   </div><!-- .panel-body -->
@@ -2783,8 +2830,9 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
         loadMinisters();
         break;
       case 'eval':
-        showToast('eval', 'Eval ' + (data.status||'completed'), (data.name||'') + ' · ' + (data.score!=null ? 'score=' + data.score : ''));
-        addEventLog('eval', 'Eval ' + (data.name||'') + ' → ' + (data.status||'completed'));
+        showToast('eval', 'Eval ' + (data.status||'completed'), (data.name||'') + ' \u00b7 ' + (data.score!=null ? 'score=' + data.score : ''));
+        addEventLog('eval', 'Eval ' + (data.name||'') + ' \u2192 ' + (data.status||'completed'));
+        if (typeof refreshEvals === 'function') refreshEvals();
         break;
       case 'alert':
         showToast('alert', '⚠ Alert: ' + (data.title||data.message||''), (data.message||data.detail||''));
@@ -3714,37 +3762,118 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   }
 
   function renderEvals(report) {
-    document.getElementById('evals-total').textContent = report.total_cases || 0;
-    document.getElementById('evals-passed').textContent = report.passed || 0;
-    document.getElementById('evals-failed').textContent = report.failed || 0;
-    document.getElementById('evals-errored').textContent = report.errored || 0;
-    var rate = report.pass_rate != null ? (report.pass_rate * 100).toFixed(1) + '%' : '--';
-    document.getElementById('evals-rate').textContent = rate;
+    var total = report.total_cases || 0;
+    var passed = report.passed || 0;
+    var failed = report.failed || 0;
+    var errored = report.errored || 0;
 
+    // Update legend counts
+    var passEl = document.getElementById('evals-passed');
+    var failEl = document.getElementById('evals-failed');
+    var errEl = document.getElementById('evals-errored');
+    if (passEl) passEl.textContent = passed;
+    if (failEl) failEl.textContent = failed;
+    if (errEl) errEl.textContent = errored;
+
+    // Draw donut chart
+    var circumference = 2 * Math.PI * 52; // ~326.73
+    var arcPass = document.getElementById('evals-arc-pass');
+    var arcFail = document.getElementById('evals-arc-fail');
+    var arcError = document.getElementById('evals-arc-error');
+    var pctEl = document.getElementById('evals-donut-pct');
+
+    if (total === 0) {
+      if (arcPass) arcPass.setAttribute('stroke-dasharray', '0 ' + circumference);
+      if (arcFail) arcFail.setAttribute('stroke-dasharray', '0 ' + circumference);
+      if (arcError) arcError.setAttribute('stroke-dasharray', '0 ' + circumference);
+      if (pctEl) pctEl.textContent = '--';
+      if (pctEl) pctEl.style.color = 'var(--text-muted)';
+    } else {
+      var passFrac = passed / total;
+      var failFrac = failed / total;
+      var errFrac = errored / total;
+      var passLen = passFrac * circumference;
+      var failLen = failFrac * circumference;
+      var errLen = errFrac * circumference;
+
+      // Pass arc starts at top
+      if (arcPass) arcPass.setAttribute('stroke-dasharray', passLen + ' ' + circumference);
+      if (arcPass) arcPass.setAttribute('stroke-dashoffset', '0');
+      // Fail arc starts after pass arc (negative offset shifts clockwise due to -90deg rotation)
+      if (arcFail) arcFail.setAttribute('stroke-dasharray', failLen + ' ' + circumference);
+      if (arcFail) arcFail.setAttribute('stroke-dashoffset', String(-passLen));
+      // Error arc starts after pass+fail
+      if (arcError) arcError.setAttribute('stroke-dasharray', errLen + ' ' + circumference);
+      if (arcError) arcError.setAttribute('stroke-dashoffset', String(-(passLen + failLen)));
+
+      var rate = report.pass_rate != null ? (report.pass_rate * 100).toFixed(1) : 0;
+      if (pctEl) pctEl.textContent = rate + '%';
+      if (pctEl) pctEl.style.color = rate >= 90 ? 'var(--success)' : rate >= 70 ? 'var(--warning)' : 'var(--danger)';
+    }
+
+    // Render suites accordion
     var suitesHtml = '';
     var suites = report.suites || [];
     if (suites.length === 0) {
-      suitesHtml = '<div class="empty">No eval results yet. Click "Run All Evals" to start.</div>';
+      suitesHtml = '<div class="evals-empty">No eval results yet. Click "Run All Evals" to start.</div>';
     } else {
-      suites.forEach(function(s) {
+      suites.forEach(function(s, idx) {
         var suitePassRate = s.pass_rate != null ? (s.pass_rate * 100).toFixed(0) + '%' : '--';
-        suitesHtml += '<div style="border-bottom:1px solid var(--card-border);padding:6px 0;">';
-        suitesHtml += '<div style="display:flex;justify-content:space-between;cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'\':\'none\'">';
-        suitesHtml += '<strong>' + s.suite_name + '</strong>';
-        suitesHtml += '<span style="font-size:11px;color:var(--text-muted);">' + s.passed + '/' + s.failed + '/' + s.errored + ' | ' + suitePassRate + '</span>';
+        suitesHtml += '<div class="evals-suite-item">';
+        suitesHtml += '<div class="evals-suite-header" onclick="toggleSuite(this)">';
+        suitesHtml += '<span class="suite-title">' + s.suite_name + '</span>';
+        suitesHtml += '<span class="suite-meta">' + suitePassRate + ' <span class="suite-arrow">&#9654;</span></span>';
         suitesHtml += '</div>';
-        suitesHtml += '<div style="display:none;margin-top:4px;padding-left:12px;font-size:11px;">';
+        suitesHtml += '<div class="evals-suite-body">';
         (s.results || []).forEach(function(r) {
-          var icon = r.status === 'pass' ? '<span style="color:var(--success);">PASS</span>' :
-                    r.status === 'fail' ? '<span style="color:var(--danger);">FAIL</span>' :
-                    r.status === 'error' ? '<span style="color:var(--warning);">ERR</span>' :
-                    '<span style="color:var(--text-muted);">' + r.status + '</span>';
-          suitesHtml += '<div style="padding:1px 0;">' + icon + ' ' + r.case + '</div>';
+          var icon = r.status === 'pass' ? '<span style="color:var(--success);">&#10003;</span>' :
+                    r.status === 'fail' ? '<span style="color:var(--danger);">&#10007;</span>' :
+                    r.status === 'error' ? '<span style="color:var(--warning);">&#9888;</span>' :
+                    '<span style="color:var(--text-muted);">-</span>';
+          var dur = r.duration_ms != null ? (r.duration_ms < 1000 ? r.duration_ms + 'ms' : (r.duration_ms / 1000).toFixed(1) + 's') : '';
+          suitesHtml += '<div class="evals-case-row">';
+          suitesHtml += '<span class="case-icon">' + icon + '</span>';
+          suitesHtml += '<span class="case-name">' + r.case + '</span>';
+          suitesHtml += '<span class="case-duration">' + dur + '</span>';
+          suitesHtml += '</div>';
+          if (r.status !== 'pass' && r.details) {
+            var errSummary = r.details.length > 80 ? r.details.substring(0, 80) + '...' : r.details;
+            suitesHtml += '<div class="case-error">' + errSummary + '</div>';
+          }
         });
         suitesHtml += '</div></div>';
       });
     }
     document.getElementById('evals-suites').innerHTML = suitesHtml;
+  }
+
+  function toggleSuite(headerEl) {
+    var body = headerEl.nextElementSibling;
+    if (body) {
+      var isOpen = body.classList.contains('open');
+      if (isOpen) {
+        body.classList.remove('open');
+        headerEl.classList.remove('open');
+      } else {
+        body.classList.add('open');
+        headerEl.classList.add('open');
+      }
+    }
+  }
+
+  function toggleAllSuites(expand) {
+    var headers = document.querySelectorAll('#evals-suites .evals-suite-header');
+    headers.forEach(function(h) {
+      var body = h.nextElementSibling;
+      if (!body) return;
+      if (expand) {
+        body.classList.add('open');
+        h.classList.add('open');
+      } else {
+        body.classList.remove('open');
+        h.classList.remove('open');
+      }
+    });
   }
 
   async function runEvals() {
@@ -4072,6 +4201,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   refreshEvals();
   refreshAudit();
   refreshModelCosts();
+  setInterval(refreshEvals, 15000);
   setInterval(refreshAudit, 60000);
   setInterval(refreshModelCosts, 60000);
 
