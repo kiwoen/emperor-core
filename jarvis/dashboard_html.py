@@ -659,6 +659,27 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   .event-log-entry .log-time { color: var(--text-muted); font-size: 0.65rem; flex-shrink: 0; min-width: 48px; }
   .event-log-entry .log-msg { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .event-log-empty { padding: 20px; text-align: center; color: var(--text-muted); font-size: 0.75rem; }
+  /* ── Healing Timeline ── */
+  .healing-timeline { position: relative; padding-left: 28px; max-height: 520px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border-color) transparent; }
+  .healing-timeline::before { content: ''; position: absolute; left: 11px; top: 4px; bottom: 4px; width: 2px; background: var(--border-color); }
+  .healing-timeline-empty { text-align: center; padding: 24px 12px; color: var(--text-muted); font-size: 0.8rem; }
+  .ht-entry { position: relative; margin-bottom: 14px; padding-left: 0; }
+  .ht-dot { position: absolute; left: -21px; top: 8px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--bg-card); z-index: 2; }
+  .ht-dot.success { background: var(--success); }
+  .ht-dot.failed { background: var(--danger); }
+  .ht-dot.running { background: var(--warning); animation: ht-pulse 1.2s infinite; }
+  @keyframes ht-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .ht-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 14px; }
+  .ht-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .ht-card-header .ht-name { font-weight: 600; font-size: 0.85rem; color: var(--text-primary); flex: 1; }
+  .ht-badge { font-size: 0.65rem; padding: 2px 8px; border-radius: 10px; font-weight: 600; text-transform: uppercase; white-space: nowrap; }
+  .ht-badge.success { background: rgba(34,197,94,0.15); color: var(--success); }
+  .ht-badge.failed { background: rgba(239,68,68,0.15); color: var(--danger); }
+  .ht-badge.running { background: rgba(245,158,11,0.15); color: var(--warning); }
+  .ht-card-meta { display: flex; align-items: center; gap: 14px; font-size: 0.7rem; color: var(--text-secondary); }
+  .ht-card-meta .ht-source { color: var(--text-muted); }
+  .ht-card-meta .ht-elapsed { margin-left: auto; font-variant-numeric: tabular-nums; }
+  .ht-card-meta .ht-time { color: var(--text-muted); font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
@@ -751,9 +772,10 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       <div style="font-size:12px;color:var(--danger);">耗尽: <b id="healing-exhausted">0</b></div>
       <div style="font-size:12px;color:var(--text-secondary);">历史: <b id="healing-last">--</b></div>
     </div>
-    <div id="healing-actions-list">
-      <div style="color:var(--text-muted);text-align:center;padding:12px;">加载中...</div>
+    <div id="healing-timeline" class="healing-timeline">
+      <div class="healing-timeline-empty">加载中...</div>
     </div>
+    <div id="healing-actions-list" style="display:none;"></div>
   </div>
 </div>
 
@@ -2173,6 +2195,47 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     } catch (e) {}
   }
 
+  async function refreshHealingTimeline() {
+    var timeline = document.getElementById('healing-timeline');
+    if (!timeline) return;
+    try {
+      var resp = await fetch(API + '/api/healing/timeline?limit=20');
+      var data = await resp.json();
+      var items = data.timeline || [];
+
+      if (items.length === 0) {
+        timeline.innerHTML = '<div class="healing-timeline-empty">暂无自愈操作记录，系统健康运行中</div>';
+        return;
+      }
+
+      timeline.innerHTML = items.map(function(r) {
+        var resultLabel = r.result === 'success' ? 'SUCCESS' : (r.result === 'running' ? 'RUNNING' : 'FAILED');
+        var dt = new Date(r.timestamp * 1000);
+        var timeStr = dt.toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+        var elapsedStr = r.elapsed_ms > 0
+          ? (r.elapsed_ms >= 1000 ? (r.elapsed_ms / 1000).toFixed(1) + 's' : r.elapsed_ms.toFixed(0) + 'ms')
+          : '--';
+
+        return '<div class="ht-entry">'
+          + '<div class="ht-dot ' + r.result + '"></div>'
+          + '<div class="ht-card">'
+          + '<div class="ht-card-header">'
+          + '<span class="ht-name">' + _esc(r.action_name) + '</span>'
+          + '<span class="ht-badge ' + r.result + '">' + resultLabel + '</span>'
+          + '</div>'
+          + '<div class="ht-card-meta">'
+          + '<span class="ht-source">' + _esc(r.triggered_by || 'manual') + '</span>'
+          + '<span class="ht-time">' + timeStr + '</span>'
+          + '<span class="ht-elapsed">' + elapsedStr + '</span>'
+          + '</div>'
+          + '</div>'
+          + '</div>';
+      }).join('');
+    } catch (e) {
+      console.error('Healing timeline refresh failed:', e);
+    }
+  }
+
   async function healingTrigger(name) {
     try {
       var resp = await fetch(API + '/api/healing/trigger/' + name, {method: 'POST'});
@@ -2587,6 +2650,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
         showToast('healing', 'Healing: ' + (data.action_name||'?'), (data.result||'') + (data.triggered_by ? ' by ' + data.triggered_by : ''));
         addEventLog('healing', 'Healing ' + (data.action_name||'') + ' → ' + (data.result||''));
         loadMinisters();
+        refreshHealingTimeline();
         break;
       case 'approval':
         var approved = data.approved != null ? (data.approved ? 'Approved' : 'Denied') : 'Requested';
@@ -3138,6 +3202,8 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   setInterval(refreshPipelineMonitor, 10000);
   refreshHealing();
   setInterval(refreshHealing, 15000);
+  refreshHealingTimeline();
+  setInterval(refreshHealingTimeline, 15000);
 
   // ═══ Pipeline functions ════════════════════════════════════
 

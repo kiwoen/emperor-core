@@ -2036,6 +2036,31 @@ def create_app(
             "total": len(records),
         }
 
+    @app.get("/api/healing/timeline")
+    def healing_timeline(limit: int = 20, request: Request = None):
+        """自愈操作时间线 — 返回最近 N 条完整记录"""
+        emperor = request.app.extra.get("emperor")
+        if emperor is None:
+            raise HTTPException(status_code=503, detail="Emperor not available")
+
+        healer = emperor.healing
+        records = healer.history(limit=limit)
+
+        return {
+            "timeline": [
+                {
+                    "action_name": r.action_name,
+                    "result": "success" if r.success else "failed",
+                    "triggered_by": r.alert_rule,
+                    "elapsed_ms": round(r.recovery_time * 1000, 1) if r.recovery_time else 0,
+                    "timestamp": r.timestamp,
+                    "error": r.error,
+                }
+                for r in records
+            ],
+            "total": len(records),
+        }
+
     @app.post("/api/healing/reset/{action_name}")
     def healing_reset(action_name: str, request: Request):
         """重置自愈动作的尝试计数和冷却"""
