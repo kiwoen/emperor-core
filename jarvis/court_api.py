@@ -406,6 +406,10 @@ def create_app(
             req.success, req.confidence,
             execution_time_ms=req.execution_time_ms,
         )
+        # Real-time event
+        from jarvis.event_publisher import publish_dispatch
+        publish_dispatch(req.minister, req.edict_id, req.intent,
+                         req.success, req.confidence, req.execution_time_ms)
         return {"message": "Dispatch recorded"}
 
     @app.post("/court/feedback")
@@ -1100,8 +1104,17 @@ def create_app(
             from jarvis.eval import create_builtin_suites
 
             suites = create_builtin_suites()
+            import time as _t2
+            t0 = _t2.time()
             runner.run_all(suites)
-            return runner.report()
+            elapsed = (_t2.time() - t0) * 1000
+            report = runner.report()
+
+            # Real-time event
+            from jarvis.event_publisher import publish_eval
+            publish_eval("all", report["passed_count"], report["failed_count"], elapsed)
+
+            return report
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
@@ -1315,6 +1328,13 @@ def create_app(
                 result = pipeline_registry.execute_template(template, context, query=query)
             else:
                 result = pipeline_registry.execute_template(template, context)
+
+            # Real-time event
+            from jarvis.event_publisher import publish_pipeline
+            publish_pipeline(template, result.pipeline_id,
+                             result.status.value,
+                             steps=len(result.stages),
+                             elapsed_ms=round(result.finished_at - result.started_at, 2) * 1000)
 
             return {
                 "status": result.status.value,
@@ -1674,6 +1694,8 @@ def create_app(
         result = engine.approve(request_id, note=body.note)
         if result is None:
             raise HTTPException(status_code=404, detail=f"Approval request not found or already resolved: {request_id}")
+        from jarvis.event_publisher import publish_approval
+        publish_approval(request_id, "approved", risk_level=result.risk_level, approved=True)
         return result.to_dict()
 
     @app.post("/api/approvals/{request_id}/deny")
@@ -1684,6 +1706,8 @@ def create_app(
         result = engine.deny(request_id, note=body.note)
         if result is None:
             raise HTTPException(status_code=404, detail=f"Approval request not found or already resolved: {request_id}")
+        from jarvis.event_publisher import publish_approval
+        publish_approval(request_id, "denied", risk_level=result.risk_level, approved=False)
         return result.to_dict()
 
     @app.get("/api/approvals/policies")
@@ -1918,6 +1942,11 @@ def create_app(
         healer._last_triggered[action.name] = now
         healer._attempt_counts[action.name] = healer._attempt_counts.get(action.name, 0) + 1
 
+        # Real-time event
+        from jarvis.event_publisher import publish_healing
+        publish_healing(action_name, "success" if success else "failure",
+                        triggered_by="manual", elapsed_ms=0)
+
         return {
             "action_name": action_name,
             "success": success,
@@ -2054,6 +2083,9 @@ def create_app(
         except ValueError as e:
             raise HTTPException(status_code=409, detail=str(e))
 
+        from jarvis.event_publisher import publish_governance_rule
+        publish_governance_rule("create", rule.name, rule.priority.value, rule.description)
+
         return {"name": rule.name, "rule_type": rule.rule_type, "priority": rule.priority.value}
 
     @app.delete("/governance/rules/{rule_id}")
@@ -2065,6 +2097,10 @@ def create_app(
         if gov.get_rule(rule_id) is None:
             raise HTTPException(status_code=404, detail=f"Rule '{rule_id}' not found")
         gov.deregister_rule(rule_id)
+
+        from jarvis.event_publisher import publish_governance_rule
+        publish_governance_rule("delete", rule_id)
+
         return {"ok": True, "rule_id": rule_id}
 
     @app.put("/governance/rules/{rule_id}/toggle")
@@ -2079,6 +2115,10 @@ def create_app(
             gov.enable_rule(rule_id)
         else:
             gov.disable_rule(rule_id)
+
+        from jarvis.event_publisher import publish_governance_rule
+        publish_governance_rule("toggle", rule_id, description=("enabled" if req.enabled else "disabled"))
+
         return {"rule_id": rule_id, "enabled": req.enabled}
 
     @app.post("/governance/validate")
@@ -2354,6 +2394,8 @@ def create_app(
         if engine is None:
             raise HTTPException(status_code=503, detail="HierarchicalMemoryEngine not available")
         cycle = engine.consolidate()
+        from jarvis.event_publisher import publish_memory
+        publish_memory("consolidate", node_count=cycle.working_processed)
         return {
             "cycle_id": cycle.cycle_id,
             "status": cycle.status.value,
@@ -2444,6 +2486,10 @@ def create_app(
             raise HTTPException(status_code=503, detail="Sandbox Manager not available")
         sm.engine = payload.engine
         result = await sm.execute_python(payload.code, timeout=payload.timeout)
+        # Real-time event
+        from jarvis.event_publisher import publish_sandbox
+        publish_sandbox(payload.code, result.exit_code, payload.engine,
+                        result.execution_time_ms, result.truncated)
         return {
             "exit_code": result.exit_code,
             "stdout": result.stdout,
