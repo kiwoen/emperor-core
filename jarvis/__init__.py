@@ -25,3 +25,20 @@ from jarvis.pipeline import (
     ServicePipeline, Stage, StageStatus, PipelineStatus,
     PipelineRegistry, pipeline_registry,
 )
+
+# P0.1: Governance Agent — Agent-monitoring-Agent layer
+from jarvis.governance_agent import (
+    GovernanceAgent,
+    GovernanceRule,
+    GovernanceResult,
+    GovernanceStatus,
+    RulePriority,
+)
+
+# P0.2: Bounded Autonomy — three-zone action space framework
+from jarvis.bounded_autonomy import (
+    ActionZone,
+    ActionSpace,
+    BoundedAutonomyEngine,
+    BoundedAutonomyResult,
+)
