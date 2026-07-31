@@ -1851,16 +1851,25 @@ def create_app(
         mem_engine = app.extra.get("hierarchical_memory_engine")
         if mem_engine is not None:
             try:
+                _TIER_LAYER = {
+                    "WORKING": "L0",
+                    "EPISODIC": "L1",
+                    "SEMANTIC": "L2",
+                    "PROCEDURAL": "L3",
+                }
                 mem_results = mem_engine.retrieve(query, top_k=limit,
-                    tiers=[MemoryTier.EPISODIC, MemoryTier.SEMANTIC, MemoryTier.PROCEDURAL])
+                    tiers=[MemoryTier.WORKING, MemoryTier.EPISODIC, MemoryTier.SEMANTIC, MemoryTier.PROCEDURAL])
                 for node in mem_results:
+                    tier_name = node.tier.name
+                    timestamp = getattr(node, "created_at", 0) or getattr(node, "timestamp", 0)
                     results["memories"].append({
                         "node_id": node.node_id,
-                        "content": node.content[:200],
-                        "tier": node.tier.name,
+                        "content": node.content,
+                        "tier": tier_name,
+                        "layer": _TIER_LAYER.get(tier_name, tier_name),
                         "importance": round(node.importance, 3),
                         "retention": round(node.decay_retention(), 3),
-                        "created_at": node.created_at,
+                        "timestamp": timestamp,
                     })
             except Exception:
                 pass  # Non-critical; skip memory search on error

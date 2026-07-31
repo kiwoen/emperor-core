@@ -2799,6 +2799,8 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       var total = (data.tasks || []).length + (data.evals || []).length + (data.audits || []).length + (data.healing || []).length + (data.context_versions || []).length + (data.memories || []).length;
       badge.textContent = total + ' 条结果';
       badge.style.display = 'inline';
+      _lastQuery = q;
+      _searchTab = 'all';
       renderSearchResults(data);
     } catch (e) {
       badge.textContent = '搜索失败';
@@ -2806,61 +2808,191 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     }
   }
 
+  var _searchTab = 'all';
+  var _lastSearchData = null;
+  var _lastQuery = '';
+
+  function switchSearchTab(tab) {
+    _searchTab = tab;
+    document.querySelectorAll('.search-tab').forEach(function(btn) {
+      btn.style.color = 'var(--text-secondary)';
+      btn.style.borderBottomColor = 'transparent';
+      btn.classList.remove('active');
+    });
+    var activeBtn = document.getElementById('search-tab-' + tab);
+    if (activeBtn) {
+      activeBtn.style.color = 'var(--accent)';
+      activeBtn.style.borderBottomColor = 'var(--accent)';
+      activeBtn.classList.add('active');
+    }
+    if (_lastSearchData) renderSearchResults(_lastSearchData);
+  }
+
   function renderSearchResults(data) {
+    _lastSearchData = data;
     var el = document.getElementById('search-results');
     el.style.display = 'block';
 
-    var sections = [];
-    var sectionIcon = {tasks: '📋', evals: '🧪', audits: '📜', healing: '🩺', context_versions: '🏷️', memories: '🧠'};
-    var sectionName = {tasks: '任务', evals: '评测', audits: '审计', healing: '自愈', context_versions: '版本快照', memories: '记忆'};
+    var q = _lastQuery;
 
-    ['tasks', 'evals', 'audits', 'healing', 'context_versions', 'memories'].forEach(function(key) {
-      var items = data[key] || [];
-      if (items.length === 0) return;
-
-      var rows = items.map(function(item) {
-        if (key === 'tasks') {
-          return '<tr><td style="font-weight:500;">' + esc(item.description) + '</td>'
-            + '<td style="color:var(--text-secondary);">' + (item.minister || '--') + '</td>'
-            + '<td style="color:var(--text-muted);">' + item.status + '</td></tr>';
-        } else if (key === 'evals') {
-          return '<tr><td style="font-weight:500;">' + esc(item.suite) + '</td>'
-            + '<td style="color:var(--success);">' + item.passed + ' pass</td>'
-            + '<td style="color:' + (item.failed > 0 ? 'var(--danger)' : 'var(--text-secondary)') + ';">' + item.failed + ' fail</td></tr>';
-        } else if (key === 'audits') {
-          return '<tr><td style="font-weight:500;">' + esc(item.task) + '</td>'
-            + '<td style="color:var(--text-secondary);">' + esc(item.result).substring(0, 80) + '</td>'
-            + '<td style="color:var(--text-muted);font-size:10px;">' + new Date(item.timestamp * 1000).toLocaleTimeString('zh-CN') + '</td></tr>';
-        } else if (key === 'healing') {
-          return '<tr><td style="font-weight:500;">' + esc(item.action_name) + '</td>'
-            + '<td style="color:var(--text-secondary);">← ' + item.alert_rule + '</td>'
-            + '<td style="color:' + (item.success ? 'var(--success)' : 'var(--danger)') + ';">' + (item.success ? '✓' : '✗') + '</td></tr>';
-        } else if (key === 'memories') {
-          var tierColor = item.tier === 'SEMANTIC' ? '#f59e0b' : item.tier === 'EPISODIC' ? '#818cf8' : '#10b981';
-          return '<tr><td style="font-weight:500;">' + esc(item.content).substring(0, 80) + '</td>'
-            + '<td style="color:' + tierColor + ';font-size:10px;">' + item.tier + '</td>'
-            + '<td style="color:var(--text-muted);font-size:10px;">imp:' + item.importance + ' ret:' + item.retention + '</td></tr>';
-        } else {
-          return '<tr><td style="font-weight:500;">' + esc(item.tag) + '</td>'
-            + '<td style="color:var(--text-secondary);">' + (item.component || '') + '</td>'
-            + '<td style="color:var(--text-muted);font-size:10px;">' + (item.notes || '').substring(0, 60) + '</td></tr>';
-        }
-      }).join('');
-
-      sections.push(
-        '<div style="margin-bottom:12px;">'
-        + '<div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--accent);">' + sectionName[key] + ' (' + items.length + ')</div>'
-        + '<table style="width:100%;font-size:12px;border-collapse:collapse;">'
-        + rows
-        + '</table></div>'
-      );
+    // ── Tab bar ──
+    var tabBar = '<div style="display:flex;gap:0;border-bottom:1px solid var(--border-color);margin-bottom:14px;">';
+    var tabs = [
+      {id: 'all', label: '全部'},
+      {id: 'tasks', label: '任务'},
+      {id: 'memories', label: '记忆'},
+    ];
+    tabs.forEach(function(tab) {
+      var isActive = _searchTab === tab.id;
+      tabBar += '<button id="search-tab-' + tab.id + '" class="search-tab' + (isActive ? ' active' : '') + '" '
+        + 'onclick="switchSearchTab(\'' + tab.id + '\')" '
+        + 'style="background:none;border:none;border-bottom:2px solid ' + (isActive ? 'var(--accent)' : 'transparent') + ';'
+        + 'color:' + (isActive ? 'var(--accent)' : 'var(--text-secondary)') + ';'
+        + 'padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s;font-family:inherit;">'
+        + tab.label + '</button>';
     });
+    tabBar += '</div>';
 
-    if (sections.length === 0) {
-      el.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:16px;">未找到匹配结果</div>';
-    } else {
-      el.innerHTML = sections.join('');
+    // ── Content by tab ──
+    var sections = [];
+    var sectionIcon = {tasks: '📋', evals: '🧪', audits: '📜', healing: '🩺', context_versions: '🏷️'};
+    var sectionName = {tasks: '任务', evals: '评测', audits: '审计', healing: '自愈', context_versions: '版本快照'};
+
+    var allKeys = ['tasks', 'evals', 'audits', 'healing', 'context_versions'];
+
+    if (_searchTab === 'all' || _searchTab === 'tasks') {
+      allKeys.forEach(function(key) {
+        var items = data[key] || [];
+        if (items.length === 0) return;
+
+        var rows = items.map(function(item) {
+          if (key === 'tasks') {
+            return '<tr><td style="font-weight:500;">' + esc(item.description) + '</td>'
+              + '<td style="color:var(--text-secondary);">' + (item.minister || '--') + '</td>'
+              + '<td style="color:var(--text-muted);">' + item.status + '</td></tr>';
+          } else if (key === 'evals') {
+            return '<tr><td style="font-weight:500;">' + esc(item.suite) + '</td>'
+              + '<td style="color:var(--success);">' + item.passed + ' pass</td>'
+              + '<td style="color:' + (item.failed > 0 ? 'var(--danger)' : 'var(--text-secondary)') + ';">' + item.failed + ' fail</td></tr>';
+          } else if (key === 'audits') {
+            return '<tr><td style="font-weight:500;">' + esc(item.task) + '</td>'
+              + '<td style="color:var(--text-secondary);">' + esc(item.result).substring(0, 80) + '</td>'
+              + '<td style="color:var(--text-muted);font-size:10px;">' + new Date(item.timestamp * 1000).toLocaleTimeString('zh-CN') + '</td></tr>';
+          } else if (key === 'healing') {
+            return '<tr><td style="font-weight:500;">' + esc(item.action_name) + '</td>'
+              + '<td style="color:var(--text-secondary);">← ' + item.alert_rule + '</td>'
+              + '<td style="color:' + (item.success ? 'var(--success)' : 'var(--danger)') + ';">' + (item.success ? '✓' : '✗') + '</td></tr>';
+          } else {
+            return '<tr><td style="font-weight:500;">' + esc(item.tag) + '</td>'
+              + '<td style="color:var(--text-secondary);">' + (item.component || '') + '</td>'
+              + '<td style="color:var(--text-muted);font-size:10px;">' + (item.notes || '').substring(0, 60) + '</td></tr>';
+          }
+        }).join('');
+
+        sections.push(
+          '<div style="margin-bottom:12px;">'
+          + '<div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--accent);">' + sectionName[key] + ' (' + items.length + ')</div>'
+          + '<table style="width:100%;font-size:12px;border-collapse:collapse;">'
+          + rows
+          + '</table></div>'
+        );
+      });
     }
+
+    // ── Memories section (All tab or Memories tab) ──
+    if (_searchTab === 'all' || _searchTab === 'memories') {
+      var memories = data.memories || [];
+      if (memories.length > 0) {
+        // Group by layer
+        var layerOrder = ['L0', 'L1', 'L2', 'L3'];
+        var layerColors = {L0: '#818cf8', L1: '#34d399', L2: '#f59e0b', L3: '#f472b6'};
+        var layerNames = {L0: 'Working', L1: 'Episodic', L2: 'Semantic', L3: 'Procedural'};
+        var grouped = {};
+        memories.forEach(function(m) {
+          var layer = m.layer || m.tier || '?';
+          if (!grouped[layer]) grouped[layer] = [];
+          grouped[layer].push(m);
+        });
+
+        var memHtml = '';
+        layerOrder.forEach(function(layer) {
+          var items = grouped[layer];
+          if (!items || items.length === 0) return;
+          var color = layerColors[layer] || '#888';
+          memHtml += '<div style="margin-bottom:14px;">'
+            + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'
+            + '<span style="background:' + color + ';color:#fff;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700;">' + layer + '</span>'
+            + '<span style="font-size:11px;color:var(--text-secondary);">' + (layerNames[layer] || layer) + ' (' + items.length + ')</span>'
+            + '</div>';
+
+          items.forEach(function(item) {
+            var snippet = highlightKeyword(item.content, q, layer);
+            var ts = item.timestamp ? new Date(item.timestamp * 1000).toLocaleString('zh-CN') : '--';
+            memHtml += '<div style="padding:6px 0;border-bottom:1px solid var(--border-color);display:flex;gap:12px;align-items:flex-start;">'
+              + '<div style="flex:1;min-width:0;">'
+              + '<div style="font-size:12px;line-height:1.6;word-break:break-all;">' + snippet + '</div>'
+              + '<div style="margin-top:4px;display:flex;gap:12px;font-size:10px;color:var(--text-muted);">'
+              + '<span>imp:' + item.importance + '</span><span>ret:' + item.retention + '</span><span>' + ts + '</span>'
+              + '</div></div></div>';
+          });
+          memHtml += '</div>';
+        });
+
+        if (_searchTab === 'all') {
+          sections.push(
+            '<div style="margin-bottom:12px;">'
+            + '<div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--accent);">记忆 (' + memories.length + ')</div>'
+            + memHtml + '</div>'
+          );
+        } else {
+          sections.push(memHtml);
+        }
+      } else if (_searchTab === 'memories') {
+        sections.push(
+          '<div style="text-align:center;padding:20px;color:var(--text-muted);">'
+          + '<div style="font-size:14px;margin-bottom:8px;">未找到记忆结果</div>'
+          + '<div style="font-size:12px;">请尝试扩大搜索关键词，或确认记忆引擎已启用</div>'
+          + '</div>'
+        );
+      }
+    }
+
+    // ── Final render ──
+    if (sections.length === 0 && _searchTab === 'memories') {
+      el.innerHTML = tabBar + '<div style="text-align:center;padding:20px;color:var(--text-muted);">'
+        + '<div style="font-size:14px;margin-bottom:8px;">未找到记忆结果</div>'
+        + '<div style="font-size:12px;">尝试开启 memories 搜索</div></div>';
+    } else if (sections.length === 0) {
+      el.innerHTML = tabBar + '<div style="color:var(--text-muted);text-align:center;padding:16px;">未找到匹配结果</div>';
+    } else {
+      el.innerHTML = tabBar + sections.join('');
+    }
+  }
+
+  function highlightKeyword(text, query, layer) {
+    if (!query || !text) return esc(text).substring(0, 200);
+    var escaped = esc(text);
+    var qLower = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    var regex;
+    try { regex = new RegExp(qLower, 'gi'); } catch(e) { return escaped.substring(0, 200); }
+
+    var match = regex.exec(escaped);
+    if (!match) return escaped.substring(0, 200);
+
+    var idx = match.index;
+    var ctxLen = 40;
+    var start = Math.max(0, idx - ctxLen);
+    var end = Math.min(escaped.length, idx + match[0].length + ctxLen);
+
+    var prefix = start > 0 ? '...' : '';
+    var suffix = end < escaped.length ? '...' : '';
+    var context = prefix + escaped.substring(start, end) + suffix;
+
+    // Highlight: wrap all query matches in context with <mark>
+    var hlRegex;
+    try { hlRegex = new RegExp('(' + qLower + ')', 'gi'); } catch(e) { return context; }
+    context = context.replace(hlRegex, '<mark style="background:#6366f1;color:#fff;padding:0 2px;border-radius:2px;">$1</mark>');
+    return context;
   }
 
   function esc(str) {
