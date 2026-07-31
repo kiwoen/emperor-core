@@ -195,6 +195,14 @@ class GovernanceValidateRequest(BaseModel):
     context: dict = Field(default_factory=dict, description="Optional context, e.g. {'domain': 'general'}")
 
 
+# ── Dashboard Governance API Models ─────────────────────────────
+
+class GovernanceCreateRequest(BaseModel):
+    description: str = Field(..., description="Rule description")
+    priority: str = Field(default="P2", description="P0 | P1 | P2 | P3")
+    remediation: str = Field(default="", description="Optional remediation suggestion")
+
+
 # ════════════════════ Bounded Autonomy API Models ═════════════════
 
 class AutonomySpaceRequest(BaseModel):
@@ -2294,6 +2302,69 @@ def create_app(
                 "business_logic": sum(1 for r in rules if r.rule_type == "business_logic"),
             },
         }
+
+    # ═══════════════════ Dashboard Governance API ═══════════════════
+
+    @app.get("/api/governance/rules")
+    def api_governance_rules():
+        """返回所有治理规则列表，供 Dashboard Governance 面板消费"""
+        from jarvis.governance_store import governance_store
+
+        rules = governance_store.get_all()
+        return {
+            "rules": rules,
+            "total": len(rules),
+        }
+
+    @app.post("/api/governance/rules")
+    def api_governance_create_rule(req: GovernanceCreateRequest):
+        """创建新治理规则"""
+        from jarvis.governance_store import governance_store
+        from jarvis.event_publisher import publish_governance_rule
+
+        try:
+            rule = governance_store.add(
+                description=req.description,
+                priority=req.priority,
+                remediation=req.remediation,
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+        publish_governance_rule("create", rule["rule_id"], rule["priority"], rule["description"])
+
+        return {"rule": rule, "message": "规则已创建"}
+
+    @app.delete("/api/governance/rules/{rule_id}")
+    def api_governance_delete_rule(rule_id: str):
+        """删除治理规则"""
+        from jarvis.governance_store import governance_store
+        from jarvis.event_publisher import publish_governance_rule
+
+        rule = governance_store.get_by_id(rule_id)
+        if rule is None:
+            raise HTTPException(status_code=404, detail=f"Rule '{rule_id}' not found")
+
+        governance_store.delete(rule_id)
+        publish_governance_rule("delete", rule_id, rule["priority"])
+
+        return {"ok": True, "rule_id": rule_id}
+
+    @app.put("/api/governance/rules/{rule_id}/toggle")
+    def api_governance_toggle_rule(rule_id: str):
+        """切换治理规则启用/禁用状态"""
+        from jarvis.governance_store import governance_store
+        from jarvis.event_publisher import publish_governance_rule
+
+        rule = governance_store.toggle(rule_id)
+        if rule is None:
+            raise HTTPException(status_code=404, detail=f"Rule '{rule_id}' not found")
+
+        state = "enabled" if rule["enabled"] else "disabled"
+        publish_governance_rule("toggle", rule_id, rule["priority"],
+                                description=f"Rule {state}")
+
+        return {"rule_id": rule_id, "enabled": rule["enabled"], "rule": rule}
 
     # ══════════════════════════════════════════════════════════════
     # P0 Bounded Autonomy Endpoints

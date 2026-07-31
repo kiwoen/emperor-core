@@ -866,6 +866,91 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     .notif-dropdown { width: calc(100vw - 32px); right: -60px; }
     .notif-tab { padding: 8px 10px; font-size: 0.68rem; }
   }
+
+  /* ── Governance Panel ── */
+  .gov-rule-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px; border-bottom: 1px solid var(--card-border);
+    transition: background 0.15s;
+  }
+  .gov-rule-row:hover { background: rgba(108,140,255,0.04); }
+  .gov-rule-row:last-child { border-bottom: none; }
+
+  .gov-priority-badge {
+    display: inline-block; min-width: 32px; text-align: center;
+    padding: 2px 8px; border-radius: 4px; font-size: 0.7rem;
+    font-weight: 700; letter-spacing: 0.5px; flex-shrink: 0;
+  }
+  .gov-priority-P0 { background: rgba(239,68,68,0.2); color: #ef4444; }
+  .gov-priority-P1 { background: rgba(249,115,22,0.2); color: #f97316; }
+  .gov-priority-P2 { background: rgba(234,179,8,0.2); color: #eab308; }
+  .gov-priority-P3 { background: rgba(148,163,184,0.2); color: #94a3b8; }
+
+  .gov-rule-desc {
+    flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: 0.8rem; color: var(--text-primary); cursor: default;
+  }
+
+  /* Toggle switch */
+  .gov-toggle { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
+  .gov-toggle input { opacity: 0; width: 0; height: 0; }
+  .gov-toggle-slider {
+    position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+    background: #555; border-radius: 22px; transition: 0.25s;
+  }
+  .gov-toggle-slider::before {
+    content: ""; position: absolute; height: 16px; width: 16px;
+    left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: 0.25s;
+  }
+  .gov-toggle input:checked + .gov-toggle-slider { background: #8b5cf6; }
+  .gov-toggle input:checked + .gov-toggle-slider::before { transform: translateX(18px); }
+
+  .gov-delete-btn {
+    background: none; border: 1px solid transparent; color: var(--text-muted);
+    cursor: pointer; font-size: 0.75rem; padding: 3px 8px; border-radius: 4px;
+    flex-shrink: 0; transition: all 0.2s;
+  }
+  .gov-delete-btn:hover { color: #ef4444; border-color: rgba(239,68,68,0.4); background: rgba(239,68,68,0.08); }
+
+  .gov-empty {
+    text-align: center; padding: 32px 16px; color: var(--text-muted); font-size: 0.82rem;
+  }
+
+  /* ── Governance New Rule Modal ── */
+  .gov-modal-overlay {
+    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.55); z-index: 1000; justify-content: center; align-items: center;
+  }
+  .gov-modal-overlay.active { display: flex; }
+  .gov-modal-card {
+    background: var(--panel-bg); border: 1px solid var(--card-border);
+    border-radius: 12px; padding: 24px; width: 460px; max-width: 90vw;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+  }
+  .gov-modal-card h3 { margin: 0 0 18px 0; font-size: 1.1rem; color: var(--text-primary); }
+  .gov-modal-card label {
+    display: block; margin-bottom: 4px; font-size: 0.78rem; color: var(--text-secondary);
+  }
+  .gov-modal-card textarea, .gov-modal-card select {
+    width: 100%; box-sizing: border-box; padding: 8px 10px; margin-bottom: 14px;
+    background: rgba(255,255,255,0.05); border: 1px solid var(--card-border);
+    border-radius: 6px; color: var(--text-primary); font-size: 0.82rem;
+    font-family: inherit; resize: vertical;
+  }
+  .gov-modal-card textarea:focus, .gov-modal-card select:focus {
+    outline: none; border-color: var(--accent);
+  }
+  .gov-modal-actions {
+    display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px;
+  }
+  .gov-modal-actions button {
+    padding: 8px 20px; border-radius: 6px; font-size: 0.82rem; cursor: pointer;
+    border: 1px solid var(--card-border); transition: background 0.2s;
+  }
+  .gov-btn-submit { background: var(--accent); color: #fff; border-color: var(--accent) !important; }
+  .gov-btn-submit:hover { background: #7c3aed; }
+  .gov-btn-cancel { background: transparent; color: var(--text-secondary); }
+  .gov-btn-cancel:hover { background: rgba(255,255,255,0.05); }
 </style>
 </head>
 <body>
@@ -1193,6 +1278,43 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       <div style="color:var(--text-muted);text-align:center;padding:16px;">尚无 Pipeline 执行记录</div>
     </div>
     <div id="pipeline-detail" style="display:none;margin-top:12px;padding:10px;background:rgba(255,255,255,0.03);border-radius:6px;border:1px solid var(--card-border);"></div>
+  </div>
+</div>
+
+<!-- Governance Rules Panel -->
+<div class="panel-full" id="panel-governance">
+  <div class="panel-header">
+    <h2>Governance Rules</h2>
+    <button class="panel-collapse-btn" onclick="togglePanel('panel-governance')">▼</button>
+    <span class="panel-actions" style="display:flex;gap:8px;">
+      <span id="gov-count" style="color:var(--text-secondary);font-size:13px;"></span>
+      <button onclick="openGovernanceModal()" style="background:var(--accent);color:#fff;border:none;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:0.75rem;">+ 新建规则</button>
+    </span>
+  </div>
+  <div class="panel-body" id="gov-rules-container">
+    <div class="gov-empty">暂无治理规则，点击「新建规则」添加</div>
+  </div>
+</div>
+
+<!-- Governance New Rule Modal -->
+<div class="gov-modal-overlay" id="gov-modal">
+  <div class="gov-modal-card">
+    <h3>新建治理规则</h3>
+    <label>规则描述</label>
+    <textarea id="gov-new-desc" rows="3" placeholder="输入规则描述..."></textarea>
+    <label>优先级</label>
+    <select id="gov-new-priority">
+      <option value="P0">P0 — 立即阻止 (Critical)</option>
+      <option value="P1">P1 — 需要审批 (High)</option>
+      <option value="P2" selected>P2 — 标记提醒 (Medium)</option>
+      <option value="P3">P3 — 仅记录 (Low)</option>
+    </select>
+    <label>修复建议 (可选)</label>
+    <textarea id="gov-new-remediation" rows="2" placeholder="触发此规则时的修复建议..."></textarea>
+    <div class="gov-modal-actions">
+      <button class="gov-btn-cancel" onclick="closeGovernanceModal()">取消</button>
+      <button class="gov-btn-submit" onclick="createGovernanceRule()">提交</button>
+    </div>
   </div>
 </div>
 
@@ -2900,6 +3022,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       case 'governance':
         showToast('governance', 'Governance ' + (data.action||'?'), (data.description||data.rule_id||''));
         addEventLog('governance', 'Governance ' + (data.action||'') + ' rule=' + (data.rule_id||''));
+        refreshGovernanceRules();
         break;
       case 'healing':
         showToast('healing', 'Healing: ' + (data.action_name||'?'), (data.result||'') + (data.triggered_by ? ' by ' + data.triggered_by : ''));
@@ -3467,6 +3590,109 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   setInterval(refreshHealing, 15000);
   refreshHealingTimeline();
   setInterval(refreshHealingTimeline, 15000);
+  refreshGovernanceRules();
+  setInterval(refreshGovernanceRules, 30000);
+
+  // ═══ Governance Rules ═════════════════════════════════════
+
+  async function refreshGovernanceRules() {
+    var container = document.getElementById('gov-rules-container');
+    var countEl = document.getElementById('gov-count');
+    if (!container || !countEl) return;
+
+    try {
+      var res = await fetch(API + '/api/governance/rules');
+      if (!res.ok) { container.innerHTML = '<div class="gov-empty">Failed to load rules</div>'; return; }
+      var data = await res.json();
+      var rules = (data.rules || []).slice(0, 20);
+
+      countEl.textContent = data.total + ' rules';
+
+      if (rules.length === 0) {
+        container.innerHTML = '<div class="gov-empty">暂无治理规则，点击「新建规则」添加</div>';
+        return;
+      }
+
+      var html = '';
+      for (var i = 0; i < rules.length; i++) {
+        var r = rules[i];
+        var desc = _esc(r.description || '');
+        var checked = r.enabled ? ' checked' : '';
+        var pClass = 'gov-priority-' + (r.priority || 'P3');
+        html +=
+          '<div class="gov-rule-row">' +
+            '<span class="gov-priority-badge ' + pClass + '">' + _esc(r.priority) + '</span>' +
+            '<span class="gov-rule-desc" title="' + desc + '">' + desc + '</span>' +
+            '<label class="gov-toggle">' +
+              '<input type="checkbox" ' + checked + ' onchange="toggleGovernanceRule(\'' + _esc(r.rule_id) + '\', this)" />' +
+              '<span class="gov-toggle-slider"></span>' +
+            '</label>' +
+            '<button class="gov-delete-btn" onclick="deleteGovernanceRule(\'' + _esc(r.rule_id) + '\')" title="删除规则">✕</button>' +
+          '</div>';
+        if ((r.remediation || '') !== '') {
+          html +=
+            '<div style="margin-left:52px;padding:4px 8px 10px 8px;font-size:0.72rem;color:var(--text-muted);">' +
+              '修复: ' + _esc(r.remediation) +
+            '</div>';
+        }
+      }
+      container.innerHTML = html;
+    } catch(e) {
+      container.innerHTML = '<div class="gov-empty">无法加载治理规则</div>';
+    }
+  }
+
+  async function toggleGovernanceRule(ruleId, checkbox) {
+    try {
+      var res = await fetch(API + '/api/governance/rules/' + encodeURIComponent(ruleId) + '/toggle', { method: 'PUT' });
+      if (!res.ok) { checkbox.checked = !checkbox.checked; return; }
+    } catch(e) {
+      checkbox.checked = !checkbox.checked;
+    }
+  }
+
+  async function deleteGovernanceRule(ruleId) {
+    if (!confirm('确认删除此治理规则？此操作不可撤销。')) return;
+    try {
+      var res = await fetch(API + '/api/governance/rules/' + encodeURIComponent(ruleId), { method: 'DELETE' });
+      if (!res.ok) { var err = await res.json(); alert('删除失败: ' + (err.detail || '未知错误')); return; }
+      refreshGovernanceRules();
+    } catch(e) {
+      alert('删除失败: ' + e.message);
+    }
+  }
+
+  function openGovernanceModal() {
+    document.getElementById('gov-modal').classList.add('active');
+    document.getElementById('gov-new-desc').value = '';
+    document.getElementById('gov-new-priority').value = 'P2';
+    document.getElementById('gov-new-remediation').value = '';
+  }
+
+  function closeGovernanceModal() {
+    document.getElementById('gov-modal').classList.remove('active');
+  }
+
+  async function createGovernanceRule() {
+    var desc = document.getElementById('gov-new-desc').value.trim();
+    var priority = document.getElementById('gov-new-priority').value;
+    var remediation = document.getElementById('gov-new-remediation').value.trim();
+
+    if (!desc) { alert('请输入规则描述'); return; }
+
+    try {
+      var res = await fetch(API + '/api/governance/rules', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({description: desc, priority: priority, remediation: remediation})
+      });
+      if (!res.ok) { var err = await res.json(); alert('创建失败: ' + (err.detail || '未知错误')); return; }
+      closeGovernanceModal();
+      refreshGovernanceRules();
+    } catch(e) {
+      alert('创建失败: ' + e.message);
+    }
+  }
 
   // ═══ Pipeline functions ════════════════════════════════════
 
