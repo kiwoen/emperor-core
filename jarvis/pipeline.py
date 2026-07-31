@@ -1,6 +1,10 @@
 """
 服务流水线引擎 — 将能力串联成端到端的自动化服务链
 实现"服务规模化"：专家级、个性化、持续、普惠
+
+P0.3: 集成逐步故障恢复引擎 (Step-Level Failure Recovery Engine)
+  设置 use_recovery_engine=True 即可为每个 Stage 自动包裹
+  RecoveryEngine（重试 + 熔断 + 降级）。
 """
 from __future__ import annotations
 
@@ -68,22 +72,35 @@ class ServicePipeline:
             Stage("analyze", lambda ctx: _handle_text(ctx["gather"]["result"])),
         ])
         result = pipeline.execute()
+
+    P0.3 故障恢复 (use_recovery_engine=True)：
+        每个 Stage 自动获得：重试(指数退避+抖动) + 熔断器 + 降级链。
+        与 auto_retry 兼容：auto_retry 是旧版简单重试，
+        use_recovery_engine 提供完整的生产级恢复能力。
     """
 
     def __init__(self, name: str, stages: List['Stage'] = None,
                  auto_retry: bool = True, max_retries: int = 1,
+                 use_recovery_engine: bool = False,
+                 recovery_engine_config: Dict[str, Any] = None,
                  on_stage_complete: Callable = None,
                  on_pipeline_complete: Callable = None):
         self.name = name
         self.stages = stages or []
         self.auto_retry = auto_retry
         self.max_retries = max_retries
+        self.use_recovery_engine = use_recovery_engine
+        self.recovery_engine_config = recovery_engine_config or {}
         self.on_stage_complete = on_stage_complete
         self.on_pipeline_complete = on_pipeline_complete
         self._status = PipelineStatus.IDLE
         self._current_stage_index = 0
         self._lock = threading.Lock()
         self._context: Dict[str, Any] = {}  # 阶段间上下文传递
+
+        # Lazy-init recovery engine instance
+        self._recovery_engine = None
+        self._recovery_results: List = []  # 记录每阶段的恢复结果
 
     @property
     def status(self) -> PipelineStatus:
@@ -173,7 +190,14 @@ class ServicePipeline:
         return result
 
     def _execute_stage(self, stage: 'Stage') -> StageResult:
-        """执行单个阶段（含重试）"""
+        """执行单个阶段（含重试 / 故障恢复）"""
+        if self.use_recovery_engine:
+            return self._execute_stage_with_recovery(stage)
+        else:
+            return self._execute_stage_legacy(stage)
+
+    def _execute_stage_legacy(self, stage: 'Stage') -> StageResult:
+        """旧版执行逻辑：简单重试（保持向后兼容）"""
         max_attempts = self.max_retries + 1 if self.auto_retry else 1
 
         for attempt in range(max_attempts):
@@ -184,24 +208,21 @@ class ServicePipeline:
             )
 
             try:
-                # 准备输入：合并上下文和阶段输入映射
                 stage_input = dict(self._context)
                 if stage.input_mapping:
                     stage_input.update(stage.input_mapping(self._context))
 
-                # 执行处理函数 — handler 接收 ctx dict，内部自行调用实际能力函数
                 output = stage.handler(stage_input)
 
                 stage_result.status = StageStatus.SUCCESS
                 stage_result.result = output if isinstance(output, dict) else {"raw": str(output)}
                 stage_result.finished_at = time.time()
-
                 stage._result = stage_result
                 return stage_result
 
             except Exception as e:
                 if attempt < max_attempts - 1:
-                    time.sleep(0.5 * (attempt + 1))  # 指数退避
+                    time.sleep(0.5 * (attempt + 1))
                     continue
 
                 stage_result.status = StageStatus.FAILED
@@ -210,7 +231,118 @@ class ServicePipeline:
                 stage._result = stage_result
                 return stage_result
 
-        return stage_result  # unreachable, but keep type checker happy
+        return stage_result  # unreachable
+
+    def _execute_stage_with_recovery(self, stage: 'Stage') -> StageResult:
+        """使用 RecoveryEngine 执行阶段：重试 + 熔断 + 降级"""
+        from jarvis.failure_recovery import (
+            RecoveryEngine, RecoveryContext, RecoveryResultStatus,
+            ErrorClassifier, RetryPolicy, CircuitBreaker, FallbackChain,
+            FallbackAction, FallbackType, create_default_engine,
+        )
+
+        # 获取或创建 RecoveryEngine 实例
+        engine = self._get_recovery_engine()
+
+        stage_result = StageResult(
+            stage_name=stage.name,
+            status=StageStatus.RUNNING,
+            started_at=time.time(),
+        )
+
+        # 构建 handler 包装：确保输入来自当前上下文
+        def wrapped_handler():
+            stage_input = dict(self._context)
+            if stage.input_mapping:
+                stage_input.update(stage.input_mapping(self._context))
+            return stage.handler(stage_input)
+
+        try:
+            recovery_result = engine.execute_with_recovery(
+                wrapped_handler,
+                context=RecoveryContext(
+                    stage_name=stage.name,
+                    pipeline_name=self.name,
+                ),
+            )
+            self._recovery_results.append(recovery_result)
+
+            if recovery_result.status in (RecoveryResultStatus.SUCCESS,
+                                          RecoveryResultStatus.RETRY_SUCCESS,
+                                          RecoveryResultStatus.DEGRADED):
+                stage_result.status = StageStatus.SUCCESS
+                output = recovery_result.output
+                stage_result.result = output if isinstance(output, dict) else {"raw": str(output)}
+                stage_result.finished_at = time.time()
+                stage._result = stage_result
+                return stage_result
+            else:
+                # FAILED or CIRCUIT_OPEN
+                stage_result.status = StageStatus.FAILED
+                stage_result.error = recovery_result.error or "Recovery exhausted"
+                stage_result.finished_at = time.time()
+                stage._result = stage_result
+                return stage_result
+
+        except Exception as e:
+            # Recovery engine itself threw — wrap as failure
+            stage_result.status = StageStatus.FAILED
+            stage_result.error = str(e)
+            stage_result.finished_at = time.time()
+            stage._result = stage_result
+            return stage_result
+
+    def _get_recovery_engine(self):
+        """Lazy-init the recovery engine instance."""
+        if self._recovery_engine is None:
+            from jarvis.failure_recovery import (
+                RecoveryEngine, ErrorClassifier, RetryPolicy,
+                CircuitBreaker, FallbackChain, FallbackAction, FallbackType,
+            )
+
+            config = self.recovery_engine_config
+
+            classifier = ErrorClassifier()
+            retry = RetryPolicy(
+                max_retries=config.get("max_retries", 3),
+                base_delay=config.get("base_delay", 0.5),
+                max_delay=config.get("max_delay", 30.0),
+                jitter=config.get("jitter", True),
+                timeout=config.get("timeout"),
+            )
+            breaker = CircuitBreaker(
+                name=f"pipeline:{self.name}",
+                failure_threshold=config.get("failure_threshold", 5),
+                recovery_timeout=config.get("recovery_timeout", 30.0),
+            )
+
+            fallback = FallbackChain()
+            if config.get("fallback_default") is not None:
+                fallback.add(FallbackAction(
+                    FallbackType.DEFAULT,
+                    default_value=config["fallback_default"],
+                    priority=0,
+                ))
+            fallback.add(FallbackAction(FallbackType.SKIP, priority=100))
+
+            self._recovery_engine = RecoveryEngine(
+                classifier=classifier,
+                retry_policy=retry,
+                circuit_breaker=breaker,
+                fallback_chain=fallback,
+                name=f"pipeline:{self.name}",
+            )
+        return self._recovery_engine
+
+    def get_recovery_stats(self) -> Optional[Dict[str, Any]]:
+        """获取故障恢复统计（仅 use_recovery_engine=True 时有值）"""
+        if self._recovery_engine:
+            return self._recovery_engine.get_stats()
+        return None
+
+    def get_recovery_results(self) -> List:
+        """获取每阶段的恢复详细结果"""
+        return list(self._recovery_results)
 
 
 class Stage:
