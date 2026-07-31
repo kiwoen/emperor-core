@@ -793,6 +793,79 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     min-width: 20px; text-align: center;
   }
   .kbd-table .kbd-desc { color: var(--text-dim); font-size: 0.75rem; }
+
+  /* ── Notification Center ── */
+  .notif-wrapper { position: relative; display: inline-block; }
+  .notif-bell-btn {
+    background: none; border: 1px solid var(--border-color); color: var(--text-primary);
+    font-size: 20px; cursor: pointer; padding: 6px 10px; border-radius: 6px;
+    margin-right: 8px; transition: border-color 0.2s; position: relative;
+    line-height: 1;
+  }
+  .notif-bell-btn:hover { border-color: var(--accent); }
+  .notif-badge {
+    position: absolute; top: -6px; right: -8px;
+    background: var(--danger); color: #fff;
+    font-size: 0.6rem; font-weight: 700; min-width: 18px; height: 18px;
+    border-radius: 9px; display: flex; align-items: center; justify-content: center;
+    padding: 0 4px; line-height: 1; pointer-events: none;
+  }
+  .notif-badge:empty { display: none; }
+  .notif-dropdown {
+    display: none; position: absolute; right: 0; top: 100%; margin-top: 8px;
+    width: 380px; max-height: 480px; background: var(--bg-card);
+    border: 1px solid var(--card-border); border-radius: 10px;
+    backdrop-filter: blur(20px); box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+    z-index: 10000; overflow: hidden; flex-direction: column;
+  }
+  .notif-dropdown.open { display: flex; }
+  .notif-tabs {
+    display: flex; gap: 0; border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0; padding: 0 4px;
+  }
+  .notif-tab {
+    background: none; border: none; color: var(--text-secondary); cursor: pointer;
+    padding: 10px 14px; font-family: inherit; font-size: 0.72rem; font-weight: 600;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+    transition: color 0.2s, border-color 0.2s; white-space: nowrap;
+  }
+  .notif-tab:hover { color: var(--text-primary); }
+  .notif-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .notif-list { overflow-y: auto; flex: 1; padding: 4px 0; scrollbar-width: thin; scrollbar-color: var(--border-color) transparent; }
+  .notif-item {
+    display: flex; align-items: flex-start; gap: 10px; padding: 10px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.03); cursor: pointer;
+    transition: background 0.15s;
+  }
+  .notif-item:hover { background: rgba(255,255,255,0.04); }
+  .notif-item.unread { background: rgba(108,140,255,0.06); }
+  .notif-item.unread:hover { background: rgba(108,140,255,0.09); }
+  .notif-icon {
+    width: 32px; height: 32px; border-radius: 8px; display: flex;
+    align-items: center; justify-content: center; font-size: 0.85rem;
+    flex-shrink: 0; margin-top: 1px;
+  }
+  .notif-icon.alert { background: rgba(239,68,68,0.15); }
+  .notif-icon.approval { background: rgba(168,85,247,0.15); }
+  .notif-icon.healing { background: rgba(34,197,94,0.15); }
+  .notif-icon.pipeline { background: rgba(59,130,246,0.15); }
+  .notif-body { flex: 1; min-width: 0; }
+  .notif-title { font-size: 0.8rem; font-weight: 600; color: var(--text-primary); margin-bottom: 2px; }
+  .notif-desc { font-size: 0.7rem; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .notif-time { font-size: 0.65rem; color: var(--text-muted); margin-top: 3px; }
+  .notif-empty { padding: 40px 20px; text-align: center; color: var(--text-muted); font-size: 0.82rem; }
+  .notif-see-all {
+    display: block; text-align: center; padding: 10px; font-size: 0.72rem;
+    color: var(--accent); cursor: pointer; border-top: 1px solid var(--border-color);
+    text-decoration: none;
+  }
+  .notif-see-all:hover { background: rgba(108,140,255,0.06); }
+
+  /* Mobile: full-width notification dropdown */
+  @media (max-width: 480px) {
+    .notif-dropdown { width: calc(100vw - 32px); right: -60px; }
+    .notif-tab { padding: 8px 10px; font-size: 0.68rem; }
+  }
 </style>
 </head>
 <body>
@@ -800,6 +873,21 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 <div class="header">
   <h1>Emperor Evolution Dashboard</h1>
   <div>
+    <div class="notif-wrapper" id="notifWrapper">
+      <button id="notif-bell" class="notif-bell-btn" onclick="toggleNotifications(event)" title="通知中心">🔔</button>
+      <span class="notif-badge" id="notifBadge"></span>
+      <div class="notif-dropdown" id="notifDropdown">
+        <div class="notif-tabs">
+          <button class="notif-tab active" onclick="filterNotifications('all', event)">全部</button>
+          <button class="notif-tab" onclick="filterNotifications('alert', event)">告警</button>
+          <button class="notif-tab" onclick="filterNotifications('approval', event)">审批</button>
+          <button class="notif-tab" onclick="filterNotifications('healing', event)">自愈</button>
+          <button class="notif-tab" onclick="filterNotifications('pipeline', event)">Pipeline</button>
+        </div>
+        <div class="notif-list" id="notifList"></div>
+        <div class="notif-see-all" onclick="seeAllNotifications()" style="display:none;" id="notifSeeAll">查看全部通知</div>
+      </div>
+    </div>
     <button id="theme-toggle" class="theme-btn" onclick="cycleTheme()" title="切换主题">\u263E</button>
     <span class="badge refresh" id="connectionStatus">Connecting...</span>
     <span class="badge" style="margin-left:8px;" id="lastUpdate"></span>
@@ -2805,6 +2893,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       case 'pipeline':
         showToast('pipeline', 'Pipeline ' + (data.status||'?'), (data.template||'') + (data.steps!=null ? ' · ' + data.steps + ' steps' : '') + ' · ' + (data.elapsed_ms||0) + 'ms');
         addEventLog('pipeline', 'Pipeline ' + (data.template||'') + ' → ' + (data.status||''));
+        pushNotification('pipeline', (data.template||'Pipeline'), 'Status: ' + (data.status||'?') + ' · ' + (data.elapsed_ms||0) + 'ms', 'pipeline');
         refreshPipelineList();
         _bumpSummaryCounter('sv-pipelines');
         break;
@@ -2815,6 +2904,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       case 'healing':
         showToast('healing', 'Healing: ' + (data.action_name||'?'), (data.result||'') + (data.triggered_by ? ' by ' + data.triggered_by : ''));
         addEventLog('healing', 'Healing ' + (data.action_name||'') + ' → ' + (data.result||''));
+        pushNotification('healing', 'Healing: ' + (data.action_name||'?'), (data.result||'') + (data.triggered_by ? ' by ' + data.triggered_by : ''), 'healing');
         loadMinisters();
         refreshHealingTimeline();
         _bumpSummaryCounter('sv-healing');
@@ -2823,6 +2913,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
         var approved = data.approved != null ? (data.approved ? 'Approved' : 'Denied') : 'Requested';
         showToast('approval', 'Approval ' + approved, (data.action||'') + ' · risk=' + (data.risk_level||'?'));
         addEventLog('approval', 'Approval ' + approved + ' ' + (data.action||''));
+        pushNotification('approval', 'Approval ' + approved, (data.action||'') + ' · risk=' + (data.risk_level||'?'), 'approval');
         break;
       case 'memory':
         showToast('memory', 'Memory ' + (data.operation||'update'), (data.layer||'') + ' · ' + (data.detail||''));
@@ -2837,6 +2928,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       case 'alert':
         showToast('alert', '⚠ Alert: ' + (data.title||data.message||''), (data.message||data.detail||''));
         addEventLog('alert', 'Alert: ' + (data.title||data.message||''));
+        pushNotification('alert', (data.title||data.message||'Alert'), (data.message||data.detail||''), 'alert');
         fetchAlertHistory();
         refreshSummary();
         break;
@@ -5138,6 +5230,11 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
           closeEventLog();
           return;
         }
+        if (isNotifOpen()) {
+          e.preventDefault();
+          closeNotifications();
+          return;
+        }
         return;
       }
 
@@ -5166,6 +5263,259 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
         return;
       }
     });
+
+    // ═══ Notification Center ═══
+    var _notifications = [];
+    var _notifFilter = 'all';
+    var NOTIF_MAX = 100;
+
+    function pushNotification(type, title, desc, category) {
+      var now = Date.now();
+      _notifications.unshift({
+        id: now + '_' + Math.random().toString(36).substr(2, 5),
+        type: type,
+        title: title || '',
+        desc: desc || '',
+        category: category,
+        timestamp: now,
+        read: false
+      });
+      if (_notifications.length > NOTIF_MAX) { _notifications.length = NOTIF_MAX; }
+      updateNotifBadge();
+      if (_notifFilter === 'all' || _notifFilter === category) {
+        renderNotifications();
+      }
+    }
+
+    function updateNotifBadge() {
+      var badge = document.getElementById('notifBadge');
+      if (!badge) return;
+      var unread = 0;
+      for (var i = 0; i < _notifications.length; i++) {
+        if (!_notifications[i].read) unread++;
+      }
+      badge.textContent = unread > 0 ? (unread > 99 ? '99+' : unread) : '';
+    }
+
+    function timeAgo(ts) {
+      var diff = Date.now() - ts;
+      var sec = Math.floor(diff / 1000);
+      if (sec < 60) return '刚刚';
+      var min = Math.floor(sec / 60);
+      if (min < 60) return min + '分钟前';
+      var hr = Math.floor(min / 60);
+      if (hr < 24) return hr + '小时前';
+      return Math.floor(hr / 24) + '天前';
+    }
+
+    function notifIcon(category) {
+      switch(category) {
+        case 'alert': return '⚠';
+        case 'approval': return '✅';
+        case 'healing': return '🩺';
+        case 'pipeline': return '⚡';
+        default: return '📌';
+      }
+    }
+
+    function notifPanelId(category) {
+      switch(category) {
+        case 'alert': return 'alertPanel';
+        case 'approval': return 'approvalPanel';
+        case 'healing': return 'healingPanel';
+        case 'pipeline': return 'pipelinePanel';
+        default: return '';
+      }
+    }
+
+    function markAllVisibleRead() {
+      var visible = getFilteredNotifications();
+      for (var i = 0; i < visible.length; i++) {
+        visible[i].read = true;
+      }
+      // Also mark originals
+      for (var j = 0; j < _notifications.length; j++) {
+        if ((_notifFilter === 'all' || _notifications[j].category === _notifFilter) && !_notifications[j].read) {
+          _notifications[j].read = true;
+        }
+      }
+      updateNotifBadge();
+    }
+
+    function getFilteredNotifications() {
+      var result = [];
+      for (var i = 0; i < _notifications.length; i++) {
+        if (_notifFilter === 'all' || _notifications[i].category === _notifFilter) {
+          result.push(_notifications[i]);
+        }
+        if (result.length >= 30) break;
+      }
+      return result;
+    }
+
+    function renderNotifications() {
+      var list = document.getElementById('notifList');
+      var seeAll = document.getElementById('notifSeeAll');
+      if (!list) return;
+      var filtered = getFilteredNotifications();
+      if (filtered.length === 0) {
+        list.innerHTML = '<div class="notif-empty">暂无新通知</div>';
+        if (seeAll) seeAll.style.display = 'none';
+        return;
+      }
+      var html = '';
+      for (var i = 0; i < filtered.length; i++) {
+        var n = filtered[i];
+        var cls = n.read ? '' : ' unread';
+        html += '<div class="notif-item' + cls + '" onclick="onNotifClick(\'' + n.id + '\', \'' + n.category + '\')">';
+        html += '<div class="notif-icon ' + n.category + '">' + notifIcon(n.category) + '</div>';
+        html += '<div class="notif-body">';
+        html += '<div class="notif-title">' + _esc(n.title) + '</div>';
+        html += '<div class="notif-desc">' + _esc(n.desc) + '</div>';
+        html += '<div class="notif-time">' + timeAgo(n.timestamp) + '</div>';
+        html += '</div></div>';
+      }
+      list.innerHTML = html;
+      if (seeAll) {
+        var total = 0;
+        for (var j = 0; j < _notifications.length; j++) {
+          if (_notifFilter === 'all' || _notifications[j].category === _notifFilter) total++;
+        }
+        seeAll.style.display = total > 30 ? '' : 'none';
+      }
+    }
+
+    function onNotifClick(id, category) {
+      // Mark as read
+      for (var i = 0; i < _notifications.length; i++) {
+        if (_notifications[i].id === id) {
+          _notifications[i].read = true;
+          break;
+        }
+      }
+      updateNotifBadge();
+      closeNotifications();
+      // Navigate to corresponding panel
+      var panelId = notifPanelId(category);
+      if (panelId) {
+        var el = document.getElementById(panelId);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // Flash highlight
+          el.style.transition = 'box-shadow 0.3s';
+          el.style.boxShadow = '0 0 0 3px ' + (category === 'alert' ? 'rgba(239,68,68,0.5)' : category === 'approval' ? 'rgba(168,85,247,0.5)' : category === 'healing' ? 'rgba(34,197,94,0.5)' : 'rgba(59,130,246,0.5)');
+          setTimeout(function() { el.style.boxShadow = ''; }, 2000);
+        }
+      }
+    }
+
+    function toggleNotifications(e) {
+      if (e) e.stopPropagation();
+      var dd = document.getElementById('notifDropdown');
+      if (!dd) return;
+      if (dd.classList.contains('open')) {
+        closeNotifications();
+      } else {
+        dd.classList.add('open');
+        markAllVisibleRead();
+        renderNotifications();
+        // Close event log if open
+        closeEventLog();
+      }
+    }
+
+    function closeNotifications() {
+      var dd = document.getElementById('notifDropdown');
+      if (dd) dd.classList.remove('open');
+    }
+
+    function isNotifOpen() {
+      var dd = document.getElementById('notifDropdown');
+      return dd && dd.classList.contains('open');
+    }
+
+    function filterNotifications(cat, e) {
+      if (e) e.stopPropagation();
+      _notifFilter = cat;
+      // Update tab active states
+      var tabs = document.querySelectorAll('.notif-tab');
+      for (var i = 0; i < tabs.length; i++) {
+        tabs[i].classList.remove('active');
+      }
+      if (e && e.target) e.target.classList.add('active');
+      markAllVisibleRead();
+      renderNotifications();
+    }
+
+    function seeAllNotifications() {
+      closeNotifications();
+      // Open event log as a general overview
+      var panel = document.getElementById('event-log-panel');
+      if (panel && panel.classList.contains('collapsed')) {
+        panel.classList.remove('collapsed');
+        var body = document.getElementById('event-log-body');
+        if (body) body.scrollTop = 0;
+      }
+    }
+
+    // Click outside to close
+    document.addEventListener('click', function(e) {
+      var wrapper = document.getElementById('notifWrapper');
+      if (wrapper && !wrapper.contains(e.target) && isNotifOpen()) {
+        closeNotifications();
+      }
+    });
+
+    // Initial notification aggregation from API endpoints
+    async function aggregateInitialNotifications() {
+      var endpoints = [
+        { url: '/api/alerts', key: 'alerts', cat: 'alert', titleFn: function(d) { return d.title || d.message || 'Alert'; }, descFn: function(d) { return d.message || d.detail || ''; } },
+        { url: '/api/pipelines', key: 'pipelines', cat: 'pipeline', titleFn: function(d) { return d.template || 'Pipeline'; }, descFn: function(d) { return 'Status: ' + (d.status || '?'); } },
+        { url: '/api/healing/timeline', key: 'entries', cat: 'healing', titleFn: function(d) { return 'Healing: ' + (d.action_name || '?'); }, descFn: function(d) { return d.result || ''; } },
+        { url: '/api/approvals/queue', key: 'items', cat: 'approval', titleFn: function(d) { return (d.approved != null ? (d.approved ? 'Approved' : 'Denied') : 'Pending'); }, descFn: function(d) { return (d.action || '') + ' · risk=' + (d.risk_level || '?'); } }
+      ];
+      for (var i = 0; i < endpoints.length; i++) {
+        try {
+          var ep = endpoints[i];
+          var res = await fetch(API + ep.url);
+          if (!res.ok) continue;
+          var json = await res.json();
+          var items = json[ep.key] || json || [];
+          if (!Array.isArray(items)) items = [];
+          for (var j = 0; j < Math.min(items.length, 10); j++) {
+            var d = items[j];
+            var ts = (d.timestamp || d.created_at || d.time) ? new Date(d.timestamp || d.created_at || d.time).getTime() : Date.now() - j * 60000;
+            if (isNaN(ts)) ts = Date.now() - j * 60000;
+            var exists = false;
+            for (var k = 0; k < _notifications.length; k++) {
+              if (_notifications[k].category === ep.cat && _notifications[k].title === ep.titleFn(d)) { exists = true; break; }
+            }
+            if (!exists) {
+              _notifications.push({
+                id: 'init_' + ep.cat + '_' + j + '_' + Date.now(),
+                type: ep.cat,
+                title: ep.titleFn(d),
+                desc: ep.descFn(d),
+                category: ep.cat,
+                timestamp: ts,
+                read: true
+              });
+            }
+          }
+        } catch(ex) { /* skip failed endpoints */ }
+      }
+      // Sort by timestamp desc
+      _notifications.sort(function(a, b) { return b.timestamp - a.timestamp; });
+      if (_notifications.length > NOTIF_MAX) { _notifications.length = NOTIF_MAX; }
+      updateNotifBadge();
+      if (_notifFilter === 'all' || isNotifOpen()) {
+        renderNotifications();
+      }
+    }
+
+    // Init notification aggregation
+    aggregateInitialNotifications();
+
   })();
 </script>
 <div id="toast-container"></div>
