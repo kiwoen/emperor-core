@@ -2871,6 +2871,113 @@ def create_app(
             "total": len(sm.execution_history),
         }
 
+    # ══════════════════════ MCP API Endpoints ═════════════════════
+
+    # Models
+    class MCPServerRegister(BaseModel):
+        name: str = Field(..., description="MCP Server name")
+        transport: str = Field(default="http", description="stdio or http")
+        command: str = Field(default="", description="Command for stdio mode")
+        args: list[str] = Field(default_factory=list, description="Command args")
+        url: str = Field(default="", description="URL for HTTP mode")
+        timeout: float = Field(default=30.0, description="Timeout in seconds")
+
+    class MCPToolCall(BaseModel):
+        tool_name: str = Field(..., description="Tool name to call")
+        arguments: dict = Field(default_factory=dict, description="Tool arguments")
+
+    @app.get("/api/mcp/servers")
+    def mcp_list_servers(request: Request):
+        """List all registered MCP servers."""
+        emp = request.app.extra.get("emperor")
+        if emp is None:
+            raise HTTPException(status_code=503, detail="Emperor not available")
+        mgr = emp.mcp_manager
+        servers = mgr.list_servers()
+        tools_by_server = mgr.get_tools_by_server()
+        return {
+            "servers": servers,
+            "count": len(servers),
+            "tools": {
+                srv: [{"name": t.name, "description": t.description}
+                      for t in tools]
+                for srv, tools in tools_by_server.items()
+            },
+        }
+
+    @app.get("/api/mcp/tools")
+    def mcp_list_tools(request: Request):
+        """Aggregate all MCP tools from all registered servers."""
+        emp = request.app.extra.get("emperor")
+        if emp is None:
+            raise HTTPException(status_code=503, detail="Emperor not available")
+        mgr = emp.mcp_manager
+        tools = mgr.get_all_tools()
+        return {
+            "tools": [
+                {
+                    "name": t.name,
+                    "description": t.description,
+                    "parameters_schema": t.parameters_schema,
+                }
+                for t in tools
+            ],
+            "count": len(tools),
+        }
+
+    @app.post("/api/mcp/call")
+    def mcp_call_tool(request: Request, payload: MCPToolCall):
+        """Discover and call an MCP tool across all servers."""
+        emp = request.app.extra.get("emperor")
+        if emp is None:
+            raise HTTPException(status_code=503, detail="Emperor not available")
+        mgr = emp.mcp_manager
+        try:
+            result = mgr.discover_and_call(payload.tool_name, payload.arguments)
+            return {
+                "tool_name": payload.tool_name,
+                "success": True,
+                "result": result.get("result", ""),
+            }
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.post("/api/mcp/servers/register")
+    def mcp_register_server(request: Request, payload: MCPServerRegister):
+        """Register an external MCP server."""
+        emp = request.app.extra.get("emperor")
+        if emp is None:
+            raise HTTPException(status_code=503, detail="Emperor not available")
+        mgr = emp.mcp_manager
+        from jarvis.mcp_client import MCPServerConfig
+
+        config = MCPServerConfig(
+            name=payload.name,
+            transport=payload.transport,
+            command=payload.command,
+            args=payload.args,
+            url=payload.url,
+            timeout=payload.timeout,
+        )
+        try:
+            mgr.register_server(config)
+            return {"message": f"Server '{payload.name}' registered", "success": True}
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.delete("/api/mcp/servers/{server_name}")
+    def mcp_unregister_server(server_name: str, request: Request):
+        """Unregister an MCP server."""
+        emp = request.app.extra.get("emperor")
+        if emp is None:
+            raise HTTPException(status_code=503, detail="Emperor not available")
+        mgr = emp.mcp_manager
+        try:
+            mgr.unregister_server(server_name)
+            return {"message": f"Server '{server_name}' unregistered", "success": True}
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
     return app
 
 

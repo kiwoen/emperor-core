@@ -261,6 +261,16 @@ class Emperor:
             audit_logger=self._audit_logger,
         )
 
+        # MCP Manager — unified gateway for MCP Client + built-in mock servers
+        from jarvis.mcp_manager import MCPManager
+        self._mcp_manager: MCPManager = MCPManager()
+        self._mcp_manager.register_builtin_mock_servers()
+        logger.info(
+            "[Emperor] MCP Manager initialized — %d servers, %d tools",
+            self._mcp_manager.server_count,
+            len(self._mcp_manager.get_all_tools()),
+        )
+
         self._dispatch(LifecycleEvent.ON_INIT, emperor=self)
 
         # Load persisted state if data_dir set
@@ -336,6 +346,11 @@ class Emperor:
     def approval_engine(self):
         """Direct access to the ApprovalEngine."""
         return self._approval_engine
+
+    @property
+    def mcp_manager(self):
+        """Direct access to the MCPManager (MCP Client + built-in mock servers)."""
+        return self._mcp_manager
 
     def _dispatch(self, event: Any, **kwargs: Any) -> Any:
         """Dispatch a lifecycle event to all registered plugins."""
