@@ -25,12 +25,15 @@ Endpoints:
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger("jarvis.court_api")
 
 from jarvis.court.config import SurvivalConfig
 from jarvis.court.court import Court
@@ -53,6 +56,9 @@ from jarvis.hallucination_detector import (
 from jarvis.hierarchical_memory import (
     HierarchicalMemoryEngine, MemoryTier, ConsolidationStatus,
 )
+
+# P1 module imports for Prompt Injection Guard
+from jarvis.prompt_guard import PromptGuard, ScanResult
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -350,6 +356,7 @@ def create_app(
     # Inject P1 modules
     app.extra["tool_guard_middleware"] = ToolGuardMiddleware()
     app.extra["hallucination_detector"] = HallucinationDetector(governance_agent=governance_agent)
+    app.extra["prompt_guard"] = PromptGuard(severity_threshold="warn")
 
     # Inject Hierarchical Memory Engine
     if hierarchical_memory_engine is None:
@@ -418,6 +425,25 @@ def create_app(
 
     @app.post("/court/dispatch")
     def record_dispatch(req: DispatchRequest):
+        # P0 Prompt Injection guard: scan user input before dispatch
+        prompt_guard: PromptGuard = app.extra.get("prompt_guard")
+        if prompt_guard is not None:
+            scan_result = prompt_guard.scan_input(req.intent)
+            if scan_result.level == "dangerous":
+                raise HTTPException(
+                    status_code=403,
+                    detail={
+                        "error": "Prompt injection detected",
+                        "scan_result": scan_result.to_dict(),
+                    },
+                )
+            elif scan_result.level == "suspicious":
+                logger.warning(
+                    "Suspicious input detected in dispatch (minister=%s): %s",
+                    req.minister,
+                    scan_result.reason,
+                )
+
         court.record_dispatch(
             req.minister, req.edict_id, req.intent,
             req.success, req.confidence,
@@ -427,7 +453,10 @@ def create_app(
         from jarvis.event_publisher import publish_dispatch
         publish_dispatch(req.minister, req.edict_id, req.intent,
                          req.success, req.confidence, req.execution_time_ms)
-        return {"message": "Dispatch recorded"}
+        return {
+            "message": "Dispatch recorded",
+            "security": scan_result.to_dict() if (prompt_guard is not None and scan_result.level != "harmless") else None,
+        }
 
     @app.post("/court/feedback")
     def record_feedback(req: FeedbackRequest):
@@ -2646,6 +2675,45 @@ def create_app(
         if detector is None:
             raise HTTPException(status_code=503, detail="HallucinationDetector not available")
         return detector.get_stats()
+
+    # ═══ Prompt Injection Guard API (P0) ═══════════════════════════
+
+    @app.get("/api/security/scan")
+    def security_scan(text: str):
+        """手动检测输入/输出文本是否存在 Prompt Injection 风险。
+
+        Query params:
+            text: 待检测的文本
+        """
+        prompt_guard: PromptGuard = app.extra.get("prompt_guard")
+        if prompt_guard is None:
+            raise HTTPException(status_code=503, detail="PromptGuard not available")
+        result = prompt_guard.scan_input(text)
+        if result.level == "dangerous":
+            return {
+                "action": "block",
+                "scan_result": result.to_dict(),
+            }
+        elif result.level == "suspicious":
+            return {
+                "action": "warn",
+                "scan_result": result.to_dict(),
+            }
+        return {
+            "action": "allow",
+            "scan_result": result.to_dict(),
+        }
+
+    @app.get("/api/security/rules")
+    def security_rules():
+        """返回当前 PromptGuard 活跃规则列表。"""
+        prompt_guard: PromptGuard = app.extra.get("prompt_guard")
+        if prompt_guard is None:
+            raise HTTPException(status_code=503, detail="PromptGuard not available")
+        return {
+            "total_rules": len(prompt_guard.list_rules()),
+            "rules": prompt_guard.list_rules(),
+        }
 
     # ═══ Hierarchical Memory API ═══════════════════════════════════
 
