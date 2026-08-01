@@ -10,6 +10,7 @@ import time
 from typing import Any
 
 from jarvis.event_bus import Event, event_bus
+from jarvis.tracer import tracer as _tracer
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -19,6 +20,10 @@ from jarvis.event_bus import Event, event_bus
 def publish_dispatch(minister: str, edict_id: str, intent: str,
                      success: bool, confidence: float, elapsed_ms: float) -> None:
     """Published when a court dispatch completes."""
+    _tracer.start_span(
+        "event.publish", kind="internal",
+        attributes={"event_type": "dispatch", "minister": minister, "success": success},
+    )
     event_bus.publish(Event("dispatch", {
         "minister": minister,
         "edict_id": edict_id,
@@ -27,6 +32,8 @@ def publish_dispatch(minister: str, edict_id: str, intent: str,
         "confidence": round(confidence, 4),
         "elapsed_ms": round(elapsed_ms, 1),
     }))
+    _tracer.end_span(_tracer._context_stack()[-1] if _tracer._context_stack() else "",
+                     status="ok")
 
 
 def publish_pipeline(template: str, pipeline_id: str, status: str,

@@ -2978,6 +2978,151 @@ def create_app(
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e))
 
+    # ══════════════════════════════════════════════════════════════════
+    # Distributed Tracing API
+    # ══════════════════════════════════════════════════════════════════
+
+    from jarvis.tracer import tracer
+
+    @app.get("/api/traces")
+    def list_traces(request: Request, limit: int = 20):
+        """Recent trace summaries — trace_id, root_span_name, start_time,
+        span_count, total_latency_ms."""
+        try:
+            infos = tracer.list_recent_traces(limit=max(1, min(limit, 100)))
+            return {
+                "traces": [
+                    {
+                        "trace_id": t.trace_id,
+                        "root_span_name": t.root_span_name,
+                        "start_time": t.start_time,
+                        "span_count": t.span_count,
+                        "total_latency_ms": t.total_latency_ms,
+                        "status": t.status,
+                    }
+                    for t in infos
+                ]
+            }
+        except Exception:
+            return {"traces": []}
+
+    @app.get("/api/traces/stats")
+    def trace_stats(request: Request):
+        """Aggregate trace statistics."""
+        try:
+            return tracer.stats()
+        except Exception:
+            return {"total_traces": 0, "avg_latency_ms": 0, "p50_latency_ms": 0,
+                    "p95_latency_ms": 0, "p99_latency_ms": 0}
+
+    @app.get("/api/traces/{trace_id}")
+    def trace_detail(trace_id: str, request: Request):
+        """Full trace detail — all spans with waterfall data."""
+        spans = tracer.get_trace(trace_id)
+        if not spans:
+            raise HTTPException(status_code=404, detail=f"Trace {trace_id} not found")
+        # Find trace-level min start for waterfall alignment
+        t_min = min(s.start_time for s in spans)
+        return {
+            "trace_id": trace_id,
+            "spans": [
+                {
+                    "span_id": s.span_id,
+                    "parent_id": s.parent_id,
+                    "name": s.name,
+                    "kind": s.kind,
+                    "start_offset_ms": round((s.start_time - t_min) * 1000, 2),
+                    "latency_ms": round(s.latency_ms, 3),
+                    "status": s.status,
+                    "attributes": s.attributes,
+                    "events": [
+                        {"name": e.name, "timestamp": e.timestamp, "attributes": e.attributes}
+                        for e in s.events
+                    ],
+                }
+                for s in spans
+            ],
+        }
+
+    # ══════════════════════════════════════════════════════════════════
+    # Multi-Model Router API
+    # ══════════════════════════════════════════════════════════════════
+
+    @app.get("/api/models")
+    def list_models(request: Request, tier: str | None = None):
+        """List all registered models with their configuration.
+
+        Query params:
+            tier: Optional filter — cheap | standard | premium
+        """
+        emp = request.app.extra.get("emperor")
+        if emp is None:
+            multi_router = None
+        else:
+            multi_router = emp.multi_model_router
+
+        if multi_router is None:
+            return {"models": [], "count": 0, "note": "MultiModelRouter not available"}
+
+        models = multi_router.list_models(tier=tier)
+        return {
+            "models": [m.to_dict() for m in models],
+            "count": len(models),
+            "tiers": multi_router.get_all_tiers(),
+        }
+
+    @app.post("/api/models/benchmark")
+    async def benchmark_models(request: Request):
+        """Benchmark all registered models on a given prompt.
+
+        Calls each model in parallel and returns latency + output comparison.
+
+        Request body (JSON):
+            prompt: str    — the test prompt
+            model_ids: list[str] | None — specific models to benchmark (all if omitted)
+        """
+        import json as _json
+        from fastapi import Request as _FR
+
+        emp = request.app.extra.get("emperor")
+        if emp is None:
+            raise HTTPException(status_code=503, detail="Emperor not available")
+
+        multi_router = emp.multi_model_router
+
+        # Parse request body manually (FastAPI with async can be tricky here)
+        try:
+            body = await request.body()
+            data = _json.loads(body) if body else {}
+        except Exception:
+            data = {}
+
+        prompt = data.get("prompt", "")
+        if not prompt:
+            raise HTTPException(status_code=400, detail="prompt is required")
+
+        model_ids = data.get("model_ids", None)
+
+        messages = [{"role": "user", "content": prompt}]
+        results = multi_router.benchmark(messages, model_ids=model_ids)
+
+        return {
+            "prompt": prompt,
+            "results": [
+                {
+                    "model_id": r.model_id,
+                    "tier": r.tier,
+                    "output": r.output,
+                    "latency_ms": r.latency_ms,
+                    "success": r.success,
+                    "error": r.error,
+                    "cost_estimate": r.cost_estimate,
+                }
+                for r in results
+            ],
+            "fastest": results[0].model_id if results else None,
+        }
+
     return app
 
 

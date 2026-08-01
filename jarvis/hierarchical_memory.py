@@ -22,6 +22,8 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Any, Optional
 
+from jarvis.tracer import tracer as _tracer
+
 logger = logging.getLogger("jarvis.hierarchical_memory")
 
 
@@ -258,12 +260,19 @@ class HierarchicalMemoryEngine:
         min_importance: float = 0.0,
     ) -> list[MemoryNode]:
         """Retrieve nodes by hybrid relevance scoring."""
+        _start = time.time()
         target_tiers = tiers or [MemoryTier.EPISODIC, MemoryTier.SEMANTIC, MemoryTier.PROCEDURAL]
         candidates: list[MemoryNode] = []
         for t in target_tiers:
             candidates.extend(self._get_tier(t).values())
 
         if not candidates:
+            _tracer.start_span(
+                "memory.retrieve", kind="internal",
+                attributes={"query": query[:80], "tier": target_tiers[0].name if target_tiers else "none",
+                            "hit_count": 0, "latency_ms": 0},
+            )
+            _tracer.end_span(_tracer._context_stack()[-1] if _tracer._context_stack() else "", "ok")
             return []
 
         now = time.time()
@@ -301,6 +310,17 @@ class HierarchicalMemoryEngine:
         for _, node in top:
             node.access_count += 1
             node.last_accessed = now
+
+        _elapsed = (time.time() - _start) * 1000
+        _tier_str = ",".join(t.name for t in target_tiers)
+        _tracer.start_span(
+            "memory.retrieve", kind="internal",
+            attributes={"query": query[:80], "tier": _tier_str,
+                        "hit_count": len(top), "latency_ms": round(_elapsed, 2)},
+        )
+        _tracer.end_span(_tracer._context_stack()[-1] if _tracer._context_stack() else "",
+                         status="ok" if top else "ok",
+                         attributes={"hit_count": len(top), "latency_ms": round(_elapsed, 2)})
         return [n for _, n in top]
 
     def search_semantic(

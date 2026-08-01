@@ -1351,6 +1351,23 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   </div>
 </div>
 
+<!-- Distributed Tracing Panel -->
+<div class="panel-full" id="panel-traces">
+  <div class="panel-header">
+    <h2>Tracing <span id="traces-badge" style="font-size:11px;padding:2px 8px;border-radius:10px;background:var(--bg-secondary);color:var(--text-muted);">0</span></h2>
+    <button class="panel-collapse-btn" onclick="togglePanel('panel-traces')">▼</button>
+    <span class="panel-actions">
+      <button onclick="fetchTraces()" style="background:transparent;color:var(--text-secondary);border:1px solid var(--card-border);border-radius:4px;padding:2px 10px;cursor:pointer;font-size:0.7rem;">Refresh</button>
+    </span>
+  </div>
+  <div class="panel-body">
+    <div id="traces-list" style="font-size:0.75rem;">
+      <div style="color:var(--text-muted);text-align:center;padding:16px;">暂无追踪数据，执行任务后自动生成</div>
+    </div>
+    <div id="traces-detail" style="display:none;margin-top:12px;padding:10px;background:rgba(255,255,255,0.03);border-radius:6px;border:1px solid var(--card-border);"></div>
+  </div>
+</div>
+
 <!-- Pipeline Execution Visualization Panel -->
 <div class="panel-full" id="panel-pipeline">
   <div class="panel-header">
@@ -2044,6 +2061,8 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 
 <script>
   var API = "{{API_BASE}}";
+
+  function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   var MAX_POINTS = 40;   // rolling window for charts
 
   function fmt(n, dec) {
@@ -5972,6 +5991,90 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 
     // Init notification aggregation
     aggregateInitialNotifications();
+
+    // ── Distributed Tracing ─────────────────────────────────────────
+    var _expandedTrace = null;
+
+    async function fetchTraces() {
+      try {
+        var res = await fetch(API + '/api/traces?limit=20');
+        if (!res.ok) return;
+        var data = await res.json();
+        var traces = data.traces || [];
+        var badge = document.getElementById('traces-badge');
+        if (badge) badge.textContent = traces.length;
+        renderTraces(traces);
+      } catch(e) {}
+    }
+
+    function renderTraces(traces) {
+      var list = document.getElementById('traces-list');
+      if (!traces.length) {
+        list.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:16px;">暂无追踪数据，执行任务后自动生成</div>';
+        return;
+      }
+      var html = '';
+      for (var i = 0; i < traces.length; i++) {
+        var t = traces[i];
+        var statusIcon = t.status === 'error' ? '⚠️' : '✅';
+        var statusColor = t.status === 'error' ? 'var(--danger)' : 'var(--success)';
+        html += '<div style="padding:8px 0;border-bottom:1px solid var(--card-border);cursor:pointer;" onclick="toggleTraceDetail(\'' + t.trace_id + '\')">' +
+          '<span style="color:' + statusColor + ';margin-right:6px;">' + statusIcon + '</span>' +
+          '<strong>' + escHtml(t.root_span_name || 'trace') + '</strong>' +
+          ' <span style="color:var(--text-secondary);font-size:0.7rem;">' +
+          ' spans:' + (t.span_count || 0) +
+          ' | ' + (t.total_latency_ms != null ? t.total_latency_ms.toFixed(1) + 'ms' : '—') +
+          '</span>' +
+          '</div>';
+      }
+      list.innerHTML = html;
+    }
+
+    async function toggleTraceDetail(traceId) {
+      var detail = document.getElementById('traces-detail');
+      if (_expandedTrace === traceId) {
+        detail.style.display = 'none';
+        _expandedTrace = null;
+        return;
+      }
+      _expandedTrace = traceId;
+      try {
+        var res = await fetch(API + '/api/traces/' + traceId);
+        if (!res.ok) { detail.style.display = 'none'; return; }
+        var data = await res.json();
+        var spans = data.spans || [];
+        // Build waterfall bars
+        var maxMs = 0;
+        for (var i = 0; i < spans.length; i++) {
+          var end = spans[i].start_offset_ms + spans[i].latency_ms;
+          if (end > maxMs) maxMs = end;
+        }
+        maxMs = Math.max(maxMs, 1);
+        var html = '<div style="font-size:0.7rem;margin-bottom:8px;color:var(--text-secondary);">Trace ' + traceId.substring(0,12) + '... (' + spans.length + ' spans)</div>';
+        for (var j = 0; j < spans.length; j++) {
+          var s = spans[j];
+          var leftPct = (s.start_offset_ms / maxMs * 100).toFixed(1);
+          var widthPct = Math.max((s.latency_ms / maxMs * 100).toFixed(1), 0.5);
+          var barColor = s.status === 'error' ? '#ff6b6b' : 'var(--accent)';
+          var indent = s.parent_id ? '&nbsp;&nbsp;&nbsp;' : '';
+          html += '<div style="display:flex;align-items:center;margin:3px 0;">' +
+            '<span style="width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:0.72rem;">' + indent + escHtml(s.name) + '</span>' +
+            '<span style="flex:1;height:16px;position:relative;background:rgba(255,255,255,0.04);border-radius:3px;margin:0 8px;">' +
+            '<span style="position:absolute;left:' + leftPct + '%;width:' + widthPct + '%;height:100%;background:' + barColor + ';border-radius:3px;min-width:2px;"></span>' +
+            '</span>' +
+            '<span style="font-size:0.68rem;color:var(--text-secondary);width:55px;text-align:right;">' + s.latency_ms.toFixed(1) + 'ms</span>' +
+            '</div>';
+        }
+        detail.innerHTML = html;
+        detail.style.display = 'block';
+      } catch(e) {
+        detail.style.display = 'none';
+      }
+    }
+
+    // Poll traces every 15 seconds
+    setInterval(fetchTraces, 15000);
+    fetchTraces();
 
   })();
 </script>

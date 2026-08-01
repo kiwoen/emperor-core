@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import re
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Optional
+
+from jarvis.tracer import tracer as _tracer
 
 logger = logging.getLogger("jarvis.router")
 
@@ -144,9 +147,23 @@ class ModelRouter:
         Returns:
             RouterResult with model_id, tier, and estimated cost.
         """
+        _start = time.time()
         tier = self.estimate_complexity(prompt, domain)
         model_id = MODEL_REGISTRY[tier][0]  # pick first model in tier
         cost = _COST_PER_1K[tier]
+        _elapsed = (time.time() - _start) * 1000
+
+        # ── Tracing: model.invoke span ──
+        _tracer.start_span(
+            "model.invoke",
+            kind="client",
+            attributes={"model_name": model_id, "tier": tier, "estimated_cost": cost},
+        )
+        _tracer.end_span(
+            _tracer._context_stack()[-1] if _tracer._context_stack() else "",
+            status="ok",
+            attributes={"latency_ms": round(_elapsed, 2)},
+        )
 
         # Update tracking
         self.total_requests += 1

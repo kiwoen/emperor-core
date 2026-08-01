@@ -32,6 +32,9 @@ from jarvis.config import (
     save_default_config as save_default_app_config,
 )
 
+# Tracing
+from jarvis.tracer import tracer as _tracer
+
 logger = logging.getLogger("jarvis.emperor")
 
 
@@ -216,6 +219,10 @@ class Emperor:
         from jarvis.core.router import ModelRouter
         self._model_router: ModelRouter = ModelRouter()
 
+        # Multi-model router — DeepSeek V3/R1 + parallel/ensemble/strategy routing
+        from jarvis.multi_model import MultiModelRouter
+        self._multi_model_router: MultiModelRouter = MultiModelRouter()
+
         # Adaptive prompt template manager
         from jarvis.prompt_template import PromptTemplateManager
         template_data_dir = self.config.data_dir if self.config.data_dir else str(Path.cwd())
@@ -343,6 +350,11 @@ class Emperor:
         return self._model_router
 
     @property
+    def multi_model_router(self):
+        """Direct access to the MultiModelRouter (DeepSeek + parallel/ensemble/strategy)."""
+        return self._multi_model_router
+
+    @property
     def approval_engine(self):
         """Direct access to the ApprovalEngine."""
         return self._approval_engine
@@ -407,6 +419,13 @@ class Emperor:
         if not task_id:
             import uuid
             task_id = uuid.uuid4().hex[:8]
+
+        # ── Tracing: emperor.dispatch span ──
+        _trace_ctx = _tracer.start_span(
+            "emperor.dispatch",
+            kind="server",
+            attributes={"task_id": task_id, "domain": domain, "prompt_len": len(prompt)},
+        )
 
         req = TaskRequest(
             id=task_id,
@@ -498,6 +517,18 @@ class Emperor:
             except Exception:
                 logger.warning("[Emperor] Failed to persist task to DB")
 
+        # ── End tracing span ──
+        _tracer.end_span(
+            _trace_ctx.span_id,
+            status="ok" if result["success"] else "error",
+            attributes={
+                "minister": result.get("minister", ""),
+                "success": result["success"],
+                "confidence": result.get("confidence", 0),
+                "elapsed_ms": _elapsed_ms,
+            },
+        )
+
         return result
 
     def execute_batch(self, tasks: list[dict]) -> list[dict]:
@@ -565,6 +596,7 @@ class Emperor:
         app.extra["emperor"] = self
         app.extra["db"] = db
         app.extra["model_router"] = self._model_router
+        app.extra["multi_model_router"] = self._multi_model_router
 
         # Inject scheduler state if running
         if self._scheduler is not None:
