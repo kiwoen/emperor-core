@@ -203,9 +203,13 @@ class Emperor:
         # Pipeline monitoring
         self._pipeline_monitor: Any = None  # PipelineMonitor (lazy)
 
-        # Plugin system
+        # Plugin system (lifecycle hooks)
         from jarvis.plugin import LifecycleEvent, PluginManager
         self._plugin_manager: Any = PluginManager()
+
+        # Plugin System (hot-load third-party plugins)
+        from jarvis.plugin_system import PluginManager as PluginSystemManager
+        self._plugin_system = PluginSystemManager()
 
         # Plugin marketplace
         from jarvis.plugin_marketplace import PluginMarketplace
@@ -389,6 +393,11 @@ class Emperor:
     def plugin_marketplace(self):
         """Direct access to the PluginMarketplace."""
         return self._plugin_marketplace
+
+    @property
+    def plugin_system(self):
+        """Direct access to the PluginSystemManager (hot-load third-party plugins)."""
+        return self._plugin_system
 
     @property
     def sandbox_manager(self):
@@ -897,6 +906,7 @@ class Emperor:
         _ = self.metrics
         app.extra["metrics_plugin"] = self._metrics_plugin
         app.extra["plugin_marketplace"] = self._plugin_marketplace
+        app.extra["plugin_system"] = self._plugin_system
         app.extra["sandbox_manager"] = self._sandbox_manager
         app.extra["versioning"] = self._versioning
         app.extra["template_manager"] = self._template_manager

@@ -1821,7 +1821,52 @@ def create_app(
             raise HTTPException(status_code=404, detail=str(exc))
 
     # ══════════════════════════════════════════════════════════════
-    # Context Versioning API
+    # Plugin System API (hot-load third-party plugins)
+    # ══════════════════════════════════════════════════════════════
+
+    class PluginLoadRequest(BaseModel):
+        path: str = Field(..., description="Absolute path to the plugin .py file")
+
+    @app.get("/api/plugins")
+    def plugin_system_list(request: Request):
+        """List all loaded third-party plugins."""
+        mgr = request.app.extra.get("plugin_system")
+        if mgr is None:
+            raise HTTPException(status_code=503, detail="Plugin system not available")
+        return {"plugins": mgr.list_plugins(), "count": mgr.plugin_count}
+
+    @app.post("/api/plugins/load")
+    def plugin_system_load(payload: PluginLoadRequest, request: Request):
+        """Load a third-party plugin from a .py file path."""
+        mgr = request.app.extra.get("plugin_system")
+        if mgr is None:
+            raise HTTPException(status_code=503, detail="Plugin system not available")
+        try:
+            instance = mgr.load_plugin(payload.path)
+            manifest = instance.get_manifest()
+            return {
+                "ok": True,
+                "name": manifest.name,
+                "version": manifest.version,
+                "author": manifest.author,
+                "hooks": manifest.hooks,
+            }
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+        except RuntimeError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.delete("/api/plugins/{name}")
+    def plugin_system_unload(name: str, request: Request):
+        """Unload a previously loaded third-party plugin by name."""
+        mgr = request.app.extra.get("plugin_system")
+        if mgr is None:
+            raise HTTPException(status_code=503, detail="Plugin system not available")
+        removed = mgr.unload(name)
+        if removed is None:
+            raise HTTPException(status_code=404, detail=f"Plugin '{name}' not found")
+        return {"ok": True, "name": name}
+
     # ══════════════════════════════════════════════════════════════
 
     class VersionSnapshotRequest(BaseModel):
