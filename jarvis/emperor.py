@@ -95,6 +95,10 @@ class EmperorConfig:
     # Runtime
     max_task_timeout: float = 30.0
 
+    # Context compression
+    max_context_tokens: int = 8192
+    compression_strategy: str = "auto"  # auto | summarize | extract | prune | hybrid
+
 
 # ══════════════════════════════════════════════════════════════════
 # Bridge: jarvis.yaml AppConfig → EmperorConfig
@@ -120,6 +124,8 @@ def _app_config_to_emperor(app: AppConfig) -> EmperorConfig:
         data_dir="",
         log_level="INFO",
         max_task_timeout=30.0,
+        max_context_tokens=getattr(app, "max_context_tokens", 8192),
+        compression_strategy=getattr(app, "compression_strategy", "auto"),
     )
 
 
@@ -304,6 +310,18 @@ class Emperor:
             audit_logger=self._audit_logger,
         )
 
+        # Reflexion Engine — self-reflection & auto-correction
+        from jarvis.reflexion import ReflexionEngine
+        self._reflexion_engine: ReflexionEngine = ReflexionEngine(
+            threshold=0.6,
+            max_retries=3,
+        )
+
+        # Context compression engine — manages long conversation histories
+        from jarvis.context_compressor import ContextCompressor
+        self._context_compressor: ContextCompressor = ContextCompressor(keep_recent=4)
+        self._message_history: list[dict] = []  # Accumulated conversation context
+
         self._dispatch(LifecycleEvent.ON_INIT, emperor=self)
 
         # Load persisted state if data_dir set
@@ -400,6 +418,26 @@ class Emperor:
         """Direct access to the HandoffProtocol."""
         return self._handoff
 
+    @property
+    def reflexion(self):
+        """Direct access to the ReflexionEngine."""
+        return self._reflexion_engine
+
+    @property
+    def context_compressor(self):
+        """Direct access to the ContextCompressor."""
+        return self._context_compressor
+
+    @property
+    def message_history(self) -> list[dict]:
+        """Current accumulated conversation context."""
+        return self._message_history
+
+    def clear_context(self) -> None:
+        """Reset the accumulated conversation context."""
+        self._message_history = []
+        logger.info("[Emperor] context history cleared")
+
     def _dispatch(self, event: Any, **kwargs: Any) -> Any:
         """Dispatch a lifecycle event to all registered plugins."""
         return self._plugin_manager.dispatch(event, **kwargs)
@@ -473,6 +511,44 @@ class Emperor:
 
         self._dispatch(LifecycleEvent.ON_TASK_BEFORE,
                        task_id=task_id, prompt=prompt, domain=domain)
+
+        # ── Context compression check ──
+        # Accumulate messages and compress if exceeding token budget
+        self._message_history.append({"role": "user", "content": prompt})
+        if self._context_compressor is not None:
+            from jarvis.context_compressor import (
+                CompressionStrategy, estimate_messages_tokens,
+            )
+            current_tokens = estimate_messages_tokens(self._message_history)
+            if current_tokens > self.config.max_context_tokens:
+                strategy_map = {
+                    "auto": None,  # let auto_compress decide
+                    "summarize": CompressionStrategy.SUMMARIZE,
+                    "extract": CompressionStrategy.EXTRACT,
+                    "prune": CompressionStrategy.PRUNE,
+                    "hybrid": CompressionStrategy.HYBRID,
+                }
+                strat = strategy_map.get(
+                    self.config.compression_strategy, None
+                )
+                if strat is None:
+                    result = self._context_compressor.auto_compress(
+                        self._message_history,
+                        max_tokens=self.config.max_context_tokens,
+                    )
+                else:
+                    result = self._context_compressor.compress(
+                        self._message_history,
+                        strategy=strat,
+                        target_tokens=self.config.max_context_tokens,
+                    )
+                self._message_history = result.messages
+                logger.info(
+                    "[Emperor] context compressed: %d→%d tokens (strategy=%s)",
+                    result.original_tokens,
+                    result.compressed_tokens,
+                    result.strategy,
+                )
 
         # ── HITL Approval check ──
         if self._approval_engine.require_approval(
@@ -564,6 +640,12 @@ class Emperor:
 
         if outcome.success:
             self._dispatch(LifecycleEvent.ON_TASK_AFTER, outcome=result)
+            # Record assistant response in context history
+            if outcome.raw_response:
+                self._message_history.append({
+                    "role": "assistant",
+                    "content": str(outcome.raw_response)[:2000],
+                })
         else:
             self._dispatch(LifecycleEvent.ON_TASK_ERROR,
                            task_id=task_id, error=outcome.error)
@@ -604,6 +686,27 @@ class Emperor:
                 )
             except Exception:
                 logger.warning("[Emperor] Failed to persist task to DB")
+
+        # ── Reflexion: post-dispatch quality check & auto-correction ──
+        if result["success"] and result["confidence"] <= getattr(
+            self._reflexion_engine, "threshold", 0.6
+        ):
+            try:
+                refl = self._reflexion_engine.reflect(
+                    task_id=task_id,
+                    prompt=prompt,
+                    response=result.get("response", ""),
+                    domain=domain,
+                )
+                result["reflexion"] = refl.to_dict()
+                if refl.corrected:
+                    result["response"] = refl.corrected_response
+                    result["confidence"] = max(result["confidence"], refl.confidence)
+                    logger.info("[Emperor] Reflexion corrected task=%s conf=%.4f", task_id, refl.confidence)
+                elif refl.status.value == "failed":
+                    logger.warning("[Emperor] Reflexion failed for task=%s after %d attempts", task_id, refl.attempts)
+            except Exception:
+                logger.exception("[Emperor] Reflexion error for task=%s", task_id)
 
         # ── End tracing span ──
         _tracer.end_span(
