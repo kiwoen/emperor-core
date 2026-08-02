@@ -61,6 +61,9 @@ from jarvis.hierarchical_memory import (
 # P1 module imports for Prompt Injection Guard
 from jarvis.prompt_guard import PromptGuard, ScanResult
 
+# RBAC module imports
+from jarvis.rbac import RBACEngine, Permission, Role, intent_to_permission
+
 
 # ══════════════════════════════════════════════════════════════════
 # Request models (module-level for FastAPI type resolution)
@@ -380,6 +383,10 @@ def create_app(
     app.extra["hallucination_detector"] = HallucinationDetector(governance_agent=governance_agent)
     app.extra["prompt_guard"] = PromptGuard(severity_threshold="warn")
 
+    # Inject RBAC Engine (may be overridden by Emperor.serve())
+    from jarvis.rbac import RBACEngine
+    app.extra["rbac_engine"] = RBACEngine()
+
     # Inject Hierarchical Memory Engine
     if hierarchical_memory_engine is None:
         hierarchical_memory_engine = HierarchicalMemoryEngine()
@@ -447,6 +454,27 @@ def create_app(
 
     @app.post("/court/dispatch")
     def record_dispatch(req: DispatchRequest):
+        # ── RBAC permission check ──
+        rbac_engine: Optional[RBACEngine] = app.extra.get("rbac_engine")
+        if rbac_engine is not None:
+            perm = intent_to_permission(req.intent)
+            if perm is None:
+                logger.warning(
+                    "Unknown intent '%s' — no matching Permission, skipping RBAC",
+                    req.intent,
+                )
+            elif not rbac_engine.check_permission(req.minister, perm):
+                role = rbac_engine.get_role(req.minister)
+                raise HTTPException(
+                    status_code=403,
+                    detail={
+                        "error": (
+                            f"Permission '{perm.name}' denied for minister "
+                            f"'{req.minister}' (role: {role.name})"
+                        ),
+                    },
+                )
+
         # P0 Prompt Injection guard: scan user input before dispatch
         prompt_guard: PromptGuard = app.extra.get("prompt_guard")
         if prompt_guard is not None:
@@ -3520,6 +3548,133 @@ def create_app(
 
         result = handoff.handoff(req)
         return result.to_dict()
+
+    # ══════════════════════════════════════════════════════════════════
+    # RBAC endpoints
+    # ══════════════════════════════════════════════════════════════════
+
+    @app.get("/api/rbac/roles")
+    def rbac_list_roles(request: Request):
+        """List all roles with their permissions and priority."""
+        rbac = request.app.extra.get("rbac_engine")
+        if rbac is None:
+            raise HTTPException(status_code=503, detail="RBAC engine not available")
+        return {"roles": rbac.list_roles()}
+
+    @app.post("/api/rbac/roles")
+    async def rbac_create_role(request: Request):
+        """Create a new custom role.
+
+        Request body (JSON):
+            name: str — unique role name
+            permissions: list[str] — permission names (e.g. ["file_read", "model_call"])
+            priority: int (optional, default 50)
+        """
+        rbac = request.app.extra.get("rbac_engine")
+        if rbac is None:
+            raise HTTPException(status_code=503, detail="RBAC engine not available")
+
+        data = await request.json()
+        if data is None:
+            raise HTTPException(status_code=400, detail="Request body is required")
+
+        name = data.get("name", "").strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Role 'name' is required")
+
+        perms: set[Permission] = set()
+        for label in data.get("permissions", []):
+            p = Permission.from_label(label)
+            if p is None:
+                raise HTTPException(status_code=400, detail=f"Unknown permission: '{label}'")
+            perms.add(p)
+
+        priority = data.get("priority", 50)
+        try:
+            role = rbac.create_role(name, permissions=perms, priority=priority)
+        except ValueError as e:
+            raise HTTPException(status_code=409, detail=str(e))
+
+        return {
+            "message": f"Role '{name}' created",
+            "role": role.to_dict(),
+        }
+
+    @app.post("/api/rbac/grant")
+    async def rbac_grant_permission(request: Request):
+        """Grant a permission to a role.
+
+        Request body (JSON):
+            role_name: str — target role name
+            permission: str — permission label (e.g. "shell_exec")
+        """
+        rbac = request.app.extra.get("rbac_engine")
+        if rbac is None:
+            raise HTTPException(status_code=503, detail="RBAC engine not available")
+
+        data = await request.json()
+        if data is None:
+            raise HTTPException(status_code=400, detail="Request body is required")
+
+        role_name = data.get("role_name", "").strip()
+        perm_label = data.get("permission", "").strip()
+
+        if not role_name:
+            raise HTTPException(status_code=400, detail="'role_name' is required")
+        if not perm_label:
+            raise HTTPException(status_code=400, detail="'permission' is required")
+
+        perm = Permission.from_label(perm_label)
+        if perm is None:
+            raise HTTPException(status_code=400, detail=f"Unknown permission: '{perm_label}'")
+
+        try:
+            rbac.grant(role_name, perm)
+        except (ValueError, KeyError) as e:
+            raise HTTPException(status_code=404, detail=str(e))
+
+        return {
+            "message": f"Permission '{perm_label}' granted to role '{role_name}'",
+            "role": rbac.get_role_detail(role_name),
+        }
+
+    @app.post("/api/rbac/revoke")
+    async def rbac_revoke_permission(request: Request):
+        """Revoke a permission from a role.
+
+        Request body (JSON):
+            role_name: str — target role name
+            permission: str — permission label (e.g. "shell_exec")
+        """
+        rbac = request.app.extra.get("rbac_engine")
+        if rbac is None:
+            raise HTTPException(status_code=503, detail="RBAC engine not available")
+
+        data = await request.json()
+        if data is None:
+            raise HTTPException(status_code=400, detail="Request body is required")
+
+        role_name = data.get("role_name", "").strip()
+        perm_label = data.get("permission", "").strip()
+
+        if not role_name:
+            raise HTTPException(status_code=400, detail="'role_name' is required")
+        if not perm_label:
+            raise HTTPException(status_code=400, detail="'permission' is required")
+
+        perm = Permission.from_label(perm_label)
+        if perm is None:
+            raise HTTPException(status_code=400, detail=f"Unknown permission: '{perm_label}'")
+
+        try:
+            rbac.revoke(role_name, perm)
+        except (ValueError, KeyError) as e:
+            raise HTTPException(status_code=404, detail=str(e))
+
+        return {
+            "message": f"Permission '{perm_label}' revoked from role '{role_name}'",
+            "role": rbac.get_role_detail(role_name),
+        }
 
     return app
 

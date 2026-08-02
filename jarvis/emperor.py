@@ -317,6 +317,10 @@ class Emperor:
             max_retries=3,
         )
 
+        # RBAC Engine — role-based access control for enterprise security
+        from jarvis.rbac import RBACEngine
+        self._rbac_engine: RBACEngine = RBACEngine()
+
         # Context compression engine — manages long conversation histories
         from jarvis.context_compressor import ContextCompressor
         self._context_compressor: ContextCompressor = ContextCompressor(keep_recent=4)
@@ -424,6 +428,11 @@ class Emperor:
         return self._reflexion_engine
 
     @property
+    def rbac_engine(self):
+        """Direct access to the RBACEngine for role-based access control."""
+        return self._rbac_engine
+
+    @property
     def context_compressor(self):
         """Direct access to the ContextCompressor."""
         return self._context_compressor
@@ -485,14 +494,54 @@ class Emperor:
         domain: str = "general",
         expected: str = "",
         task_id: str = "",
+        required_permission: Optional[Any] = None,
     ) -> dict:
-        """Execute a single task and return outcome as dict."""
+        """Execute a single task and return outcome as dict.
+
+        Args:
+            prompt: Task prompt string.
+            domain: Task domain for minister routing.
+            expected: Optional expected answer for scoring.
+            task_id: Optional task identifier (auto-generated if empty).
+            required_permission: Optional Permission enum — if set, the
+                selected minister's role is checked before execution.
+                Returns HTTP 403-style error on denial.
+        """
         from jarvis.court.task_engine import TaskRequest
         from jarvis.plugin import LifecycleEvent
 
         if not task_id:
             import uuid
             task_id = uuid.uuid4().hex[:8]
+
+        # ── RBAC pre-dispatch check ──
+        _preselected_minister: Optional[str] = None
+        if required_permission is not None:
+            # Pre-select minister so we can check permissions before execution
+            _preselected_minister = self._task_engine._select_minister(domain)
+            if not self._rbac_engine.check_permission(
+                _preselected_minister, required_permission
+            ):
+                role = self._rbac_engine.get_role(_preselected_minister)
+                logger.warning(
+                    "[Emperor] RBAC denied: minister=%s role=%s permission=%s",
+                    _preselected_minister, role.name, required_permission.name,
+                )
+                return {
+                    "task_id": task_id,
+                    "status": "forbidden",
+                    "error": (
+                        f"Permission '{required_permission.name}' denied "
+                        f"for minister '{_preselected_minister}' (role: {role.name})"
+                    ),
+                    "minister": _preselected_minister,
+                    "success": False,
+                    "confidence": 0.0,
+                    "merit_score": 0.0,
+                    "execution_time_ms": 0.0,
+                    "response": "",
+                    "handoff": None,
+                }
 
         # ── Tracing: emperor.dispatch span ──
         _trace_ctx = _tracer.start_span(
@@ -571,7 +620,7 @@ class Emperor:
         self._audit_logger.log_task_before(
             trace_id=task_id, prompt=prompt, domain=domain)
 
-        outcome = self._task_engine.execute(req)
+        outcome = self._task_engine.execute(req, minister=_preselected_minister)
 
         _elapsed_ms = (_time.time() - _started) * 1000
 
@@ -815,6 +864,7 @@ class Emperor:
         app.extra["template_manager"] = self._template_manager
         app.extra["approval_engine"] = self._approval_engine
         app.extra["handoff"] = self._handoff
+        app.extra["rbac_engine"] = self._rbac_engine
 
         self._app = app
 
