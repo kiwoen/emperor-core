@@ -317,6 +317,11 @@ class Emperor:
             max_retries=3,
         )
 
+        # State Machine — LangGraph-inspired execution engine
+        from jarvis.state_machine import create_dispatch_workflow
+        self._state_machine = create_dispatch_workflow()
+        self._state_machine_data: dict = {}
+
         # RBAC Engine — role-based access control for enterprise security
         from jarvis.rbac import RBACEngine
         self._rbac_engine: RBACEngine = RBACEngine()
@@ -426,6 +431,11 @@ class Emperor:
     def reflexion(self):
         """Direct access to the ReflexionEngine."""
         return self._reflexion_engine
+
+    @property
+    def state_machine(self):
+        """Direct access to the StateMachine execution engine."""
+        return self._state_machine
 
     @property
     def rbac_engine(self):
@@ -614,6 +624,13 @@ class Emperor:
                 "message": f"Task requires human approval (risk={req.risk_level}). Approval ID: {req.id}",
             }
 
+        # ── State Machine: planning → execution ──
+        _sm = self._state_machine
+        _sm_ctx = _sm.start("planning", data={
+            "task_id": task_id, "domain": domain, "prompt_len": len(prompt),
+        })
+        _sm_ctx = _sm.trigger("execution", _sm_ctx)
+
         # ── Audit: before ──
         import time as _time
         _started = _time.time()
@@ -737,6 +754,8 @@ class Emperor:
                 logger.warning("[Emperor] Failed to persist task to DB")
 
         # ── Reflexion: post-dispatch quality check & auto-correction ──
+        _sm_ctx = _sm.trigger("reflection", _sm_ctx)
+        _sm_ctx.data["confidence"] = result.get("confidence", 0)
         if result["success"] and result["confidence"] <= getattr(
             self._reflexion_engine, "threshold", 0.6
         ):
@@ -751,11 +770,16 @@ class Emperor:
                 if refl.corrected:
                     result["response"] = refl.corrected_response
                     result["confidence"] = max(result["confidence"], refl.confidence)
+                    _sm_ctx.data["confidence"] = result["confidence"]
                     logger.info("[Emperor] Reflexion corrected task=%s conf=%.4f", task_id, refl.confidence)
                 elif refl.status.value == "failed":
                     logger.warning("[Emperor] Reflexion failed for task=%s after %d attempts", task_id, refl.attempts)
             except Exception:
                 logger.exception("[Emperor] Reflexion error for task=%s", task_id)
+
+        # ── State Machine: reflection → completion ──
+        _sm_ctx = _sm.trigger("completion", _sm_ctx)
+        _sm.stop()
 
         # ── End tracing span ──
         _tracer.end_span(
@@ -865,6 +889,7 @@ class Emperor:
         app.extra["approval_engine"] = self._approval_engine
         app.extra["handoff"] = self._handoff
         app.extra["rbac_engine"] = self._rbac_engine
+        app.extra["state_machine"] = self._state_machine
 
         self._app = app
 

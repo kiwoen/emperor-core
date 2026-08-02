@@ -52,3 +52,15 @@ from jarvis.reflexion import (
     CorrectionStatus,
     create_reflexion_engine,
 )
+
+# P2.5: State Machine — LangGraph-inspired execution engine
+from jarvis.state_machine import (
+    State,
+    Transition,
+    StateMachine,
+    StateMachineContext,
+    create_dispatch_workflow,
+    create_error_recovery_workflow,
+    list_workflow_templates,
+    execute_workflow,
+)

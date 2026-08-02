@@ -296,6 +296,13 @@ class JudgeCompareRequest(BaseModel):
     )
 
 
+class WorkflowExecuteRequest(BaseModel):
+    workflow_name: str = "dispatch_workflow"
+    data: dict = {}
+    max_loops: int = 3
+    max_retries: int = 3
+
+
 # ══════════════════════════════════════════════════════════════════
 # Module-level scheduler state (shared with Emperor.serve)
 # ══════════════════════════════════════════════════════════════════
@@ -3391,6 +3398,39 @@ def create_app(
             ],
             "fastest": results[0].model_id if results else None,
         }
+
+    # ══════════════════════════════════════════════════════════════════
+    # State Machine API
+    # ══════════════════════════════════════════════════════════════════
+
+    from jarvis.state_machine import list_workflow_templates, execute_workflow
+
+    @app.get("/api/workflows")
+    def list_workflows(request: Request):
+        """List all available workflow templates."""
+        templates = list_workflow_templates()
+        return {"workflows": templates, "count": len(templates)}
+
+    @app.post("/api/workflows/execute")
+    def execute_workflow_endpoint(payload: WorkflowExecuteRequest):
+        """Execute a named workflow from start to completion.
+
+        Request body (JSON):
+            workflow_name: str   — 'dispatch_workflow' or 'error_recovery_workflow'
+            data: dict           — initial payload for the workflow
+            max_loops: int       — max reflexion loops (dispatch only)
+            max_retries: int     — max retry attempts (error_recovery only)
+        """
+        try:
+            result = execute_workflow(
+                name=payload.workflow_name,
+                initial_data=payload.data,
+                max_loops=payload.max_loops,
+                max_retries=payload.max_retries,
+            )
+            return {"success": True, **result}
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
     # ══════════════════════════════════════════════════════════════════
     # Handoff Protocol API
