@@ -271,6 +271,27 @@ class HallucinationMultiDetectRequest(BaseModel):
     context: dict = Field(default_factory=dict, description="Ground truth context")
 
 
+# ══════════════════════ LLM Judge API Models ══════════════════════
+
+class JudgeEvaluateRequest(BaseModel):
+    output: str = Field(..., description="Agent output text to evaluate")
+    expected: str = Field(default="", description="Expected / reference answer")
+    criteria: list[str] = Field(
+        default_factory=lambda: ["accuracy", "completeness", "relevance", "safety"],
+        description="Judging dimensions: accuracy, completeness, relevance, safety",
+    )
+
+
+class JudgeCompareRequest(BaseModel):
+    output_a: str = Field(..., description="First candidate output")
+    output_b: str = Field(..., description="Second candidate output")
+    expected: str = Field(default="", description="Expected / reference answer")
+    criteria: list[str] = Field(
+        default_factory=lambda: ["accuracy", "completeness", "relevance", "safety"],
+        description="Judging dimensions: accuracy, completeness, relevance, safety",
+    )
+
+
 # ══════════════════════════════════════════════════════════════════
 # Module-level scheduler state (shared with Emperor.serve)
 # ══════════════════════════════════════════════════════════════════
@@ -1225,6 +1246,68 @@ def create_app(
             return report
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
+
+    # ── LLM Judge API endpoints ────────────────────────────────
+
+    @app.post("/api/evals/judge")
+    async def judge_evaluate(request: Request):
+        """单条 LLM-as-Judge 评估。
+
+        评估 Agent 输出文本的质量，返回 per-dimension 分数。
+        """
+        from jarvis.llm_judge import LLMJudge, JudgingCriteria
+
+        body = await request.json()
+        req = JudgeEvaluateRequest(**body)
+
+        # Map string criteria to enum
+        criteria_map = {c.value: c for c in JudgingCriteria}
+        criteria = []
+        for c_name in req.criteria:
+            c_enum = criteria_map.get(c_name)
+            if c_enum:
+                criteria.append(c_enum)
+
+        if not criteria:
+            raise HTTPException(status_code=400, detail="No valid criteria specified")
+
+        judge = LLMJudge()
+        result = judge.evaluate(
+            output=req.output,
+            expected=req.expected,
+            criteria=criteria,
+        )
+        return result.to_dict()
+
+    @app.post("/api/evals/judge/compare")
+    async def judge_compare(request: Request):
+        """LLM-as-Judge 对比评估。
+
+        对比两个候选输出，返回 winner 和各维度分数。
+        """
+        from jarvis.llm_judge import LLMJudge, JudgingCriteria
+
+        body = await request.json()
+        req = JudgeCompareRequest(**body)
+
+        criteria_map = {c.value: c for c in JudgingCriteria}
+        criteria = []
+        for c_name in req.criteria:
+            c_enum = criteria_map.get(c_name)
+            if c_enum:
+                criteria.append(c_enum)
+
+        if not criteria:
+            raise HTTPException(status_code=400, detail="No valid criteria specified")
+
+        judge = LLMJudge()
+        result = judge.compare(
+            output_a=req.output_a,
+            output_b=req.output_b,
+            expected=req.expected,
+            criteria=criteria,
+        )
+        return result.to_dict()
 
     # ── Dashboard Audit endpoints ─────────────────────────────────
 
@@ -2228,6 +2311,35 @@ def create_app(
                 for r in records
             ],
         }
+
+    # ══════════════════════════════════════════════════════════════
+    # Reflexion API — self-reflection history & statistics
+    # ══════════════════════════════════════════════════════════════
+
+    @app.get("/api/reflexion/history")
+    def reflexion_history(limit: int = 50, request: Request = None):
+        """获取 Reflexion 自反思历史记录"""
+        emp = request.app.extra.get("emperor")
+        if emp is None:
+            raise HTTPException(status_code=503, detail="Emperor not available")
+        engine = getattr(emp, "_reflexion_engine", None)
+        if engine is None:
+            raise HTTPException(status_code=503, detail="ReflexionEngine not available")
+        return {
+            "history": engine.history(limit=limit),
+            "total": min(len(engine._history), limit),
+        }
+
+    @app.get("/api/reflexion/stats")
+    def reflexion_stats(request: Request):
+        """获取 Reflexion 聚合统计信息"""
+        emp = request.app.extra.get("emperor")
+        if emp is None:
+            raise HTTPException(status_code=503, detail="Emperor not available")
+        engine = getattr(emp, "_reflexion_engine", None)
+        if engine is None:
+            raise HTTPException(status_code=503, detail="ReflexionEngine not available")
+        return engine.stats()
 
     # ══════════════════════════════════════════════════════════════
     # P0 Governance Agent Endpoints

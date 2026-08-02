@@ -5,9 +5,10 @@ Evals Framework — regression testing for AI agent behavior.
 这是 "demo" 和 "production" 之间的分水岭。
 
 Architecture:
-    EvalCase     — 单个评测用例（输入 + 期望输出）
-    EvalSuite    — 一组相关用例的集合
-    EvalRunner   — 执行评测并生成报告
+    EvalCase       — 单个评测用例（输入 + 期望输出）
+    EvalSuite      — 一组相关用例的集合
+    JudgeEvalSuite — LLM-as-Judge 评测套件（自由文本质量评估）
+    EvalRunner     — 执行评测并生成报告
 
 Usage:
     from jarvis.eval import EvalCase, EvalSuite, EvalRunner
@@ -103,7 +104,7 @@ class SuiteResult:
         return "\n".join(lines)
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        d: Dict[str, Any] = {
             "suite_name": self.suite_name,
             "total": self.total,
             "passed": self.passed,
@@ -122,6 +123,10 @@ class SuiteResult:
                 for r in self.results
             ],
         }
+        # Attach per-dimension breakdown if available (from JudgeEvalSuite)
+        if hasattr(self, "per_dimension_avg") and self.per_dimension_avg:
+            d["per_dimension_avg"] = self.per_dimension_avg
+        return d
 
 
 @dataclass
@@ -156,6 +161,47 @@ class EvalSuite:
 
 
 # ══════════════════════════════════════════════════════════════════
+# JudgeEvalSuite — LLM-as-Judge 自由文本质量评估
+# ══════════════════════════════════════════════════════════════════
+
+
+@dataclass
+class JudgeEvalCase:
+    """单个 LLM-as-Judge 评测用例。"""
+
+    label: str
+    output: str
+    expected: str
+    criteria: Optional[List[Any]] = None  # List[JudgingCriteria]
+
+
+class JudgeEvalSuite:
+    """LLM-as-Judge 评测套件。
+
+    用于评估 Agent 自由文本输出的质量（准确性/完整性/相关性/安全性），
+    通过 LLMJudge 生成 per-dimension 分数，并集成到 EvalRunner 报告体系中。
+
+    Usage:
+        from jarvis.llm_judge import LLMJudge, JudgingCriteria
+        from jarvis.eval import JudgeEvalSuite, EvalRunner
+
+        cases = [
+            JudgeEvalCase("case1", output="...", expected="..."),
+        ]
+        suite = JudgeEvalSuite("judge:quality", cases)
+        result = EvalRunner().run(suite)
+    """
+
+    def __init__(self, name: str, cases: Optional[List[JudgeEvalCase]] = None):
+        self.name = name
+        self.cases: List[JudgeEvalCase] = cases or []
+
+    def add(self, case: JudgeEvalCase) -> JudgeEvalSuite:
+        self.cases.append(case)
+        return self
+
+
+# ══════════════════════════════════════════════════════════════════
 # EvalRunner
 # ══════════════════════════════════════════════════════════════════
 
@@ -180,7 +226,56 @@ class EvalRunner:
         return self._all_results
 
     def run(self, suite: EvalSuite) -> SuiteResult:
-        """运行一个评测套件，返回 SuiteResult。"""
+        """运行一个评测套件，返回 SuiteResult。
+
+        支持 EvalSuite（传统键/值验证）和 JudgeEvalSuite（LLM-as-Judge 评分）。
+        """
+        from jarvis.llm_judge import LLMJudge, BatchCase
+
+        # ── JudgeEvalSuite path ──
+        if isinstance(suite, JudgeEvalSuite):
+            judge = LLMJudge()
+            batch_cases = [
+                BatchCase(
+                    output=c.output,
+                    expected=c.expected,
+                    criteria=c.criteria,
+                    label=c.label,
+                )
+                for c in suite.cases
+            ]
+            report = judge.batch_evaluate(batch_cases)
+
+            result = SuiteResult(suite_name=suite.name, started_at=time.time())
+
+            # Attach per-dimension averages to the suite result
+            result.per_dimension_avg = report.per_dimension_avg
+
+            for i, r in enumerate(report.results):
+                score = r.get("score", 0.0)
+                label = r.get("label", f"case_{i}")
+                # Pass: score >= 0.5, building detailed breakdown info
+                breakdown_str = ", ".join(
+                    f"{b['criterion']}={b['score']:.2f}" for b in r.get("breakdown", [])
+                )
+                status = EvalStatus.PASS if score >= 0.5 else EvalStatus.FAIL
+                case_result = EvalResult(
+                    case_name=label,
+                    status=status,
+                    duration_ms=0,
+                    details=f"score={score:.4f} | {breakdown_str} | {r.get('reasoning', '')}",
+                )
+                result.results.append(case_result)
+                if status == EvalStatus.PASS:
+                    result.passed += 1
+                else:
+                    result.failed += 1
+
+            result.finished_at = time.time()
+            self._all_results.append(result)
+            return result
+
+        # ── Standard EvalSuite path ──
         result = SuiteResult(suite_name=suite.name, started_at=time.time())
 
         for case in suite.cases:
