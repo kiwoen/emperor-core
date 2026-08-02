@@ -38,6 +38,22 @@ from jarvis.tracer import tracer as _tracer
 logger = logging.getLogger("jarvis.emperor")
 
 
+def _make_accept_callback(minister_name: str):
+    """Create a simple 'always accept' handoff callback for a minister."""
+    from jarvis.handoff import HandoffResult, HandoffStatus
+
+    def _accept(req) -> HandoffResult:
+        return HandoffResult(
+            handoff_id=req.handoff_id,
+            status=HandoffStatus.ACCEPTED,
+            source_minister=req.source_minister,
+            target_minister=minister_name,
+            context=req.context,
+        )
+
+    return _accept
+
+
 # ══════════════════════════════════════════════════════════════════
 # Configuration
 # ══════════════════════════════════════════════════════════════════
@@ -282,6 +298,12 @@ class Emperor:
             len(self._mcp_manager.get_all_tools()),
         )
 
+        # Handoff Protocol — standardized multi-agent task handoff
+        from jarvis.handoff import HandoffProtocol
+        self._handoff: HandoffProtocol = HandoffProtocol(
+            audit_logger=self._audit_logger,
+        )
+
         self._dispatch(LifecycleEvent.ON_INIT, emperor=self)
 
         # Load persisted state if data_dir set
@@ -372,6 +394,11 @@ class Emperor:
     def mcp_manager(self):
         """Direct access to the MCPManager (MCP Client + built-in mock servers)."""
         return self._mcp_manager
+
+    @property
+    def handoff(self):
+        """Direct access to the HandoffProtocol."""
+        return self._handoff
 
     def _dispatch(self, event: Any, **kwargs: Any) -> Any:
         """Dispatch a lifecycle event to all registered plugins."""
@@ -481,7 +508,59 @@ class Emperor:
             "execution_time_ms": outcome.execution_time_ms,
             "response": outcome.raw_response,
             "error": outcome.error,
+            "handoff": None,  # populated below if a handoff occurs
         }
+
+        # ── Post-execution handoff check ──
+        # If the TaskRequest meta contains a handoff target and the minister
+        # indicated a handoff is needed, execute the handoff protocol.
+        if req.meta and req.meta.get("handoff_target"):
+            from jarvis.handoff import (
+                HandoffRequest, HandoffContext, FallbackStrategy,
+            )
+            handoff_target = req.meta["handoff_target"]
+            handoff_reason = req.meta.get("handoff_reason", "")
+            handoff_priority = req.meta.get("handoff_priority", 2)
+            fallback_str = req.meta.get("handoff_fallback", "reject")
+            candidates = req.meta.get("handoff_candidates", [])
+
+            # Create handoff context carrying forward task history
+            ctx = HandoffContext(
+                task_id=task_id,
+                original_prompt=prompt,
+                priority=handoff_priority,
+            )
+            ctx.record_step(outcome.minister, outcome.raw_response, "completed")
+
+            # Auto-register target minister if not already registered as handoff target
+            if not self._handoff.has_target(handoff_target):
+                self._handoff.register_target(
+                    handoff_target,
+                    lambda req, name=handoff_target: _make_accept_callback(name),
+                )
+
+            try:
+                strategy = FallbackStrategy(fallback_str)
+            except ValueError:
+                strategy = FallbackStrategy.REJECT
+
+            ho_req = HandoffRequest(
+                source_minister=outcome.minister,
+                target_minister=handoff_target,
+                context=ctx,
+                reason=handoff_reason,
+                priority=handoff_priority,
+                fallback_strategy=strategy,
+                candidate_ministers=candidates,
+            )
+
+            ho_result = self._handoff.handoff(ho_req)
+            result["handoff"] = ho_result.to_dict()
+            logger.info(
+                "[Emperor] Handoff %s: %s → %s (%s)",
+                task_id, outcome.minister, handoff_target,
+                ho_result.status.value,
+            )
 
         if outcome.success:
             self._dispatch(LifecycleEvent.ON_TASK_AFTER, outcome=result)
@@ -632,6 +711,7 @@ class Emperor:
         app.extra["versioning"] = self._versioning
         app.extra["template_manager"] = self._template_manager
         app.extra["approval_engine"] = self._approval_engine
+        app.extra["handoff"] = self._handoff
 
         self._app = app
 

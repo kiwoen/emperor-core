@@ -3186,6 +3186,163 @@ def create_app(
             "fastest": results[0].model_id if results else None,
         }
 
+    # ══════════════════════════════════════════════════════════════════
+    # Handoff Protocol API
+    # ══════════════════════════════════════════════════════════════════
+
+    @app.get("/api/handoff/history")
+    def handoff_history(request: Request, limit: int = 50):
+        """Get recent handoff history (newest first).
+
+        Query params:
+            limit: Max entries to return (default 50, max 200)
+        """
+        emp = request.app.extra.get("emperor")
+        if emp is None:
+            raise HTTPException(status_code=503, detail="Emperor not available")
+        handoff = emp.handoff
+        if handoff is None:
+            return {"history": [], "count": 0, "note": "HandoffProtocol not initialized"}
+
+        limit = max(1, min(limit, 200))
+        history = handoff.get_history(limit=limit)
+        return {"history": history, "count": len(history)}
+
+    @app.get("/api/handoff/chain/{task_id}")
+    def handoff_chain(request: Request, task_id: str):
+        """Get the full handoff chain for a given task ID.
+
+        Returns the ordered list of handoff events for the task,
+        from the first ministerial assignment through all subsequent
+        handoffs.
+        """
+        emp = request.app.extra.get("emperor")
+        if emp is None:
+            raise HTTPException(status_code=503, detail="Emperor not available")
+        handoff = emp.handoff
+        if handoff is None:
+            return {"task_id": task_id, "chain": [], "length": 0,
+                    "note": "HandoffProtocol not initialized"}
+
+        chain = handoff.get_chain(task_id)
+        return {
+            "task_id": task_id,
+            "chain": chain,
+            "length": len(chain),
+        }
+
+    @app.get("/api/handoff/active")
+    def handoff_active(request: Request):
+        """Get currently in-flight handoffs."""
+        emp = request.app.extra.get("emperor")
+        if emp is None:
+            raise HTTPException(status_code=503, detail="Emperor not available")
+        handoff = emp.handoff
+        if handoff is None:
+            return {"active": [], "count": 0,
+                    "note": "HandoffProtocol not initialized"}
+
+        active = handoff.get_active_handoffs()
+        return {"active": active, "count": len(active)}
+
+    @app.get("/api/handoff/stats")
+    def handoff_stats(request: Request):
+        """Get handoff statistics (acceptance rate, duration, etc.)."""
+        emp = request.app.extra.get("emperor")
+        if emp is None:
+            raise HTTPException(status_code=503, detail="Emperor not available")
+        handoff = emp.handoff
+        if handoff is None:
+            return {"error": "HandoffProtocol not initialized"}
+
+        return handoff.stats()
+
+    @app.get("/api/handoff/targets")
+    def handoff_targets(request: Request):
+        """List all registered handoff target ministers."""
+        emp = request.app.extra.get("emperor")
+        if emp is None:
+            raise HTTPException(status_code=503, detail="Emperor not available")
+        handoff = emp.handoff
+        if handoff is None:
+            return {"targets": [], "count": 0,
+                    "note": "HandoffProtocol not initialized"}
+
+        targets = handoff.list_targets()
+        return {"targets": targets, "count": len(targets)}
+
+    @app.get("/api/handoff/{handoff_id}")
+    def handoff_detail(request: Request, handoff_id: str):
+        """Get details of a specific handoff by ID."""
+        emp = request.app.extra.get("emperor")
+        if emp is None:
+            raise HTTPException(status_code=503, detail="Emperor not available")
+        handoff = emp.handoff
+        if handoff is None:
+            return {"handoff_id": handoff_id, "error": "HandoffProtocol not initialized"}
+
+        result = handoff.get_handoff(handoff_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail=f"Handoff '{handoff_id}' not found")
+
+        return result
+
+    @app.post("/api/handoff/execute")
+    async def handoff_execute(request: Request):
+        """Execute a handoff from source to target minister.
+
+        Request body (JSON):
+            source_minister: str
+            target_minister: str
+            task_id: str
+            original_prompt: str
+            priority: int (1-4, default 2)
+            reason: str
+            deadline_seconds: float (default 30.0)
+            fallback_strategy: str (retry | retry_next | reject | delegate_to_emperor)
+            candidate_ministers: list[str] | None
+        """
+        emp = request.app.extra.get("emperor")
+        if emp is None:
+            raise HTTPException(status_code=503, detail="Emperor not available")
+        handoff = emp.handoff
+        if handoff is None:
+            raise HTTPException(status_code=503, detail="HandoffProtocol not initialized")
+
+        data = await request.json()
+        if data is None:
+            raise HTTPException(status_code=400, detail="Request body is required")
+
+        from jarvis.handoff import (
+            HandoffRequest, HandoffContext, FallbackStrategy,
+        )
+
+        ctx = HandoffContext(
+            task_id=data.get("task_id", ""),
+            original_prompt=data.get("original_prompt", ""),
+            priority=data.get("priority", 2),
+        )
+
+        fallback_str = data.get("fallback_strategy", "reject")
+        try:
+            fallback = FallbackStrategy(fallback_str)
+        except ValueError:
+            fallback = FallbackStrategy.REJECT
+
+        req = HandoffRequest(
+            source_minister=data.get("source_minister", ""),
+            target_minister=data.get("target_minister", ""),
+            context=ctx,
+            reason=data.get("reason", ""),
+            priority=data.get("priority", 2),
+            deadline_seconds=data.get("deadline_seconds", 30.0),
+            fallback_strategy=fallback,
+            candidate_ministers=data.get("candidate_ministers", []),
+        )
+
+        result = handoff.handoff(req)
+        return result.to_dict()
+
     return app
 
 
