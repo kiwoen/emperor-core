@@ -2061,6 +2061,56 @@ def create_app(
         return {"deleted": True, "policy_id": policy_id}
 
     # ══════════════════════════════════════════════════════════════
+    # Guardrail Health Dashboard
+    # ══════════════════════════════════════════════════════════════
+
+    @app.get("/api/dashboard/guardrail-health")
+    def guardrail_health(request: Request, hours: int = 24):
+        """Guardrail Health panel data: snapshot + recent events.
+
+        Query params:
+            hours: time range filter (1 / 24 / 168 for 7 days). Default 24.
+        """
+        gt = request.app.extra.get("guardrail_telemetry")
+        if gt is None:
+            raise HTTPException(status_code=503, detail="Guardrail telemetry not available")
+
+        snap = gt.get_snapshot()
+        metrics = snap.get("metrics", {})
+        recent = gt.recent_events(50)
+
+        # Apply time-range filter to recent events
+        now = time.time()
+        cutoff = now - hours * 3600
+        filtered_events = [e for e in recent if e.get("timestamp", 0) >= cutoff]
+
+        # Pre-LLM / Post-LLM breakdown for ring charts
+        by_type = metrics.get("by_type", {})
+        pre_llm = by_type.get("pre_llm", {})
+        post_llm = by_type.get("post_llm", {})
+
+        return {
+            "pass_count": metrics.get("pass_count", 0),
+            "fail_count": metrics.get("fail_count", 0),
+            "total_events": metrics.get("total_events", 0),
+            "uptime_seconds": metrics.get("uptime_seconds", 0),
+            "pre_llm": {
+                "blocked": pre_llm.get("blocked", 0),
+                "corrected": pre_llm.get("corrected", 0),
+                "allowed": pre_llm.get("allowed", 0),
+                "total": pre_llm.get("total", 0),
+            },
+            "post_llm": {
+                "blocked": post_llm.get("blocked", 0),
+                "corrected": post_llm.get("corrected", 0),
+                "allowed": post_llm.get("allowed", 0),
+                "total": post_llm.get("total", 0),
+            },
+            "recent_events": filtered_events,
+            "time_range_hours": hours,
+        }
+
+    # ══════════════════════════════════════════════════════════════
     # Smart Dashboard Search
     # ══════════════════════════════════════════════════════════════
 

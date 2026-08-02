@@ -1580,6 +1580,82 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   </div>
 </div>
 
+<!-- Guardrail Health Panel -->
+<div class="panel-full" id="panel-guardrail-health">
+  <div class="panel-header">
+    <h2>Guardrail Health</h2>
+    <button class="panel-collapse-btn" onclick="togglePanel('panel-guardrail-health')">▼</button>
+    <span class="panel-actions" style="display:flex;gap:8px;align-items:center;">
+      <span id="gh-uptime" style="color:var(--text-secondary);font-size:12px;"></span>
+      <select id="gh-time-range" onchange="refreshGuardrailHealth()"
+        style="padding:4px 8px;border-radius:4px;border:1px solid var(--card-border);background:rgba(255,255,255,0.06);color:var(--text);font-size:0.75rem;">
+        <option value="1">最近 1 小时</option>
+        <option value="24" selected>最近 24 小时</option>
+        <option value="168">最近 7 天</option>
+      </select>
+    </span>
+  </div>
+  <div class="panel-body">
+    <!-- Ring charts: Pre-LLM & Post-LLM -->
+    <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:16px;justify-content:center;">
+      <div style="text-align:center;">
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Pre-LLM Guardrail</div>
+        <div style="position:relative;display:inline-block;">
+          <canvas id="gh-ring-pre" width="120" height="120"></canvas>
+          <div id="gh-pre-rate" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:18px;font-weight:700;color:var(--success);">--%</div>
+        </div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;" id="gh-pre-detail">Pass: 0 / Fail: 0</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Post-LLM Guardrail</div>
+        <div style="position:relative;display:inline-block;">
+          <canvas id="gh-ring-post" width="120" height="120"></canvas>
+          <div id="gh-post-rate" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:18px;font-weight:700;color:var(--success);">--%</div>
+        </div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;" id="gh-post-detail">Pass: 0 / Fail: 0</div>
+      </div>
+    </div>
+
+    <!-- Summary badges -->
+    <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:80px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">
+        <div style="font-size:20px;font-weight:700;color:var(--accent);" id="gh-total-events">0</div>
+        <div style="font-size:10px;color:var(--text-secondary);">Total Events</div>
+      </div>
+      <div style="flex:1;min-width:80px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">
+        <div style="font-size:20px;font-weight:700;color:var(--success);" id="gh-pass-count">0</div>
+        <div style="font-size:10px;color:var(--text-secondary);">Pass (Allowed)</div>
+      </div>
+      <div style="flex:1;min-width:80px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">
+        <div style="font-size:20px;font-weight:700;color:var(--danger);" id="gh-blocked-count">0</div>
+        <div style="font-size:10px;color:var(--text-secondary);">Blocked</div>
+      </div>
+      <div style="flex:1;min-width:80px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">
+        <div style="font-size:20px;font-weight:700;color:var(--warning);" id="gh-corrected-count">0</div>
+        <div style="font-size:10px;color:var(--text-secondary);">Corrected</div>
+      </div>
+    </div>
+
+    <!-- Recent events table -->
+    <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Recent Guardrail Events</div>
+    <div style="max-height:200px;overflow-y:auto;font-size:11px;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead style="background:var(--table-header);position:sticky;top:0;">
+          <tr>
+            <th style="padding:6px 8px;text-align:left;color:var(--text-secondary);">Type</th>
+            <th style="padding:6px 8px;text-align:left;color:var(--text-secondary);">Rule</th>
+            <th style="padding:6px 8px;text-align:left;color:var(--text-secondary);">Severity</th>
+            <th style="padding:6px 8px;text-align:left;color:var(--text-secondary);">Action</th>
+            <th style="padding:6px 8px;text-align:left;color:var(--text-secondary);">Time</th>
+          </tr>
+        </thead>
+        <tbody id="gh-events-table"></tbody>
+      </table>
+      <div id="gh-events-empty" class="empty" style="display:none;">No guardrail events in this time range</div>
+    </div>
+  </div>
+</div>
+
 <!-- Plugin Marketplace Panel -->
 <div class="panel-full" id="panel-plugins">
   <div class="panel-header">
@@ -5937,6 +6013,127 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   refreshPipelineList();
   setInterval(refreshPipelineList, 5000);
 
+  // ═══ Guardrail Health ═════════════════════════════════════════
+
+  function drawRing(canvasId, passCount, totalCount) {
+    var canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    var r = 48, cx = 60, cy = 60, lw = 8;
+    ctx.clearRect(0, 0, 120, 120);
+
+    var ratio = totalCount > 0 ? passCount / totalCount : 1;
+    var passAngle = Math.PI * 2 * ratio;
+    var failAngle = Math.PI * 2 - passAngle;
+
+    // Background ring (fail color)
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = totalCount === 0 ? 'rgba(255,255,255,0.1)' : '#ef4444';
+    ctx.lineWidth = lw;
+    ctx.stroke();
+
+    if (totalCount > 0 && passCount > 0) {
+      // Pass arc
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + passAngle);
+      ctx.strokeStyle = '#22c55e';
+      ctx.lineWidth = lw;
+      ctx.stroke();
+    }
+    if (totalCount === 0) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+      ctx.lineWidth = lw;
+      ctx.stroke();
+    }
+  }
+
+  async function refreshGuardrailHealth() {
+    var hours = document.getElementById('gh-time-range').value || '24';
+    try {
+      var res = await fetch(API + '/api/dashboard/guardrail-health?hours=' + hours);
+      if (!res.ok) { console.warn('Guardrail health fetch failed:', res.status); return; }
+      var data = await res.json();
+
+      // Uptime
+      var uptimeMins = Math.round(data.uptime_seconds / 60);
+      var uptimeEl = document.getElementById('gh-uptime');
+      uptimeEl.textContent = 'Uptime: ' + uptimeMins + ' min';
+
+      // Total events
+      document.getElementById('gh-total-events').textContent = data.total_events;
+      document.getElementById('gh-pass-count').textContent = data.pass_count;
+      var blockedTotal = (data.pre_llm.blocked || 0) + (data.post_llm.blocked || 0);
+      document.getElementById('gh-blocked-count').textContent = blockedTotal;
+      var correctedTotal = (data.pre_llm.corrected || 0) + (data.post_llm.corrected || 0);
+      document.getElementById('gh-corrected-count').textContent = correctedTotal;
+
+      // Ring charts
+      var pre = data.pre_llm || {};
+      var post = data.post_llm || {};
+      drawRing('gh-ring-pre', pre.allowed || 0, pre.total || 0);
+      drawRing('gh-ring-post', post.allowed || 0, post.total || 0);
+
+      // Pre-LLM rate
+      var preRate = pre.total > 0 ? Math.round((pre.allowed || 0) / pre.total * 100) : 100;
+      var preRateEl = document.getElementById('gh-pre-rate');
+      preRateEl.textContent = preRate + '%';
+      preRateEl.style.color = preRate >= 80 ? 'var(--success)' : preRate >= 50 ? 'var(--warning)' : 'var(--danger)';
+      document.getElementById('gh-pre-detail').innerHTML =
+        'Allowed: <span style="color:var(--success);">' + (pre.allowed || 0) + '</span> | ' +
+        'Blocked: <span style="color:var(--danger);">' + (pre.blocked || 0) + '</span> | ' +
+        'Corrected: <span style="color:var(--warning);">' + (pre.corrected || 0) + '</span>';
+
+      // Post-LLM rate
+      var postRate = post.total > 0 ? Math.round((post.allowed || 0) / post.total * 100) : 100;
+      var postRateEl = document.getElementById('gh-post-rate');
+      postRateEl.textContent = postRate + '%';
+      postRateEl.style.color = postRate >= 80 ? 'var(--success)' : postRate >= 50 ? 'var(--warning)' : 'var(--danger)';
+      document.getElementById('gh-post-detail').innerHTML =
+        'Allowed: <span style="color:var(--success);">' + (post.allowed || 0) + '</span> | ' +
+        'Blocked: <span style="color:var(--danger);">' + (post.blocked || 0) + '</span> | ' +
+        'Corrected: <span style="color:var(--warning);">' + (post.corrected || 0) + '</span>';
+
+      // Events table
+      var events = data.recent_events || [];
+      var tbody = document.getElementById('gh-events-table');
+      var emptyEl = document.getElementById('gh-events-empty');
+      if (events.length === 0) {
+        tbody.innerHTML = '';
+        emptyEl.style.display = 'block';
+      } else {
+        emptyEl.style.display = 'none';
+        var actionColor = { blocked: 'var(--danger)', corrected: 'var(--warning)', allowed: 'var(--success)' };
+        var html = '';
+        for (var i = 0; i < events.length; i++) {
+          var e = events[i];
+          var ts = new Date(e.timestamp * 1000);
+          var timeStr = ts.getHours().toString().padStart(2,'0') + ':' +
+                        ts.getMinutes().toString().padStart(2,'0') + ':' +
+                        ts.getSeconds().toString().padStart(2,'0');
+          var rules = (e.trigger_rule || []).join(', ') || '--';
+          var color = actionColor[e.action] || 'var(--text-secondary)';
+          html += '<tr style="border-bottom:1px solid var(--border-color);">' +
+            '<td style="padding:4px 8px;">' + _esc(e.guardrail_type) + '</td>' +
+            '<td style="padding:4px 8px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(rules) + '</td>' +
+            '<td style="padding:4px 8px;">' + _esc(e.severity) + '</td>' +
+            '<td style="padding:4px 8px;color:' + color + ';font-weight:600;">' + _esc(e.action) + '</td>' +
+            '<td style="padding:4px 8px;">' + timeStr + '</td>' +
+            '</tr>';
+        }
+        tbody.innerHTML = html;
+      }
+    } catch(e) {
+      console.warn('Guardrail health error:', e);
+    }
+  }
+
+  // Auto-refresh guardrail health
+  refreshGuardrailHealth();
+  setInterval(refreshGuardrailHealth, 10000);
+
   // ═══ Plugin Marketplace ═══════════════════════════════════════
 
   var _pluginTab = 'available';
@@ -6371,6 +6568,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       refreshToolGuard();
       refreshHallucination();
       refreshMemory();
+      refreshGuardrailHealth();
       if (typeof refreshEvals === 'function') refreshEvals();
       if (typeof refreshAudit === 'function') refreshAudit();
       if (typeof refreshVersions === 'function') refreshVersions();
