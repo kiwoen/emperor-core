@@ -279,6 +279,8 @@ async def safe_execute(
     max_retries: int = 2,
     llm_retry_callback: Optional[Callable[[str, str, dict], Any]] = None,
     pre_validate: Optional[Callable[[dict], dict]] = None,
+    audit_trail: Any = None,
+    audit_ctx: Optional[dict] = None,
 ) -> SafeExecuteResult:
     """Execute a tool call with validation, retry-with-feedback, and timeout.
 
@@ -289,6 +291,7 @@ async def safe_execute(
       3. Execute the validated function with timeout protection
       4. On execution failure, optionally retry via llm_retry_callback
       5. Log every attempt as structured JSON
+      6. Persist to AuditTrail (if provided) for durable audit logging
 
     Args:
         tool_name: Name of the tool to execute.
@@ -298,9 +301,12 @@ async def safe_execute(
         timeout_seconds: Maximum execution time (default 30s).
         max_retries: Max retry attempts for validation/execution (default 2).
         llm_retry_callback: Optional async callable(tool_name, error_context, last_params)
-            → new_params_dict. Called when validation/execution fails, used to
+            -> new_params_dict. Called when validation/execution fails, used to
             retry with LLM-corrected parameters.
         pre_validate: Optional hook to transform params before validation.
+        audit_trail: Optional AuditTrail instance for persistent audit logging.
+        audit_ctx: Optional dict with 'agent_name', 'task_id', 'trace_id'
+            keys for enriching audit records.
 
     Returns:
         SafeExecuteResult with success status, result, logs, and error details.
@@ -328,7 +334,7 @@ async def safe_execute(
                 log.error = f"Pre-validation hook failed: {e}"
                 log.latency_ms = (time.perf_counter() - attempt_start) * 1000
                 all_logs.append(log)
-                _emit_log(log)
+                _emit_log(log, audit_trail, audit_ctx)
                 return SafeExecuteResult(
                     success=False,
                     error=log.error,
@@ -349,7 +355,7 @@ async def safe_execute(
             log.error = str(e)
             log.latency_ms = (time.perf_counter() - attempt_start) * 1000
             all_logs.append(log)
-            _emit_log(log)
+            _emit_log(log, audit_trail, audit_ctx)
             return SafeExecuteResult(
                 success=False,
                 error=log.error,
@@ -363,7 +369,7 @@ async def safe_execute(
             log.error = str(e)
             log.latency_ms = (time.perf_counter() - attempt_start) * 1000
             all_logs.append(log)
-            _emit_log(log)
+            _emit_log(log, audit_trail, audit_ctx)
 
             # Build error context for LLM retry
             last_error = str(e)
@@ -414,7 +420,7 @@ async def safe_execute(
             log.result = result
             log.latency_ms = (time.perf_counter() - attempt_start) * 1000
             all_logs.append(log)
-            _emit_log(log)
+            _emit_log(log, audit_trail, audit_ctx)
 
             return SafeExecuteResult(
                 success=True,
@@ -428,7 +434,7 @@ async def safe_execute(
             log.error = f"Tool '{tool_name}' timed out after {timeout_seconds}s"
             log.latency_ms = (time.perf_counter() - attempt_start) * 1000
             all_logs.append(log)
-            _emit_log(log)
+            _emit_log(log, audit_trail, audit_ctx)
 
             if attempt <= max_retries and llm_retry_callback is not None:
                 error_context = (
@@ -469,7 +475,7 @@ async def safe_execute(
             log.error = f"Tool execution failed: {e}"
             log.latency_ms = (time.perf_counter() - attempt_start) * 1000
             all_logs.append(log)
-            _emit_log(log)
+            _emit_log(log, audit_trail, audit_ctx)
 
             if attempt <= max_retries and llm_retry_callback is not None:
                 error_context = (
@@ -624,9 +630,26 @@ def _safe_serialize(obj: Any) -> Any:
     return str(obj)[:500]
 
 
-def _emit_log(log: ToolCallLog) -> None:
-    """Emit a tool call log entry as a JSON line to the logger."""
+def _emit_log(
+    log: ToolCallLog,
+    audit_trail: Any = None,
+    audit_ctx: Optional[dict] = None,
+) -> None:
+    """Emit a tool call log entry as a JSON line to the logger,
+    and optionally persist to the audit trail database."""
     logger.info("tool_call %s", log.to_json())
+
+    if audit_trail is not None:
+        try:
+            ctx = audit_ctx or {}
+            audit_trail.record_from_log(
+                log,
+                agent_name=ctx.get("agent_name", ""),
+                task_id=ctx.get("task_id", ""),
+                trace_id=ctx.get("trace_id", ""),
+            )
+        except Exception as exc:
+            logger.warning("Failed to write audit trail record: %s", exc)
 
 
 # ═══════════════════════════════════════════════════════════════════
