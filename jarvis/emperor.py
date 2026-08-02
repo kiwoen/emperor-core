@@ -223,6 +223,10 @@ class Emperor:
         from jarvis.multi_model import MultiModelRouter
         self._multi_model_router: MultiModelRouter = MultiModelRouter()
 
+        # L4 GraphRAG — knowledge-graph memory engine
+        from jarvis.graph_rag import GraphRAG
+        self._graph_rag: GraphRAG = GraphRAG()
+
         # Adaptive prompt template manager
         from jarvis.prompt_template import PromptTemplateManager
         template_data_dir = self.config.data_dir if self.config.data_dir else str(Path.cwd())
@@ -353,6 +357,11 @@ class Emperor:
     def multi_model_router(self):
         """Direct access to the MultiModelRouter (DeepSeek + parallel/ensemble/strategy)."""
         return self._multi_model_router
+
+    @property
+    def graph_rag(self):
+        """Direct access to the L4 GraphRAG knowledge graph engine."""
+        return self._graph_rag
 
     @property
     def approval_engine(self):
@@ -597,6 +606,7 @@ class Emperor:
         app.extra["db"] = db
         app.extra["model_router"] = self._model_router
         app.extra["multi_model_router"] = self._multi_model_router
+        app.extra["graph_rag"] = self._graph_rag
 
         # Inject scheduler state if running
         if self._scheduler is not None:

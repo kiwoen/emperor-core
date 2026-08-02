@@ -2056,6 +2056,34 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     <div id="mem-history" style="max-height:100px;overflow-y:auto;font-size:10px;">
       <div class="empty">No consolidation yet</div>
     </div>
+
+    <!-- GraphRAG sub-panel -->
+    <div style="border-top:1px solid var(--border-color);margin-top:8px;padding-top:8px;">
+      <div style="font-size:11px;font-weight:700;color:var(--text-primary);margin-bottom:6px;">&#129504; GraphRAG (L4 Knowledge Graph)</div>
+      <div style="display:flex;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:55px;text-align:center;padding:6px;background:var(--bg-secondary);border-radius:6px;border-left:3px solid #ec4899;">
+          <div style="font-size:13px;font-weight:700;color:#ec4899;" id="gr-entities">0</div>
+          <div style="font-size:10px;color:var(--text-secondary);">Entities</div>
+        </div>
+        <div style="flex:1;min-width:55px;text-align:center;padding:6px;background:var(--bg-secondary);border-radius:6px;border-left:3px solid #8b5cf6;">
+          <div style="font-size:13px;font-weight:700;color:#8b5cf6;" id="gr-relations">0</div>
+          <div style="font-size:10px;color:var(--text-secondary);">Relations</div>
+        </div>
+        <div style="flex:1;min-width:55px;text-align:center;padding:6px;background:var(--bg-secondary);border-radius:6px;border-left:3px solid #3b82f6;">
+          <div style="font-size:13px;font-weight:700;color:#3b82f6;" id="gr-docs">0</div>
+          <div style="font-size:10px;color:var(--text-secondary);">Documents</div>
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--text-muted);margin-bottom:4px;">Avg Degree: <span id="gr-avg-degree">--</span> | Max: <span id="gr-max-degree">--</span></div>
+      <div style="font-size:10px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">Top Entities</div>
+      <div id="gr-top-entities" style="font-size:10px;max-height:80px;overflow-y:auto;"></div>
+      <div style="margin-top:8px;">
+        <input type="text" id="gr-search-input" placeholder="Search entity..." style="font-size:10px;padding:3px 6px;background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text-primary);border-radius:4px;width:120px;"
+          onkeydown="if(event.key==='Enter') searchGraphEntity()" />
+        <button onclick="searchGraphEntity()" style="font-size:10px;padding:3px 8px;background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text-primary);border-radius:4px;cursor:pointer;">Search</button>
+      </div>
+      <div id="gr-entity-detail" style="font-size:10px;margin-top:6px;max-height:120px;overflow-y:auto;display:none;"></div>
+    </div>
   </div>
 </div>
 
@@ -4978,6 +5006,46 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       }).join('');
     } catch(e) {
       console.error('Memory history refresh failed:', e);
+    }
+
+    // Refresh GraphRAG stats
+    try {
+      var grRes = await fetch(API + '/api/memory/graph/stats');
+      var grData = await grRes.json();
+      document.getElementById('gr-entities').textContent = grData.entity_count || 0;
+      document.getElementById('gr-relations').textContent = grData.relation_count || 0;
+      document.getElementById('gr-docs').textContent = grData.document_count || 0;
+      document.getElementById('gr-avg-degree').textContent = (grData.avg_degree || 0).toFixed(1);
+      document.getElementById('gr-max-degree').textContent = grData.max_degree || 0;
+      var topContainer = document.getElementById('gr-top-entities');
+      var topEnts = grData.top_entities || [];
+      if (topEnts.length === 0) {
+        topContainer.innerHTML = '<span class="empty">No entities yet</span>';
+      } else {
+        topContainer.innerHTML = topEnts.slice(0, 8).map(function(e) {
+          return '<div style="padding:1px 0;border-bottom:1px solid var(--border-color);">' +
+            '<span style="font-weight:600;">' + escHtml(e.name) + '</span> ' +
+            '<span style="color:var(--text-muted);">(' + e.type + ')</span> ' +
+            '<span style="color:var(--text-secondary);">deg:' + e.degree + '</span></div>';
+        }).join('');
+      }
+    } catch(e) {
+      console.error('GraphRAG refresh failed:', e);
+    }
+  }
+
+  async function searchGraphEntity() {
+    var query = document.getElementById('gr-search-input').value.trim();
+    if (!query) return;
+    try {
+      var res = await fetch(API + '/api/memory/graph/entity/' + encodeURIComponent(query));
+      var data = await res.json();
+      var detailDiv = document.getElementById('gr-entity-detail');
+      detailDiv.style.display = 'block';
+      detailDiv.innerHTML = '<div style="font-weight:600;margin-bottom:4px;">Entity: ' + escHtml(data.name) + '</div>' +
+        '<pre style="font-size:9px;white-space:pre-wrap;margin:0;">' + escHtml(data.summary) + '</pre>';
+    } catch(e) {
+      console.error('Graph entity search failed:', e);
     }
   }
 

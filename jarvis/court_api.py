@@ -2806,6 +2806,69 @@ def create_app(
             raise HTTPException(status_code=404, detail="Node not found")
         return node
 
+    # ── L4 GraphRAG Memory ─────────────────────────────────────────
+
+    @app.get("/api/memory/graph")
+    def memory_graph_rag(query: str = "", top_k: int = 10):
+        """GraphRAG 知识图谱检索。
+
+        Query 参数：
+        - query: 实体搜索关键词
+        - top_k: 返回结果数量（默认 10）
+        """
+        emperor: Any = app.extra.get("emperor")
+        if emperor is None or not hasattr(emperor, "graph_rag"):
+            raise HTTPException(status_code=503, detail="GraphRAG engine not available")
+        graf = emperor.graph_rag
+        results = graf.search(query, top_k=top_k)
+        return {
+            "query": query,
+            "count": len(results),
+            "results": [r.to_dict() for r in results],
+        }
+
+    @app.get("/api/memory/graph/entity/{name}")
+    def memory_graph_entity(name: str):
+        """获取指定实体的完整摘要（属性 + 关系）。"""
+        emperor: Any = app.extra.get("emperor")
+        if emperor is None or not hasattr(emperor, "graph_rag"):
+            raise HTTPException(status_code=503, detail="GraphRAG engine not available")
+        graf = emperor.graph_rag
+        summary = graf.summarize_entity(name)
+        fragment = graf.query_graph(name, hops=1)
+        return {
+            "name": name,
+            "summary": summary,
+            "fragment": fragment.to_dict(),
+        }
+
+    @app.get("/api/memory/graph/entity/{name}/neighbors")
+    def memory_graph_neighbors(name: str, relation_type: str = "", hops: int = 1):
+        """获取指定实体的邻居（关联实体列表）。"""
+        emperor: Any = app.extra.get("emperor")
+        if emperor is None or not hasattr(emperor, "graph_rag"):
+            raise HTTPException(status_code=503, detail="GraphRAG engine not available")
+        graf = emperor.graph_rag
+        related = graf.get_related_entities(
+            name, relation_type=(relation_type if relation_type else None),
+        )
+        fragment = graf.query_graph(name, hops=hops)
+        return {
+            "name": name,
+            "neighbors": [e.to_dict() for e in related],
+            "neighbor_count": len(related),
+            "fragment": fragment.to_dict(),
+        }
+
+    @app.get("/api/memory/graph/stats")
+    def memory_graph_stats():
+        """获取知识图谱统计信息（实体数 / 关系数 / 文档数 / Top 实体）。"""
+        emperor: Any = app.extra.get("emperor")
+        if emperor is None or not hasattr(emperor, "graph_rag"):
+            raise HTTPException(status_code=503, detail="GraphRAG engine not available")
+        graf = emperor.graph_rag
+        return graf.stats()
+
     # ── Sandbox Code Runner ───────────────────────────────────────
 
     import asyncio as _asyncio

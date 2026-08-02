@@ -7,8 +7,9 @@ Implements cognitive-inspired multi-tier memory with:
 3. Memory Graph — bidirectional relationships between memory nodes
 4. Recursive Summarization — cluster compression for long-term storage
 5. Cross-session Persistence — JSONL-based durable storage
+6. L4 GraphRAG — knowledge-graph-based retrieval (GraphRAG)
 
-Integration: wraps jarvis.memory.engine.MemoryEngine.
+Integration: wraps jarvis.memory.engine.MemoryEngine + jarvis.graph_rag.GraphRAG.
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from jarvis.tracer import tracer as _tracer
+from jarvis.graph_rag import GraphRAG, SearchResult as GraphRAGSearchResult
 
 logger = logging.getLogger("jarvis.hierarchical_memory")
 
@@ -36,6 +38,7 @@ class MemoryTier(Enum):
     EPISODIC = auto()   # Conversation turns, moderate retention
     SEMANTIC = auto()   # Consolidated facts, long retention
     PROCEDURAL = auto() # Skill templates, permanent
+    GRAPH_RAG = auto()  # Knowledge graph entities & relations (GraphRAG L4)
 
 
 class ConsolidationStatus(Enum):
@@ -126,6 +129,34 @@ class MemoryNode:
             "parents": self.parents,
             "related": self.related,
             "summary": self.summary,
+        }
+
+
+@dataclass
+class ChunkResult:
+    """Result from L4 GraphRAG retrieval, compatible with L0-L3 retrieval output."""
+
+    node_id: str
+    content: str
+    tier: str = "GRAPH_RAG"
+    layer: str = "L4"
+    importance: float = 0.5
+    retention: float = 1.0
+    source: str = "graph_rag"
+    timestamp: float = 0.0
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "node_id": self.node_id,
+            "content": self.content,
+            "tier": self.tier,
+            "layer": self.layer,
+            "importance": self.importance,
+            "retention": self.retention,
+            "source": self.source,
+            "timestamp": self.timestamp,
+            "metadata": self.metadata,
         }
 
 
@@ -223,6 +254,9 @@ class HierarchicalMemoryEngine:
         self._consolidation_history: list[ConsolidationCycle] = []
         self._consolidation_lock: bool = False
 
+        # L4 GraphRAG engine
+        self._graph_rag: GraphRAG = GraphRAG()
+
         # Load from disk
         self._load()
 
@@ -250,6 +284,10 @@ class HierarchicalMemoryEngine:
         self._place(node)
         self._save_tier(tier)
         logger.debug("Added %s node %s (importance=%.2f)", tier.name, node_id[:8], importance)
+
+        # Feed content into L4 GraphRAG for entity extraction
+        self._graph_rag.add_document(node_id, content)
+
         return node_id
 
     def retrieve(
@@ -264,9 +302,11 @@ class HierarchicalMemoryEngine:
         target_tiers = tiers or [MemoryTier.EPISODIC, MemoryTier.SEMANTIC, MemoryTier.PROCEDURAL]
         candidates: list[MemoryNode] = []
         for t in target_tiers:
+            if t == MemoryTier.GRAPH_RAG:
+                continue  # handled separately via GraphRAG merge below
             candidates.extend(self._get_tier(t).values())
 
-        if not candidates:
+        if not candidates and MemoryTier.GRAPH_RAG not in target_tiers:
             _tracer.start_span(
                 "memory.retrieve", kind="internal",
                 attributes={"query": query[:80], "tier": target_tiers[0].name if target_tiers else "none",
@@ -321,6 +361,36 @@ class HierarchicalMemoryEngine:
         _tracer.end_span(_tracer._context_stack()[-1] if _tracer._context_stack() else "",
                          status="ok" if top else "ok",
                          attributes={"hit_count": len(top), "latency_ms": round(_elapsed, 2)})
+
+        # Merge L4 GraphRAG results if GRAPH_RAG tier is requested
+        if MemoryTier.GRAPH_RAG in target_tiers:
+            try:
+                graph_results = self._graph_rag.search(query, top_k=top_k)
+                for sr in graph_results:
+                    # Create MemoryNode from GraphRAG SearchResult
+                    gr_node = MemoryNode(
+                        node_id=f"graphrag:{sr.entity.name}",
+                        content=f"[{sr.entity.type}] {sr.entity.name}: "
+                                f"Found in {len(sr.entity.source_documents)} documents",
+                        tier=MemoryTier.GRAPH_RAG,
+                        importance=sr.score,
+                        retention=1.0,
+                        metadata={
+                            "entity_type": sr.entity.type,
+                            "source": "graph_rag",
+                            "graph_score": sr.score,
+                            "hops": sr.hops,
+                            "entity_properties": sr.entity.properties,
+                            "source_documents": sr.entity.source_documents,
+                        },
+                    )
+                    top.append((sr.score * 0.70, gr_node))
+                # Re-sort
+                top.sort(key=lambda x: x[0], reverse=True)
+                top = top[:top_k]
+            except Exception:
+                logger.debug("GraphRAG retrieval failed, continuing without L4", exc_info=True)
+
         return [n for _, n in top]
 
     def search_semantic(
@@ -330,6 +400,54 @@ class HierarchicalMemoryEngine:
     ) -> list[MemoryNode]:
         """Search only semantic tier (consolidated facts)."""
         return self.retrieve(query, top_k, tiers=[MemoryTier.SEMANTIC])
+
+    # ── L4 GraphRAG ───────────────────────────────────────────────
+
+    @property
+    def graph_rag(self) -> GraphRAG:
+        """Direct access to the L4 GraphRAG engine."""
+        return self._graph_rag
+
+    def graph_retrieve(self, query: str, top_k: int = 10) -> list[ChunkResult]:
+        """L4 knowledge graph retrieval.
+
+        Performs hybrid search: keyword match on entity names + graph traversal.
+        Results include entity info, relation summaries, and graph context.
+
+        Returns:
+            List of ChunkResult with source="graph_rag".
+        """
+        results: list[ChunkResult] = []
+        try:
+            sr_list = self._graph_rag.search(query, top_k=top_k)
+            for sr in sr_list:
+                ent = sr.entity
+                summary = self._graph_rag.summarize_entity(ent.name)
+                related = self._graph_rag.get_related_entities(ent.name)
+                result = ChunkResult(
+                    node_id=f"graphrag:{ent.name}",
+                    content=summary,
+                    tier="GRAPH_RAG",
+                    layer="L4",
+                    importance=sr.score,
+                    retention=1.0,
+                    source="graph_rag",
+                    timestamp=time.time(),
+                    metadata={
+                        "entity_name": ent.name,
+                        "entity_type": ent.type,
+                        "entity_properties": ent.properties,
+                        "source_documents": ent.source_documents,
+                        "graph_score": sr.score,
+                        "hops": sr.hops,
+                        "related_entity_count": len(related),
+                        "related_entities": [e.name for e in related],
+                    },
+                )
+                results.append(result)
+        except Exception:
+            logger.debug("graph_retrieve failed", exc_info=True)
+        return results
 
     def link(self, from_id: str, to_id: str, bidirectional: bool = True) -> bool:
         """Create a relationship edge between two nodes."""
@@ -447,6 +565,11 @@ class HierarchicalMemoryEngine:
     def stats(self) -> dict[str, Any]:
         """Return comprehensive memory statistics."""
         now = time.time()
+        try:
+            graph_stats = self._graph_rag.stats()
+        except Exception:
+            graph_stats = {"entity_count": 0, "relation_count": 0, "document_count": 0,
+                           "top_entities": [], "avg_degree": 0, "max_degree": 0, "type_distribution": {}}
         return {
             "working_count": len(self.working),
             "episodic_count": len(self.episodic),
@@ -478,6 +601,15 @@ class HierarchicalMemoryEngine:
                 time.time() - self._last_consolidation >= self.consolidation_interval
             ),
             "ebbinghaus_curve": EBBINGHAUS_CURVE,
+            "graph_rag": {
+                "entities": graph_stats.get("entity_count", 0),
+                "relations": graph_stats.get("relation_count", 0),
+                "documents": graph_stats.get("document_count", 0),
+                "top_entities": graph_stats.get("top_entities", []),
+                "avg_degree": graph_stats.get("avg_degree", 0),
+                "max_degree": graph_stats.get("max_degree", 0),
+                "type_distribution": graph_stats.get("type_distribution", {}),
+            },
         }
 
     def consolidation_history(self, limit: int = 10) -> list[dict[str, Any]]:
