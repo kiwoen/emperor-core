@@ -3716,6 +3716,41 @@ def create_app(
             "role": rbac.get_role_detail(role_name),
         }
 
+    # ══════════════════════════════════════════════════════════════
+    # Cost Tracking API
+    # ══════════════════════════════════════════════════════════════
+
+    @app.get("/api/costs/summary")
+    def cost_summary(request: Request):
+        """返回今日/本月/总计成本摘要。"""
+        tracker = request.app.extra.get("cost_tracker")
+        if tracker is None:
+            raise HTTPException(status_code=503, detail="CostTracker not available")
+        return tracker.summary()
+
+    @app.get("/api/costs/history")
+    def cost_history(limit: int = 50, request: Request = None):
+        """返回最近 N 条成本调用记录。"""
+        tracker = request.app.extra.get("cost_tracker")
+        if tracker is None:
+            raise HTTPException(status_code=503, detail="CostTracker not available")
+        return {
+            "records": tracker.history(limit=min(limit, 200)),
+            "total": len(tracker._records_snapshot()),
+        }
+
+    @app.get("/api/costs/by-model")
+    def cost_by_model(request: Request):
+        """返回按模型分组的成本明细（本月）。"""
+        tracker = request.app.extra.get("cost_tracker")
+        if tracker is None:
+            raise HTTPException(status_code=503, detail="CostTracker not available")
+        return {
+            "today": tracker.per_model_breakdown(since=tracker._today_start()),
+            "this_month": tracker.per_model_breakdown(since=tracker._month_start()),
+            "all_time": tracker.per_model_breakdown(since=0),
+        }
+
     return app
 
 

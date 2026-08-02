@@ -1844,6 +1844,48 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   </div><!-- .panel-body -->
 </div>
 
+<!-- 💰 Costs 成本追踪面板 -->
+<div class="panel panel-full" id="panel-costs">
+  <div class="panel-header">
+    <h2>💰 Costs 成本追踪</h2>
+    <button class="panel-collapse-btn" onclick="togglePanel('panel-costs')">▼</button>
+  </div>
+  <div class="panel-body">
+    <div class="cost-cards">
+      <div class="cost-card">
+        <div class="cost-val" id="cost-today-val">$0.000</div>
+        <div class="cost-label">今日花费</div>
+      </div>
+      <div class="cost-card">
+        <div class="cost-val" id="cost-month-val">$0.000</div>
+        <div class="cost-label">本月花费</div>
+      </div>
+      <div class="cost-card">
+        <div class="cost-val" id="cost-total-val">$0.000</div>
+        <div class="cost-label">历史总计</div>
+      </div>
+      <div class="cost-card">
+        <div class="cost-val" style="color:var(--text-secondary);" id="cost-requests-val">0</div>
+        <div class="cost-label">调用次数</div>
+      </div>
+    </div>
+    <!-- 模型成本排行柱状图 -->
+    <div style="margin-top:16px;">
+      <h4 style="margin:0 0 10px;font-size:0.82rem;color:var(--text-secondary);">模型成本排行（本月）</h4>
+      <div id="cost-bar-chart" style="min-height:120px;">
+        <div class="empty">Loading...</div>
+      </div>
+    </div>
+    <!-- 最近调用记录 -->
+    <div style="margin-top:16px;">
+      <h4 style="margin:0 0 10px;font-size:0.82rem;color:var(--text-secondary);">最近调用记录</h4>
+      <div id="cost-history-table" style="max-height:300px;overflow-y:auto;font-size:11px;">
+        <div class="empty">Loading...</div>
+      </div>
+    </div>
+  </div><!-- .panel-body -->
+</div>
+
 <!-- Audit 审计追踪面板 -->
 <div class="panel panel-full" id="panel-audit">
   <div class="panel-header">
@@ -4830,6 +4872,113 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     if (savedVal) savedVal.textContent = '$' + (report.estimated_cost_saved || 0).toFixed(3);
   }
 
+  // ═══ Cost Tracking panel functions ═════════════════════════
+
+  async function refreshCosts() {
+    try {
+      var summaryRes = await fetch(API + '/api/costs/summary');
+      var summary = await summaryRes.json();
+      renderCostSummary(summary);
+
+      var modelRes = await fetch(API + '/api/costs/by-model');
+      var modelData = await modelRes.json();
+      renderCostBarChart(modelData.this_month || modelData.all_time || {});
+
+      var historyRes = await fetch(API + '/api/costs/history?limit=20');
+      var historyData = await historyRes.json();
+      renderCostHistory(historyData.records || []);
+    } catch (e) {
+      console.error('Costs fetch failed:', e);
+    }
+  }
+
+  function renderCostSummary(s) {
+    var todayEl = document.getElementById('cost-today-val');
+    if (todayEl) todayEl.textContent = '$' + (Number(s.today_usd || 0)).toFixed(3);
+
+    var monthEl = document.getElementById('cost-month-val');
+    if (monthEl) monthEl.textContent = '$' + (Number(s.this_month_usd || 0)).toFixed(3);
+
+    var totalEl = document.getElementById('cost-total-val');
+    if (totalEl) totalEl.textContent = '$' + (Number(s.all_time_usd || 0)).toFixed(3);
+
+    var reqEl = document.getElementById('cost-requests-val');
+    if (reqEl) reqEl.textContent = s.total_calls || 0;
+  }
+
+  function renderCostBarChart(breakdown) {
+    var container = document.getElementById('cost-bar-chart');
+    if (!container) return;
+
+    var entries = [];
+    for (var model in breakdown) {
+      if (breakdown.hasOwnProperty(model)) {
+        entries.push({ model: model, cost: Number(breakdown[model].cost_usd || 0), calls: breakdown[model].calls || 0 });
+      }
+    }
+    entries.sort(function(a, b) { return b.cost - a.cost; });
+    var top = entries.slice(0, 8);
+
+    if (top.length === 0) {
+      container.innerHTML = '<div class="empty">暂无数据</div>';
+      return;
+    }
+
+    var maxCost = Math.max.apply(null, top.map(function(e) { return e.cost; })) || 1;
+    var colors = ['#4fc3f7','#81c784','#ffb74d','#e57373','#ba68c8','#4dd0e1','#f06292','#aed581'];
+
+    var html = '';
+    for (var i = 0; i < top.length; i++) {
+      var entry = top[i];
+      var pct = (entry.cost / maxCost * 100).toFixed(1);
+      var color = colors[i % colors.length];
+      html += '<div style="display:flex;align-items:center;margin-bottom:6px;gap:8px;">' +
+        '<div style="width:120px;font-size:11px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + escHtml(entry.model) + '">' + escHtml(entry.model) + '</div>' +
+        '<div style="flex:1;background:var(--bg-tertiary, #2a2a3a);border-radius:3px;height:18px;position:relative;overflow:hidden;">' +
+          '<div style="width:' + pct + '%;background:' + color + ';height:100%;border-radius:3px;transition:width 0.3s;"></div>' +
+        '</div>' +
+        '<div style="width:80px;font-size:11px;font-variant-numeric:tabular-nums;">$' + entry.cost.toFixed(4) + '</div>' +
+        '<div style="width:30px;font-size:10px;color:var(--text-secondary);">x' + entry.calls + '</div>' +
+      '</div>';
+    }
+    container.innerHTML = html;
+  }
+
+  function renderCostHistory(records) {
+    var container = document.getElementById('cost-history-table');
+    if (!container) return;
+
+    if (records.length === 0) {
+      container.innerHTML = '<div class="empty">暂无记录 — 调用模型后将自动记录成本</div>';
+      return;
+    }
+
+    var html = '<table style="width:100%;border-collapse:collapse;">' +
+      '<thead><tr style="text-align:left;color:var(--text-secondary);border-bottom:1px solid var(--border-color);">' +
+      '<th style="padding:6px 8px;">时间</th>' +
+      '<th style="padding:6px 8px;">模型</th>' +
+      '<th style="padding:6px 8px;">Tokens (In)</th>' +
+      '<th style="padding:6px 8px;">Tokens (Out)</th>' +
+      '<th style="padding:6px 8px;">成本</th>' +
+      '<th style="padding:6px 8px;">操作</th>' +
+      '</tr></thead><tbody>';
+    for (var i = 0; i < records.length; i++) {
+      var r = records[i];
+      var ts = r.timestamp || 0;
+      var timeStr = ts ? new Date(ts * 1000).toLocaleString() : '-';
+      html += '<tr style="border-bottom:1px solid var(--border-color);">' +
+        '<td style="padding:5px 8px;white-space:nowrap;">' + escHtml(timeStr) + '</td>' +
+        '<td style="padding:5px 8px;">' + escHtml(r.model_name || '-') + '</td>' +
+        '<td style="padding:5px 8px;">' + (r.tokens_in || 0) + '</td>' +
+        '<td style="padding:5px 8px;">' + (r.tokens_out || 0) + '</td>' +
+        '<td style="padding:5px 8px;color:var(--warning);">$' + (Number(r.cost_usd || 0)).toFixed(6) + '</td>' +
+        '<td style="padding:5px 8px;">' + escHtml(r.operation || '-') + '</td>' +
+        '</tr>';
+    }
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  }
+
   // ═══ Evals panel functions ════════════════════════════════════
 
   async function refreshEvals() {
@@ -5282,9 +5431,11 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   refreshEvals();
   refreshAudit();
   refreshModelCosts();
+  refreshCosts();
   setInterval(refreshEvals, 15000);
   setInterval(refreshAudit, 60000);
   setInterval(refreshModelCosts, 60000);
+  setInterval(refreshCosts, 60000);
 
   // ═══ Governance & Autonomy Panel ═══════════════════════════════
 
@@ -6214,6 +6365,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       refreshHealing();
       refreshHealingTimeline();
       refreshModelCosts();
+      refreshCosts();
       refreshGovernance();
       refreshRecovery();
       refreshToolGuard();

@@ -12,7 +12,10 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from jarvis.cost_tracker import CostTracker
 
 logger = logging.getLogger("jarvis.multi_model")
 
@@ -190,13 +193,23 @@ class MultiModelRouter:
         # → [ParallelResult, ...]
     """
 
-    def __init__(self, model_registry: dict[str, ModelConfig] | None = None) -> None:
+    def __init__(
+        self,
+        model_registry: dict[str, ModelConfig] | None = None,
+        cost_tracker: Optional[CostTracker] = None,
+    ) -> None:
         self._models: dict[str, ModelConfig] = (
             dict(model_registry) if model_registry is not None else dict(_DEFAULT_MODELS)
         )
         self._latency_cache: dict[str, float] = {}  # model_id → last_latency_ms
         self.total_calls: int = 0
         self.calls_by_model: dict[str, int] = {}
+        # Cost tracking
+        if cost_tracker is not None:
+            self.cost_tracker: CostTracker = cost_tracker
+        else:
+            from jarvis.cost_tracker import CostTracker
+            self.cost_tracker: CostTracker = CostTracker()
         logger.info(
             "MultiModelRouter initialized — %d models across %d tiers",
             len(self._models),
@@ -421,6 +434,15 @@ class MultiModelRouter:
 
         self.total_calls += 1
         self.calls_by_model[model_id] = self.calls_by_model.get(model_id, 0) + 1
+
+        # ── Cost Tracking ──
+        self.cost_tracker.record(
+            model_name=model_id,
+            tokens_in=est_input_tokens,
+            tokens_out=est_output_tokens,
+            task_id="",
+            operation="invoke",
+        )
 
         reasoning_note = ""
         if model.supports_reasoning:

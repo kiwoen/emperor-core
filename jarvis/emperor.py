@@ -245,6 +245,14 @@ class Emperor:
         from jarvis.multi_model import MultiModelRouter
         self._multi_model_router: MultiModelRouter = MultiModelRouter()
 
+        # Cost tracker — shared with MultiModelRouter for per-invocation cost recording
+        from jarvis.cost_tracker import CostTracker
+        cost_data_dir = self.config.data_dir if self.config.data_dir else str(Path.cwd())
+        self._cost_tracker: CostTracker = CostTracker(
+            persistence_path=str(Path(cost_data_dir) / "cost_records.json"),
+        )
+        self._multi_model_router.cost_tracker = self._cost_tracker
+
         # L4 GraphRAG — knowledge-graph memory engine
         from jarvis.graph_rag import GraphRAG
         self._graph_rag: GraphRAG = GraphRAG()
@@ -406,6 +414,11 @@ class Emperor:
     def multi_model_router(self):
         """Direct access to the MultiModelRouter (DeepSeek + parallel/ensemble/strategy)."""
         return self._multi_model_router
+
+    @property
+    def cost_tracker(self):
+        """Direct access to the CostTracker for per-invocation cost recording."""
+        return self._cost_tracker
 
     @property
     def graph_rag(self):
@@ -861,6 +874,7 @@ class Emperor:
         app.extra["db"] = db
         app.extra["model_router"] = self._model_router
         app.extra["multi_model_router"] = self._multi_model_router
+        app.extra["cost_tracker"] = self._cost_tracker
         app.extra["graph_rag"] = self._graph_rag
 
         # Inject scheduler state if running
