@@ -582,240 +582,250 @@ class Emperor:
             attributes={"task_id": task_id, "domain": domain, "prompt_len": len(prompt)},
         )
 
-        req = TaskRequest(
-            id=task_id,
-            prompt=prompt,
-            domain=domain,
-            expected=expected or None,
-            deadline_seconds=self.config.max_task_timeout,
-        )
+        _trace_status = "error"
+        _trace_attrs: dict[str, Any] = {}
+        try:
 
-        self._dispatch(LifecycleEvent.ON_TASK_BEFORE,
-                       task_id=task_id, prompt=prompt, domain=domain)
-
-        # ── Context compression check ──
-        # Accumulate messages and compress if exceeding token budget
-        self._message_history.append({"role": "user", "content": prompt})
-        if self._context_compressor is not None:
-            from jarvis.context_compressor import (
-                CompressionStrategy, estimate_messages_tokens,
+            req = TaskRequest(
+                id=task_id,
+                prompt=prompt,
+                domain=domain,
+                expected=expected or None,
+                deadline_seconds=self.config.max_task_timeout,
             )
-            current_tokens = estimate_messages_tokens(self._message_history)
-            if current_tokens > self.config.max_context_tokens:
-                strategy_map = {
-                    "auto": None,  # let auto_compress decide
-                    "summarize": CompressionStrategy.SUMMARIZE,
-                    "extract": CompressionStrategy.EXTRACT,
-                    "prune": CompressionStrategy.PRUNE,
-                    "hybrid": CompressionStrategy.HYBRID,
-                }
-                strat = strategy_map.get(
-                    self.config.compression_strategy, None
-                )
-                if strat is None:
-                    result = self._context_compressor.auto_compress(
-                        self._message_history,
-                        max_tokens=self.config.max_context_tokens,
-                    )
-                else:
-                    result = self._context_compressor.compress(
-                        self._message_history,
-                        strategy=strat,
-                        target_tokens=self.config.max_context_tokens,
-                    )
-                self._message_history = result.messages
-                logger.info(
-                    "[Emperor] context compressed: %d→%d tokens (strategy=%s)",
-                    result.original_tokens,
-                    result.compressed_tokens,
-                    result.strategy,
-                )
 
-        # ── HITL Approval check ──
-        if self._approval_engine.require_approval(
-            task_id=task_id, prompt=prompt, domain=domain,
-        ):
-            req = self._approval_engine.create_request(
+            self._dispatch(LifecycleEvent.ON_TASK_BEFORE,
+                           task_id=task_id, prompt=prompt, domain=domain)
+
+            # ── Context compression check ──
+            # Accumulate messages and compress if exceeding token budget
+            self._message_history.append({"role": "user", "content": prompt})
+            if self._context_compressor is not None:
+                from jarvis.context_compressor import (
+                    CompressionStrategy, estimate_messages_tokens,
+                )
+                current_tokens = estimate_messages_tokens(self._message_history)
+                if current_tokens > self.config.max_context_tokens:
+                    strategy_map = {
+                        "auto": None,  # let auto_compress decide
+                        "summarize": CompressionStrategy.SUMMARIZE,
+                        "extract": CompressionStrategy.EXTRACT,
+                        "prune": CompressionStrategy.PRUNE,
+                        "hybrid": CompressionStrategy.HYBRID,
+                    }
+                    strat = strategy_map.get(
+                        self.config.compression_strategy, None
+                    )
+                    if strat is None:
+                        result = self._context_compressor.auto_compress(
+                            self._message_history,
+                            max_tokens=self.config.max_context_tokens,
+                        )
+                    else:
+                        result = self._context_compressor.compress(
+                            self._message_history,
+                            strategy=strat,
+                            target_tokens=self.config.max_context_tokens,
+                        )
+                    self._message_history = result.messages
+                    logger.info(
+                        "[Emperor] context compressed: %d→%d tokens (strategy=%s)",
+                        result.original_tokens,
+                        result.compressed_tokens,
+                        result.strategy,
+                    )
+
+            # ── HITL Approval check ──
+            if self._approval_engine.require_approval(
                 task_id=task_id, prompt=prompt, domain=domain,
-            )
-            return {
-                "task_id": task_id,
-                "status": "pending_approval",
-                "approval_id": req.id,
-                "risk_level": req.risk_level,
-                "message": f"Task requires human approval (risk={req.risk_level}). Approval ID: {req.id}",
+            ):
+                approval_req = self._approval_engine.create_request(
+                    task_id=task_id, prompt=prompt, domain=domain,
+                )
+                _trace_status = "ok"
+                _trace_attrs = {
+                    "status": "pending_approval",
+                    "approval_id": approval_req.id,
+                    "risk_level": approval_req.risk_level,
+                }
+                return {
+                    "task_id": task_id,
+                    "status": "pending_approval",
+                    "approval_id": approval_req.id,
+                    "risk_level": approval_req.risk_level,
+                    "message": f"Task requires human approval (risk={approval_req.risk_level}). Approval ID: {approval_req.id}",
+                }
+
+            # ── State Machine: planning → execution ──
+            _sm = self._state_machine
+            _sm_ctx = _sm.start("planning", data={
+                "task_id": task_id, "domain": domain, "prompt_len": len(prompt),
+            })
+            _sm_ctx = _sm.trigger("execution", _sm_ctx)
+
+            # ── Audit: before ──
+            import time as _time
+            _started = _time.time()
+            self._audit_logger.log_task_before(
+                trace_id=task_id, prompt=prompt, domain=domain)
+
+            outcome = self._task_engine.execute(req, minister=_preselected_minister)
+
+            _elapsed_ms = (_time.time() - _started) * 1000
+
+            result = {
+                "task_id": outcome.task_id,
+                "minister": outcome.minister,
+                "success": outcome.success,
+                "confidence": outcome.confidence,
+                "merit_score": outcome.merit_score,
+                "execution_time_ms": outcome.execution_time_ms,
+                "response": outcome.raw_response,
+                "error": outcome.error,
+                "handoff": None,  # populated below if a handoff occurs
             }
 
-        # ── State Machine: planning → execution ──
-        _sm = self._state_machine
-        _sm_ctx = _sm.start("planning", data={
-            "task_id": task_id, "domain": domain, "prompt_len": len(prompt),
-        })
-        _sm_ctx = _sm.trigger("execution", _sm_ctx)
-
-        # ── Audit: before ──
-        import time as _time
-        _started = _time.time()
-        self._audit_logger.log_task_before(
-            trace_id=task_id, prompt=prompt, domain=domain)
-
-        outcome = self._task_engine.execute(req, minister=_preselected_minister)
-
-        _elapsed_ms = (_time.time() - _started) * 1000
-
-        result = {
-            "task_id": outcome.task_id,
-            "minister": outcome.minister,
-            "success": outcome.success,
-            "confidence": outcome.confidence,
-            "merit_score": outcome.merit_score,
-            "execution_time_ms": outcome.execution_time_ms,
-            "response": outcome.raw_response,
-            "error": outcome.error,
-            "handoff": None,  # populated below if a handoff occurs
-        }
-
-        # ── Post-execution handoff check ──
-        # If the TaskRequest meta contains a handoff target and the minister
-        # indicated a handoff is needed, execute the handoff protocol.
-        if req.meta and req.meta.get("handoff_target"):
-            from jarvis.handoff import (
-                HandoffRequest, HandoffContext, FallbackStrategy,
-            )
-            handoff_target = req.meta["handoff_target"]
-            handoff_reason = req.meta.get("handoff_reason", "")
-            handoff_priority = req.meta.get("handoff_priority", 2)
-            fallback_str = req.meta.get("handoff_fallback", "reject")
-            candidates = req.meta.get("handoff_candidates", [])
-
-            # Create handoff context carrying forward task history
-            ctx = HandoffContext(
-                task_id=task_id,
-                original_prompt=prompt,
-                priority=handoff_priority,
-            )
-            ctx.record_step(outcome.minister, outcome.raw_response, "completed")
-
-            # Auto-register target minister if not already registered as handoff target
-            if not self._handoff.has_target(handoff_target):
-                self._handoff.register_target(
-                    handoff_target,
-                    lambda req, name=handoff_target: _make_accept_callback(name),
+            # ── Post-execution handoff check ──
+            # If the TaskRequest meta contains a handoff target and the minister
+            # indicated a handoff is needed, execute the handoff protocol.
+            if req.meta and req.meta.get("handoff_target"):
+                from jarvis.handoff import (
+                    HandoffRequest, HandoffContext, FallbackStrategy,
                 )
+                handoff_target = req.meta["handoff_target"]
+                handoff_reason = req.meta.get("handoff_reason", "")
+                handoff_priority = req.meta.get("handoff_priority", 2)
+                fallback_str = req.meta.get("handoff_fallback", "reject")
+                candidates = req.meta.get("handoff_candidates", [])
 
-            try:
-                strategy = FallbackStrategy(fallback_str)
-            except ValueError:
-                strategy = FallbackStrategy.REJECT
-
-            ho_req = HandoffRequest(
-                source_minister=outcome.minister,
-                target_minister=handoff_target,
-                context=ctx,
-                reason=handoff_reason,
-                priority=handoff_priority,
-                fallback_strategy=strategy,
-                candidate_ministers=candidates,
-            )
-
-            ho_result = self._handoff.handoff(ho_req)
-            result["handoff"] = ho_result.to_dict()
-            logger.info(
-                "[Emperor] Handoff %s: %s → %s (%s)",
-                task_id, outcome.minister, handoff_target,
-                ho_result.status.value,
-            )
-
-        if outcome.success:
-            self._dispatch(LifecycleEvent.ON_TASK_AFTER, outcome=result)
-            # Record assistant response in context history
-            if outcome.raw_response:
-                self._message_history.append({
-                    "role": "assistant",
-                    "content": str(outcome.raw_response)[:2000],
-                })
-        else:
-            self._dispatch(LifecycleEvent.ON_TASK_ERROR,
-                           task_id=task_id, error=outcome.error)
-
-        # ── Audit: capability invocation ──
-        if outcome.capability_name and outcome.capability_result:
-            self._audit_logger.log_capability_invoke(
-                trace_id=task_id,
-                step=1,
-                cap_name=outcome.capability_name,
-                prompt=prompt,
-                result=str(outcome.capability_result)[:500],
-                success=True,
-                duration_ms=_elapsed_ms,
-            )
-
-        # ── Audit: after ──
-        self._audit_logger.log_task_after(
-            trace_id=task_id,
-            step=2,
-            success=outcome.success,
-            result=str(outcome.raw_response or "")[:500],
-            duration_ms=_elapsed_ms,
-            error=str(outcome.error or ""),
-        )
-
-        # Persist task to database
-        if self._court.db is not None:
-            try:
-                self._court.db.save_task(
-                    task_id=result["task_id"],
-                    prompt=prompt,
-                    minister=result["minister"],
-                    result=result["response"],
-                    confidence=result["confidence"],
-                    status="completed" if result["success"] else "failed",
-                    capability=domain,
-                )
-            except Exception:
-                logger.warning("[Emperor] Failed to persist task to DB")
-
-        # ── Reflexion: post-dispatch quality check & auto-correction ──
-        _sm_ctx = _sm.trigger("reflection", _sm_ctx)
-        _sm_ctx.data["confidence"] = result.get("confidence", 0)
-        if result["success"] and result["confidence"] <= getattr(
-            self._reflexion_engine, "threshold", 0.6
-        ):
-            try:
-                refl = self._reflexion_engine.reflect(
+                # Create handoff context carrying forward task history
+                ctx = HandoffContext(
                     task_id=task_id,
-                    prompt=prompt,
-                    response=result.get("response", ""),
-                    domain=domain,
+                    original_prompt=prompt,
+                    priority=handoff_priority,
                 )
-                result["reflexion"] = refl.to_dict()
-                if refl.corrected:
-                    result["response"] = refl.corrected_response
-                    result["confidence"] = max(result["confidence"], refl.confidence)
-                    _sm_ctx.data["confidence"] = result["confidence"]
-                    logger.info("[Emperor] Reflexion corrected task=%s conf=%.4f", task_id, refl.confidence)
-                elif refl.status.value == "failed":
-                    logger.warning("[Emperor] Reflexion failed for task=%s after %d attempts", task_id, refl.attempts)
-            except Exception:
-                logger.exception("[Emperor] Reflexion error for task=%s", task_id)
+                ctx.record_step(outcome.minister, outcome.raw_response, "completed")
 
-        # ── State Machine: reflection → completion ──
-        _sm_ctx = _sm.trigger("completion", _sm_ctx)
-        _sm.stop()
+                # Auto-register target minister if not already registered as handoff target
+                if not self._handoff.has_target(handoff_target):
+                    self._handoff.register_target(
+                        handoff_target,
+                        lambda req, name=handoff_target: _make_accept_callback(name),
+                    )
 
-        # ── End tracing span ──
-        _tracer.end_span(
-            _trace_ctx.span_id,
-            status="ok" if result["success"] else "error",
-            attributes={
+                try:
+                    strategy = FallbackStrategy(fallback_str)
+                except ValueError:
+                    strategy = FallbackStrategy.REJECT
+
+                ho_req = HandoffRequest(
+                    source_minister=outcome.minister,
+                    target_minister=handoff_target,
+                    context=ctx,
+                    reason=handoff_reason,
+                    priority=handoff_priority,
+                    fallback_strategy=strategy,
+                    candidate_ministers=candidates,
+                )
+
+                ho_result = self._handoff.handoff(ho_req)
+                result["handoff"] = ho_result.to_dict()
+                logger.info(
+                    "[Emperor] Handoff %s: %s → %s (%s)",
+                    task_id, outcome.minister, handoff_target,
+                    ho_result.status.value,
+                )
+
+            if outcome.success:
+                self._dispatch(LifecycleEvent.ON_TASK_AFTER, outcome=result)
+                # Record assistant response in context history
+                if outcome.raw_response:
+                    self._message_history.append({
+                        "role": "assistant",
+                        "content": str(outcome.raw_response)[:2000],
+                    })
+            else:
+                self._dispatch(LifecycleEvent.ON_TASK_ERROR,
+                               task_id=task_id, error=outcome.error)
+
+            # ── Audit: capability invocation ──
+            if outcome.capability_name and outcome.capability_result:
+                self._audit_logger.log_capability_invoke(
+                    trace_id=task_id,
+                    step=1,
+                    cap_name=outcome.capability_name,
+                    prompt=prompt,
+                    result=str(outcome.capability_result)[:500],
+                    success=True,
+                    duration_ms=_elapsed_ms,
+                )
+
+            # ── Audit: after ──
+            self._audit_logger.log_task_after(
+                trace_id=task_id,
+                step=2,
+                success=outcome.success,
+                result=str(outcome.raw_response or "")[:500],
+                duration_ms=_elapsed_ms,
+                error=str(outcome.error or ""),
+            )
+
+            # Persist task to database
+            if self._court.db is not None:
+                try:
+                    self._court.db.save_task(
+                        task_id=result["task_id"],
+                        prompt=prompt,
+                        minister=result["minister"],
+                        result=result["response"],
+                        confidence=result["confidence"],
+                        status="completed" if result["success"] else "failed",
+                        capability=domain,
+                    )
+                except Exception:
+                    logger.warning("[Emperor] Failed to persist task to DB")
+
+            # ── Reflexion: post-dispatch quality check & auto-correction ──
+            _sm_ctx = _sm.trigger("reflection", _sm_ctx)
+            _sm_ctx.data["confidence"] = result.get("confidence", 0)
+            if result["success"] and result["confidence"] <= getattr(
+                self._reflexion_engine, "threshold", 0.6
+            ):
+                try:
+                    refl = self._reflexion_engine.reflect(
+                        task_id=task_id,
+                        prompt=prompt,
+                        response=result.get("response", ""),
+                        domain=domain,
+                    )
+                    result["reflexion"] = refl.to_dict()
+                    if refl.corrected:
+                        result["response"] = refl.corrected_response
+                        result["confidence"] = max(result["confidence"], refl.confidence)
+                        _sm_ctx.data["confidence"] = result["confidence"]
+                        logger.info("[Emperor] Reflexion corrected task=%s conf=%.4f", task_id, refl.confidence)
+                    elif refl.status.value == "failed":
+                        logger.warning("[Emperor] Reflexion failed for task=%s after %d attempts", task_id, refl.attempts)
+                except Exception:
+                    logger.exception("[Emperor] Reflexion error for task=%s", task_id)
+
+            # ── State Machine: reflection → completion ──
+            _sm_ctx = _sm.trigger("completion", _sm_ctx)
+            _sm.stop()
+
+            # ── End tracing span ──
+            _trace_status = "ok" if result["success"] else "error"
+            _trace_attrs = {
                 "minister": result.get("minister", ""),
                 "success": result["success"],
                 "confidence": result.get("confidence", 0),
                 "elapsed_ms": _elapsed_ms,
-            },
-        )
+            }
 
-        return result
+            return result
+
+        finally:
+            _tracer.end_span(_trace_ctx.span_id, status=_trace_status, attributes=_trace_attrs)
 
     def execute_batch(self, tasks: list[dict]) -> list[dict]:
         """Execute a batch of tasks. Each dict: {prompt, domain?, expected?}."""
