@@ -42,3 +42,13 @@ from jarvis.bounded_autonomy import (
     BoundedAutonomyEngine,
     BoundedAutonomyResult,
 )
+
+# P2: Reflexion — self-reflection & auto-correction layer
+from jarvis.reflexion import (
+    ReflexionEngine,
+    ReflectionResult,
+    ReflectionIssue,
+    CheckType,
+    CorrectionStatus,
+    create_reflexion_engine,
+)

@@ -26,6 +26,7 @@ Endpoints:
 from __future__ import annotations
 
 import logging
+import time
 from pathlib import Path
 from typing import Any, Optional
 
@@ -2115,6 +2116,71 @@ def create_app(
                 pass  # Non-critical; skip memory search on error
 
         return results
+
+    @app.get("/api/dashboard/export")
+    def dashboard_export(request: Request = None):
+        """导出当前 Dashboard 数据为 JSON 快照"""
+        emperor = request.app.extra.get("emperor") if request else None
+        snap = court.inspect.snapshot() if hasattr(court, 'inspect') else {}
+
+        export_data = {
+            "exported_at": int(time.time()),
+            "snapshot": {
+                "active_ministers": snap.active_count if hasattr(snap, 'active_count') else 0,
+                "total_ministers": snap.total_ministers if hasattr(snap, 'total_ministers') else 0,
+                "cycle": getattr(court, "cycle", 0),
+            },
+            "ministers": [],
+            "tasks": {"total": 0, "completed": 0, "failed": 0, "success_rate": 0.0},
+            "alerts": [],
+            "healing": [],
+            "config": {},
+        }
+
+        # Ministers
+        if hasattr(snap, 'ministers'):
+            for m in snap.ministers:
+                export_data["ministers"].append({
+                    "name": m.name, "domain": getattr(m, "domain", "general"),
+                    "merit": getattr(m, "merit", 0.0), "status": getattr(m, "status", "unknown"),
+                    "tasks_completed": getattr(m, "tasks_completed", 0),
+                    "success_rate": getattr(m, "success_rate", 0.0),
+                })
+
+        # Tasks
+        export_data["tasks"]["total"] = getattr(court, "_total_tasks", 0)
+        export_data["tasks"]["completed"] = getattr(court, "_completed_tasks", 0)
+        export_data["tasks"]["failed"] = getattr(court, "_failed_tasks", 0)
+        export_data["tasks"]["success_rate"] = getattr(court, "success_rate", 0.0)
+
+        # Alerts
+        alert_mgr = app.extra.get("alert_manager")
+        if alert_mgr:
+            export_data["alerts"] = [
+                {"rule_name": a.rule_name, "severity": a.severity, "message": a.message,
+                 "timestamp": a.timestamp}
+                for a in alert_mgr.history(limit=20)
+            ]
+
+        # Healing history
+        if emperor is not None:
+            healer = getattr(emperor, "healing", None)
+            if healer:
+                export_data["healing"] = [
+                    {"action_name": r.action_name, "alert_rule": r.alert_rule,
+                     "success": r.success, "timestamp": r.timestamp}
+                    for r in healer.history(limit=20)
+                ]
+
+        # Config
+        export_data["config"] = {
+            "min_ministers": getattr(court, "min_ministers", 0),
+            "max_ministers": getattr(court, "max_ministers", 0),
+            "crossover_rate": getattr(court, "crossover_rate", 0.0),
+            "api_port": app.extra.get("port", 9020),
+        }
+
+        return export_data
 
     # ══════════════════════════════════════════════════════════════
     # Self-Healing API

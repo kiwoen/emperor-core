@@ -623,6 +623,23 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   }
 
   /* Large screen (≥1400px): three-column */
+  /* Responsive: small screen 1 col, medium 2 col, large 3 col */
+  @media (max-width: 899px) {
+    .dashboard-grid {
+      grid-template-columns: 1fr;
+    }
+    .panel-full {
+      grid-column: 1 / -1;
+    }
+  }
+  @media (min-width: 900px) and (max-width: 1399px) {
+    .dashboard-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+    .panel-full {
+      grid-column: 1 / -1;
+    }
+  }
   @media (min-width: 1400px) {
     .dashboard-grid {
       grid-template-columns: 1fr 1fr 1fr;
@@ -631,6 +648,100 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       grid-column: 1 / -1;
     }
   }
+
+  /* ── Panel collapse/expand animation ── */
+  .panel-body {
+    max-height: 3000px;
+    overflow: hidden;
+    transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, padding 0.3s ease;
+    opacity: 1;
+  }
+  .panel-collapsed .panel-body {
+    max-height: 0;
+    opacity: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  .panel-collapse-btn {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .panel-collapsed .panel-collapse-btn {
+    transform: rotate(-90deg);
+  }
+
+  /* ── Drag & Drop ── */
+  .draggable-panel {
+    cursor: grab;
+    transition: box-shadow 0.2s, opacity 0.2s;
+  }
+  .draggable-panel:active { cursor: grabbing; }
+  .draggable-panel.drag-over {
+    box-shadow: 0 0 0 2px var(--accent), 0 8px 24px rgba(99,102,241,0.25);
+    border-color: var(--accent);
+  }
+  .draggable-panel.dragging {
+    opacity: 0.5;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  }
+  .drag-handle {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; border-radius: 4px;
+    cursor: grab; color: var(--text-muted); font-size: 12px;
+    margin-right: 6px; user-select: none;
+    transition: color 0.2s, background 0.2s;
+  }
+  .drag-handle:hover { color: var(--text-primary); background: rgba(255,255,255,0.06); }
+  .drag-handle:active { cursor: grabbing; }
+
+  /* ── Quick Action Bar ── */
+  .quick-bar {
+    display: flex; gap: 8px; align-items: center;
+    padding: 10px 16px; margin-bottom: var(--gap);
+    background: var(--card-bg); border: 1px solid var(--card-border);
+    border-radius: var(--radius); backdrop-filter: blur(16px);
+  }
+  .quick-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 6px 14px; border-radius: 6px; cursor: pointer;
+    font-family: inherit; font-size: 0.75rem; font-weight: 600;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+    transition: all 0.2s; white-space: nowrap;
+    position: relative;
+  }
+  .quick-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .quick-btn:active { transform: scale(0.97); }
+  /* Tooltip */
+  [data-tooltip] {
+    position: relative;
+  }
+  [data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute; bottom: calc(100% + 6px); left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.85); color: #e0e4f0;
+    padding: 5px 10px; border-radius: 6px; font-size: 0.68rem;
+    font-weight: 400; white-space: nowrap;
+    pointer-events: none; opacity: 0;
+    transition: opacity 0.2s;
+    z-index: 100;
+  }
+  [data-tooltip]:hover::after {
+    opacity: 1;
+  }
+
+  /* ── Search Highlight ── */
+  .search-highlight {
+    background: rgba(245,158,11,0.35);
+    color: #fff;
+    padding: 1px 2px; border-radius: 2px;
+  }
+  .search-jump-link {
+    color: var(--accent); cursor: pointer; text-decoration: underline;
+    font-size: 0.7rem; margin-left: 8px; white-space: nowrap;
+  }
+  .search-jump-link:hover { color: var(--accent-hover); }
 
   /* ── Pipeline Monitor DAG ── */
   @keyframes pmon-pulse {
@@ -1108,6 +1219,15 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     <div class="summary-value" id="sv-pipelines">--</div>
     <div class="summary-label">今日 Pipeline</div>
   </div>
+</div>
+
+<!-- Quick Action Bar -->
+<div class="quick-bar" id="quickBar">
+  <button class="quick-btn" data-tooltip="刷新所有面板数据" onclick="refreshAllPanels()">🔄 刷新全部</button>
+  <button class="quick-btn" data-tooltip="收起所有面板" onclick="collapseAllPanels()">▲ 收起全部</button>
+  <button class="quick-btn" data-tooltip="展开所有面板" onclick="expandAllPanels()">▼ 展开全部</button>
+  <button class="quick-btn" data-tooltip="导出当前Dashboard数据为JSON快照" onclick="exportDashboardData()">📤 导出报告</button>
+  <span style="margin-left:auto;font-size:0.7rem;color:var(--text-muted);" id="quickBarStatus"></span>
 </div>
 
 <!-- 系统健康面板 -->
@@ -1886,6 +2006,23 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       <div class="empty">No governance rules</div>
     </div>
   </div>
+</div>
+
+<!-- Reflexion 自反思面板 -->
+<div class="panel" id="panel-reflexion">
+  <div class="panel-header">
+    <h2>Reflexion 自反思</h2>
+    <button class="panel-collapse-btn" onclick="togglePanel('panel-reflexion')">▼</button>
+  </div>
+  <div class="panel-body">
+    <div class="tab-bar" style="display:flex;gap:2px;margin-bottom:12px;border-bottom:1px solid var(--card-border);">
+      <button class="reflexion-tab active" onclick="switchReflexionTab('history')" id="reflexion-tab-history" style="background:none;border:none;color:var(--accent);padding:6px 14px;cursor:pointer;font-family:inherit;font-size:0.78rem;border-bottom:2px solid var(--accent);margin-bottom:-1px;">历史记录</button>
+      <button class="reflexion-tab" onclick="switchReflexionTab('stats')" id="reflexion-tab-stats" style="background:none;border:none;color:var(--text-secondary);padding:6px 14px;cursor:pointer;font-family:inherit;font-size:0.78rem;border-bottom:2px solid transparent;margin-bottom:-1px;">统计</button>
+    </div>
+    <div id="reflexion-tab-content" style="font-size:12px;max-height:400px;overflow-y:auto;">
+      <div class="empty">Loading...</div>
+    </div>
+  </div><!-- .panel-body -->
 </div>
 
 <!-- Failure Recovery Panel -->
@@ -3664,6 +3801,229 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   // Restore panel collapse state on load
   restorePanelState();
 
+  // ═══ Panel Drag & Drop Reordering ════════════════════════════
+  (function initDragAndDrop() {
+    var grid = document.querySelector('.dashboard-grid');
+    if (!grid) return;
+
+    // Add drag handles to panel headers inside dashboard-grid
+    var panels = grid.querySelectorAll('.panel[id], .panel-full[id]');
+    panels.forEach(function(panel) {
+      var header = panel.querySelector('.panel-header');
+      if (!header) return;
+      if (header.querySelector('.drag-handle')) return; // already added
+      var handle = document.createElement('span');
+      handle.className = 'drag-handle';
+      handle.innerHTML = '⋮⋮';
+      handle.title = '拖拽排序';
+      header.insertBefore(handle, header.firstChild);
+      panel.classList.add('draggable-panel');
+      panel.setAttribute('draggable', 'true');
+    });
+
+    var dragSrc = null;
+
+    function handleDragStart(e) {
+      var panel = e.target.closest('.draggable-panel');
+      if (!panel) return;
+      dragSrc = panel;
+      panel.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', panel.id);
+    }
+
+    function handleDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    }
+
+    function handleDragEnter(e) {
+      var panel = e.target.closest('.draggable-panel');
+      if (panel && panel !== dragSrc) {
+        panel.classList.add('drag-over');
+      }
+    }
+
+    function handleDragLeave(e) {
+      var panel = e.target.closest('.draggable-panel');
+      if (panel) panel.classList.remove('drag-over');
+    }
+
+    function handleDrop(e) {
+      e.preventDefault();
+      var target = e.target.closest('.draggable-panel');
+      if (!target || target === dragSrc) return;
+      target.classList.remove('drag-over');
+
+      // Swap positions: insert dragSrc before target
+      var parent = target.parentNode;
+      var children = Array.from(parent.children);
+      var srcIdx = children.indexOf(dragSrc);
+      var tgtIdx = children.indexOf(target);
+      if (srcIdx < tgtIdx) {
+        parent.insertBefore(dragSrc, target.nextSibling);
+      } else {
+        parent.insertBefore(dragSrc, target);
+      }
+      savePanelOrder();
+    }
+
+    function handleDragEnd(e) {
+      var panel = e.target.closest('.draggable-panel');
+      if (panel) panel.classList.remove('dragging');
+      document.querySelectorAll('.drag-over').forEach(function(el) { el.classList.remove('drag-over'); });
+      dragSrc = null;
+    }
+
+    function savePanelOrder() {
+      var order = [];
+      var children = grid.querySelectorAll('.panel[id], .panel-full[id]');
+      children.forEach(function(p) { order.push(p.id); });
+      localStorage.setItem('dashboardPanelOrder', JSON.stringify(order));
+    }
+
+    function restorePanelOrder() {
+      var saved = localStorage.getItem('dashboardPanelOrder');
+      if (!saved) return;
+      try {
+        var order = JSON.parse(saved);
+        order.forEach(function(id) {
+          var panel = document.getElementById(id);
+          if (panel && panel.parentNode === grid) {
+            grid.appendChild(panel);
+          }
+        });
+      } catch(e) {}
+    }
+
+    // Bind events
+    grid.addEventListener('dragstart', handleDragStart);
+    grid.addEventListener('dragover', handleDragOver);
+    grid.addEventListener('dragenter', handleDragEnter);
+    grid.addEventListener('dragleave', handleDragLeave);
+    grid.addEventListener('drop', handleDrop);
+    grid.addEventListener('dragend', handleDragEnd);
+
+    restorePanelOrder();
+  })();
+
+  // ═══ Quick Action Bar Functions ══════════════════════════════
+  function refreshAllPanels() {
+    var statusEl = document.getElementById('quickBarStatus');
+    if (statusEl) statusEl.textContent = '刷新中...';
+    // Trigger all known refresh functions
+    try { refreshAll(); } catch(e) {}
+    try { refreshHealing(); } catch(e) {}
+    try { refreshHealingTimeline(); } catch(e) {}
+    try { fetchTraces(); } catch(e) {}
+    try { refreshHealth(); } catch(e) {}
+    try { refreshGovernance(); } catch(e) {}
+    try { refreshRecovery(); } catch(e) {}
+    try { refreshCapabilityStats(); } catch(e) {}
+    try { refreshDashboard(); } catch(e) {}
+    setTimeout(function() {
+      if (statusEl) statusEl.textContent = '已刷新';
+      setTimeout(function() { if (statusEl) statusEl.textContent = ''; }, 1500);
+    }, 500);
+  }
+
+  function collapseAllPanels() {
+    document.querySelectorAll('.panel[id], .panel-full[id]').forEach(function(p) {
+      p.classList.add('panel-collapsed');
+    });
+    // Persist
+    var collapsed = {};
+    document.querySelectorAll('.panel-collapsed').forEach(function(p) {
+      if (p.id) collapsed[p.id] = true;
+    });
+    localStorage.setItem('panelCollapsed', JSON.stringify(collapsed));
+  }
+
+  function expandAllPanels() {
+    document.querySelectorAll('.panel-collapsed').forEach(function(p) {
+      p.classList.remove('panel-collapsed');
+    });
+    localStorage.setItem('panelCollapsed', '{}');
+  }
+
+  function exportDashboardData() {
+    var statusEl = document.getElementById('quickBarStatus');
+    fetch(API + '/api/dashboard/export')
+      .then(function(resp) { return resp.json(); })
+      .then(function(data) {
+        var blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'dashboard-snapshot-' + new Date().toISOString().slice(0,19).replace(/:/g,'-') + '.json';
+        a.click();
+        URL.revokeObjectURL(url);
+        if (statusEl) { statusEl.textContent = '导出完成'; setTimeout(function(){statusEl.textContent='';},2000); }
+      })
+      .catch(function(err) {
+        if (statusEl) { statusEl.textContent = '导出失败'; setTimeout(function(){statusEl.textContent='';},2000); }
+      });
+  }
+
+  // ═══ Enhanced Search: Highlight + Jump To Panel ═══════════════
+  var _searchPanelMap = null;
+  function _buildPanelMap() {
+    _searchPanelMap = {};
+    document.querySelectorAll('.panel[id], .panel-full[id]').forEach(function(p) {
+      var text = (p.textContent || '').toLowerCase();
+      _searchPanelMap[p.id] = { el: p, text: text, title: (p.querySelector('h2,h3') || {}).textContent || p.id };
+    });
+  }
+
+  // Override renderSearchResults to add jump links
+  var _origRenderSearchResults = renderSearchResults;
+  renderSearchResults = function(data) {
+    _buildPanelMap();
+    _origRenderSearchResults(data);
+    // Add jump links to each result row
+    var resultsEl = document.getElementById('search-results');
+    if (!resultsEl) return;
+    var q = _lastQuery.toLowerCase();
+
+    // Find matching panels
+    var matchingPanels = [];
+    if (_searchPanelMap && q.length >= 2) {
+      Object.keys(_searchPanelMap).forEach(function(pid) {
+        if (_searchPanelMap[pid].text.indexOf(q) !== -1) {
+          matchingPanels.push(pid);
+        }
+      });
+    }
+
+    // Add panel jump section
+    if (matchingPanels.length > 0) {
+      var panelLinks = matchingPanels.slice(0, 5).map(function(pid) {
+        var title = _searchPanelMap[pid].title;
+        return '<span class="search-jump-link" onclick="jumpToPanel(\'' + pid + '\')">跳转到: ' + esc(title) + '</span>';
+      }).join('<br>');
+      var panelSection = '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border-color);">'
+        + '<div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:4px;">匹配面板 (' + matchingPanels.length + ')</div>'
+        + panelLinks + '</div>';
+      resultsEl.insertAdjacentHTML('beforeend', panelSection);
+    }
+  };
+
+  function jumpToPanel(panelId) {
+    var panel = document.getElementById(panelId);
+    if (!panel) return;
+    // Expand if collapsed
+    panel.classList.remove('panel-collapsed');
+    // Scroll into view
+    panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Flash highlight
+    panel.style.transition = 'box-shadow 0.2s';
+    panel.style.boxShadow = '0 0 0 3px var(--accent), 0 8px 24px rgba(99,102,241,0.3)';
+    setTimeout(function() { panel.style.boxShadow = ''; }, 1500);
+    // Close search results
+    var results = document.getElementById('search-results');
+    if (results) results.style.display = 'none';
+  }
+
   // ═══ Capability pie chart ═══════════════════════════════════
 
   var capabilityChart = null;
@@ -3764,8 +4124,135 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   setInterval(refreshHealingTimeline, 15000);
   refreshGovernanceRules();
   setInterval(refreshGovernanceRules, 30000);
+  refreshReflexion();
+  setInterval(refreshReflexion, 15000);
 
-  // ═══ Governance Rules ═════════════════════════════════════
+  // ═══ Reflexion Tab ═══════════════════════════════════════
+
+  var _reflexionTab = 'history';
+
+  function switchReflexionTab(tab) {
+    _reflexionTab = tab;
+    document.querySelectorAll('.reflexion-tab').forEach(function(btn) {
+      btn.style.color = 'var(--text-secondary)';
+      btn.style.borderBottom = '2px solid transparent';
+    });
+    var btn = document.getElementById('reflexion-tab-' + tab);
+    if (btn) {
+      btn.style.color = 'var(--accent)';
+      btn.style.borderBottom = '2px solid var(--accent)';
+    }
+    refreshReflexion();
+  }
+
+  async function refreshReflexion() {
+    var container = document.getElementById('reflexion-tab-content');
+    if (!container) return;
+
+    try {
+      if (_reflexionTab === 'history') {
+        var res = await fetch(API + '/api/reflexion/history?limit=30');
+        var data = await res.json();
+        renderReflexionHistory(data, container);
+      } else if (_reflexionTab === 'stats') {
+        var res = await fetch(API + '/api/reflexion/stats');
+        var data = await res.json();
+        renderReflexionStats(data, container);
+      }
+    } catch(e) {
+      container.innerHTML = '<div class="empty">Load error: ' + e.message + '</div>';
+    }
+  }
+
+  function renderReflexionHistory(data, container) {
+    var list = data.history || [];
+    if (list.length === 0) {
+      container.innerHTML = '<div class="empty">暂无自反思记录，执行任务后将自动收集。</div>';
+      return;
+    }
+    var html = '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
+    html += '<thead><tr style="border-bottom:1px solid var(--card-border);color:var(--text-secondary);text-align:left;">';
+    html += '<th style="padding:4px 8px;">Task ID</th>';
+    html += '<th style="padding:4px 8px;">Status</th>';
+    html += '<th style="padding:4px 8px;">Confidence</th>';
+    html += '<th style="padding:4px 8px;">Attempts</th>';
+    html += '<th style="padding:4px 8px;">Issues</th>';
+    html += '<th style="padding:4px 8px;">Time</th>';
+    html += '</tr></thead><tbody>';
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i];
+      var statusColor = r.status === 'passed' ? 'var(--success)' :
+                        r.status === 'corrected' ? 'var(--accent)' :
+                        r.status === 'failed' ? 'var(--danger)' : 'var(--text-secondary)';
+      var confColor = r.confidence >= 0.8 ? 'var(--success)' :
+                      r.confidence >= 0.6 ? 'var(--warning)' : 'var(--danger)';
+      var issues = (r.issues || []).slice(0, 3).map(function(iss) {
+        return iss.description + '(' + iss.severity.toFixed(1) + ')';
+      }).join(', ');
+      var ts = new Date(r.timestamp * 1000);
+      var timeStr = ts.toLocaleTimeString();
+      html += '<tr style="border-bottom:1px solid var(--card-border);">';
+      html += '<td style="padding:3px 8px;font-family:monospace;">' + (r.task_id || '').substring(0, 12) + '</td>';
+      html += '<td style="padding:3px 8px;color:' + statusColor + ';font-weight:600;">' + (r.status || '') + '</td>';
+      html += '<td style="padding:3px 8px;color:' + confColor + ';font-weight:700;">' + (r.confidence || 0).toFixed(3) + '</td>';
+      html += '<td style="padding:3px 8px;">' + (r.attempts || 0) + '</td>';
+      html += '<td style="padding:3px 8px;font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + (issues || '') + '">' + (issues || '—') + '</td>';
+      html += '<td style="padding:3px 8px;color:var(--text-muted);white-space:nowrap;">' + timeStr + '</td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  }
+
+  function renderReflexionStats(data, container) {
+    var total = data.total_reflections || 0;
+    if (total === 0) {
+      container.innerHTML = '<div class="empty">暂无统计数据，执行任务后将自动收集。</div>';
+      return;
+    }
+    var html = '<div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;">';
+    html += '<div style="flex:1;min-width:80px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">';
+    html += '<div style="font-size:20px;font-weight:700;color:var(--accent);">' + total + '</div>';
+    html += '<div style="font-size:10px;color:var(--text-secondary);">总计</div></div>';
+    html += '<div style="flex:1;min-width:80px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">';
+    html += '<div style="font-size:20px;font-weight:700;color:var(--success);">' + (data.passed || 0) + '</div>';
+    html += '<div style="font-size:10px;color:var(--text-secondary);">通过</div></div>';
+    html += '<div style="flex:1;min-width:80px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">';
+    html += '<div style="font-size:20px;font-weight:700;color:var(--accent);">' + (data.corrected || 0) + '</div>';
+    html += '<div style="font-size:10px;color:var(--text-secondary);">已修正</div></div>';
+    html += '<div style="flex:1;min-width:80px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">';
+    html += '<div style="font-size:20px;font-weight:700;color:var(--danger);">' + (data.failed || 0) + '</div>';
+    html += '<div style="font-size:10px;color:var(--text-secondary);">失败</div></div>';
+    html += '</div>';
+
+    html += '<div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;">';
+    html += '<div style="flex:1;min-width:80px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">';
+    html += '<div style="font-size:16px;font-weight:700;color:var(--accent);">' + (data.correction_rate || 0).toFixed(1) + '%</div>';
+    html += '<div style="font-size:10px;color:var(--text-secondary);">修正率</div></div>';
+    html += '<div style="flex:1;min-width:80px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">';
+    html += '<div style="font-size:16px;font-weight:700;color:var(--accent);">' + (data.avg_confidence || 0).toFixed(3) + '</div>';
+    html += '<div style="font-size:10px;color:var(--text-secondary);">平均置信度</div></div>';
+    html += '<div style="flex:1;min-width:80px;text-align:center;padding:8px;background:var(--bg-secondary);border-radius:6px;">';
+    html += '<div style="font-size:16px;font-weight:700;color:var(--accent);">' + (data.avg_attempts || 0).toFixed(1) + '</div>';
+    html += '<div style="font-size:10px;color:var(--text-secondary);">平均尝试次数</div></div>';
+    html += '</div>';
+
+    var topIssues = data.top_issues || [];
+    if (topIssues.length > 0) {
+      html += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:4px;">Top Issues</div>';
+      html += '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
+      html += '<thead><tr style="border-bottom:1px solid var(--card-border);color:var(--text-secondary);text-align:left;">';
+      html += '<th style="padding:4px 8px;">Issue</th><th style="padding:4px 8px;">Count</th></tr></thead><tbody>';
+      for (var j = 0; j < topIssues.length; j++) {
+        html += '<tr style="border-bottom:1px solid var(--card-border);">';
+        html += '<td style="padding:3px 8px;">' + topIssues[j].issue + '</td>';
+        html += '<td style="padding:3px 8px;font-weight:600;">' + topIssues[j].count + '</td>';
+        html += '</tr>';
+      }
+      html += '</tbody></table>';
+    }
+    container.innerHTML = html;
+  }
 
   async function refreshGovernanceRules() {
     var container = document.getElementById('gov-rules-container');

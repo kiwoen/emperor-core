@@ -124,3 +124,138 @@ class TestDashboardApi:
         assert data["scheduler_running"] is False
         assert data["scheduler_jobs"] == 0
         assert data["scheduler_total_runs"] == 0
+
+
+# ══════════════════════════════════════════════════════════════════
+# Dashboard Export API
+# ══════════════════════════════════════════════════════════════════
+
+
+class TestDashboardExport:
+    @pytest.fixture
+    def client(self):
+        court = Court()
+        app = create_app(court=court)
+        app.extra["host"] = "127.0.0.1"
+        app.extra["port"] = 9999
+        return TestClient(app)
+
+    def test_export_returns_json(self, client):
+        resp = client.get("/api/dashboard/export")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "exported_at" in data
+        assert isinstance(data["exported_at"], int)
+        assert "snapshot" in data
+        assert "ministers" in data
+        assert "tasks" in data
+        assert "alerts" in data
+        assert "healing" in data
+        assert "config" in data
+
+    def test_export_has_expected_keys(self, client):
+        resp = client.get("/api/dashboard/export")
+        data = resp.json()
+        # Snapshot substructure
+        snap = data["snapshot"]
+        assert "active_ministers" in snap
+        assert "total_ministers" in snap
+        assert "cycle" in snap
+        # Tasks substructure
+        tasks = data["tasks"]
+        assert "total" in tasks
+        assert "completed" in tasks
+        assert "failed" in tasks
+        assert "success_rate" in tasks
+        # Ministers is a list
+        assert isinstance(data["ministers"], list)
+        # Config has expected keys
+        assert "min_ministers" in data["config"]
+        assert "max_ministers" in data["config"]
+
+    def test_export_reflects_empty_court(self, client):
+        resp = client.get("/api/dashboard/export")
+        data = resp.json()
+        assert data["snapshot"]["active_ministers"] == 0
+        assert data["tasks"]["total"] == 0
+        assert data["ministers"] == []
+
+    def test_export_reflects_registered_ministers(self, client):
+        client.post("/court/register", json={"name": "alice", "domain": "math"})
+        client.post("/court/register", json={"name": "bob", "domain": "science"})
+
+        resp = client.get("/api/dashboard/export")
+        data = resp.json()
+        assert data["snapshot"]["active_ministers"] == 2
+        minister_names = [m["name"] for m in data["ministers"]]
+        assert "alice" in minister_names
+        assert "bob" in minister_names
+
+
+# ══════════════════════════════════════════════════════════════════
+# Dashboard HTML Panel Rendering & Search
+# ══════════════════════════════════════════════════════════════════
+
+
+class TestDashboardHtmlPanels:
+    def test_all_core_panels_present(self):
+        from jarvis.dashboard_html import generate_html
+        html = generate_html()
+        # All major panel IDs should be present
+        expected_panels = [
+            "panel-health",
+            "panel-healing",
+            "panel-tasks",
+            "panel-alerts",
+            "panel-evals",
+        ]
+        for panel_id in expected_panels:
+            assert f'id="{panel_id}"' in html, f"Panel {panel_id} missing"
+
+    def test_search_input_present(self):
+        from jarvis.dashboard_html import generate_html
+        html = generate_html()
+        assert 'id="dashboard-search-input"' in html
+        assert 'debouncedSearch' in html
+
+    def test_quick_action_bar_present(self):
+        from jarvis.dashboard_html import generate_html
+        html = generate_html()
+        assert 'class="quick-bar"' in html
+        assert 'refreshAllPanels' in html
+        assert 'collapseAllPanels' in html
+        assert 'expandAllPanels' in html
+        assert 'exportDashboardData' in html
+
+    def test_drag_drop_initialized(self):
+        from jarvis.dashboard_html import generate_html
+        html = generate_html()
+        assert 'initDragAndDrop' in html
+        assert 'draggable-panel' in html
+        assert 'savePanelOrder' in html
+        assert 'restorePanelOrder' in html
+
+    def test_responsive_breakpoints_present(self):
+        from jarvis.dashboard_html import generate_html
+        html = generate_html()
+        assert 'max-width: 899px' in html
+        assert 'min-width: 900px' in html
+        assert 'min-width: 1400px' in html
+
+    def test_search_data_structure_validation(self):
+        """验证搜索返回的数据结构字段完整性"""
+        from jarvis.dashboard_html import generate_html
+        html = generate_html()
+        # Search renders tasks/evals/audits/healing/context_versions sections
+        assert 'sectionName' in html or 'sectionIcon' in html
+        # Task search results render description, minister, status
+        assert 'item.description' in html or 'item.minister' in html
+        # Eval search results render suite, passed, failed
+        assert 'item.suite' in html or 'item.passed' in html
+
+    def test_search_panel_jump_function(self):
+        from jarvis.dashboard_html import generate_html
+        html = generate_html()
+        assert 'jumpToPanel' in html
+        assert 'scrollIntoView' in html
+        assert 'search-jump-link' in html
