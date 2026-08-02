@@ -351,6 +351,10 @@ class Emperor:
             max_correction_rounds=3,
         )
 
+        # Guardrail Telemetry — OTel-style observability for guardrail events
+        from jarvis.guardrail_telemetry import guardrail_telemetry
+        self._guardrail_telemetry = guardrail_telemetry
+
         self._dispatch(LifecycleEvent.ON_INIT, emperor=self)
 
         # Load persisted state if data_dir set
@@ -483,6 +487,11 @@ class Emperor:
         return self._hallucination_guard
 
     @property
+    def guardrail_telemetry(self):
+        """Direct access to the GuardrailTelemetry (guardrail observability)."""
+        return self._guardrail_telemetry
+
+    @property
     def message_history(self) -> list[dict]:
         """Current accumulated conversation context."""
         return self._message_history
@@ -554,6 +563,9 @@ class Emperor:
         """
         from jarvis.court.task_engine import TaskRequest
         from jarvis.plugin import LifecycleEvent
+        from jarvis.guardrail_telemetry import (
+            GuardrailEvent, GuardrailType, EventAction,
+        )
 
         if not task_id:
             import uuid
@@ -668,6 +680,33 @@ class Emperor:
                     "risk_level": approval_req.risk_level,
                     "message": f"Task requires human approval (risk={approval_req.risk_level}). Approval ID: {approval_req.id}",
                 }
+
+            # ── Pre-LLM Prompt Injection Guard ──
+            # Scan the user prompt before it reaches the LLM through TaskEngine.
+            import time as _pg_time
+            _pg_t0 = _pg_time.perf_counter_ns()
+            try:
+                from jarvis.prompt_guard import PromptGuard
+                _pg = PromptGuard()
+                _pg_result = _pg.scan_input(prompt)
+                _pg_latency_us = (_pg_time.perf_counter_ns() - _pg_t0) // 1000
+                _pg_action = "blocked" if _pg_result.level == "dangerous" else "allowed"
+                self._guardrail_telemetry.emit(GuardrailEvent(
+                    guardrail_type=GuardrailType.PRE_LLM,
+                    trigger_rule=_pg_result.matched_rules,
+                    severity=_pg_result.level,
+                    action=EventAction(_pg_action),
+                    input_snippet=prompt[:200],
+                    latency_us=_pg_latency_us,
+                ))
+                if _pg_result.level == "dangerous":
+                    logger.warning(
+                        "[Emperor] PromptInjectionGuard BLOCKED task=%s "
+                        "level=%s rules=%s",
+                        task_id, _pg_result.level, _pg_result.matched_rules,
+                    )
+            except Exception:
+                logger.debug("[Emperor] PromptInjectionGuard unavailable", exc_info=True)
 
             # ── State Machine: planning → execution ──
             _sm = self._state_machine
@@ -844,6 +883,21 @@ class Emperor:
                         "[Emperor] HallucinationGuard error for task=%s", task_id
                     )
 
+            # ── Post-LLM Guardrail Telemetry ──
+            # Emit telemetry for any guardrail activity in this task.
+            if result.get("hallucination_guard"):
+                hg = result["hallucination_guard"]
+                hg_action = "corrected" if hg.get("flagged_sentences", 0) > 0 else "allowed"
+                import time as _gt_time
+                self._guardrail_telemetry.emit(GuardrailEvent(
+                    guardrail_type=GuardrailType.POST_LLM,
+                    trigger_rule=["hallucination_guard"],
+                    severity="suspicious" if hg.get("flagged_sentences", 0) > 0 else "harmless",
+                    action=EventAction(hg_action),
+                    input_snippet=str(result.get("response", ""))[:200],
+                    latency_us=0,
+                ))
+
             # ── State Machine: reflection → completion ──
             _sm_ctx = _sm.trigger("completion", _sm_ctx)
             _sm.stop()
@@ -930,6 +984,7 @@ class Emperor:
         app.extra["multi_model_router"] = self._multi_model_router
         app.extra["cost_tracker"] = self._cost_tracker
         app.extra["graph_rag"] = self._graph_rag
+        app.extra["guardrail_telemetry"] = self._guardrail_telemetry
 
         # Inject scheduler state if running
         if self._scheduler is not None:
