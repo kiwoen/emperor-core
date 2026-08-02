@@ -333,6 +333,10 @@ class HierarchicalMemoryEngine:
             union = query_terms | all_terms
             relevance = len(overlap) / len(union) if union else 0.0
 
+            # Reject nodes with zero keyword overlap (importance/recency alone should not surface irrelevant results)
+            if relevance == 0.0:
+                continue
+
             # Recency boost
             recency = 1.0 / (1.0 + (now - node.last_accessed) / 86400)
 
