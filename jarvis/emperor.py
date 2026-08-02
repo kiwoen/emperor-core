@@ -257,6 +257,15 @@ class Emperor:
         )
         self._multi_model_router.cost_tracker = self._cost_tracker
 
+        # Cost-per-successful-run tracker
+        from jarvis.cost_per_success import CostPerSuccessTracker
+        self._cost_per_success: CostPerSuccessTracker = CostPerSuccessTracker(
+            baseline_cost_per_success=getattr(
+                self.config, "cost_per_success_baseline", 0.05,
+            ),
+            persistence_path=str(Path(cost_data_dir) / "outcome_records.json"),
+        )
+
         # L4 GraphRAG — knowledge-graph memory engine
         from jarvis.graph_rag import GraphRAG
         self._graph_rag: GraphRAG = GraphRAG()
@@ -440,6 +449,11 @@ class Emperor:
     def cost_tracker(self):
         """Direct access to the CostTracker for per-invocation cost recording."""
         return self._cost_tracker
+
+    @property
+    def cost_per_success(self):
+        """Direct access to the CostPerSuccessTracker."""
+        return self._cost_per_success
 
     @property
     def graph_rag(self):
@@ -911,6 +925,35 @@ class Emperor:
                 "elapsed_ms": _elapsed_ms,
             }
 
+            # ── Cost-per-successful-run tracking ──
+            # Gather cost data for this task from the cost tracker
+            _task_cost = 0.0
+            _task_tokens_in = 0
+            _task_tokens_out = 0
+            _model_calls = 0
+            try:
+                for r in self._cost_tracker._records_snapshot():
+                    if r.task_id == task_id:
+                        _task_cost += r.cost_usd
+                        _task_tokens_in += r.tokens_in
+                        _task_tokens_out += r.tokens_out
+                        _model_calls += 1
+            except Exception:
+                pass
+            try:
+                self._cost_per_success.record(
+                    task_id=task_id,
+                    success=result["success"],
+                    cost_usd=_task_cost,
+                    tokens_in=_task_tokens_in,
+                    tokens_out=_task_tokens_out,
+                    execution_time_ms=_elapsed_ms,
+                    domain=domain,
+                    model_calls=_model_calls,
+                )
+            except Exception:
+                logger.debug("[Emperor] CostPerSuccessTracker unavailable", exc_info=True)
+
             return result
 
         finally:
@@ -983,6 +1026,7 @@ class Emperor:
         app.extra["model_router"] = self._model_router
         app.extra["multi_model_router"] = self._multi_model_router
         app.extra["cost_tracker"] = self._cost_tracker
+        app.extra["cost_per_success"] = self._cost_per_success
         app.extra["graph_rag"] = self._graph_rag
         app.extra["guardrail_telemetry"] = self._guardrail_telemetry
 

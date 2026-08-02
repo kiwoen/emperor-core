@@ -3846,6 +3846,22 @@ def create_app(
             "all_time": tracker.per_model_breakdown(since=0),
         }
 
+    # ── Cost Efficiency API ────────────────────────────────────────
+
+    @app.get("/api/dashboard/cost-efficiency")
+    def cost_efficiency(
+        hours: int = 0,
+        trend_bucket: str = "day",
+        request: Request = None,
+    ):
+        """Return cost-efficiency metrics: CPSR, success rate, trends."""
+        tracker = request.app.extra.get("cost_per_success")
+        if tracker is None:
+            raise HTTPException(
+                status_code=503, detail="CostPerSuccessTracker not available"
+            )
+        return tracker.get_report(format="json", hours=hours, trend_bucket=trend_bucket)
+
     return app
 
 
