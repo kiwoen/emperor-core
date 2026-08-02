@@ -343,6 +343,14 @@ class Emperor:
         self._context_compressor: ContextCompressor = ContextCompressor(keep_recent=4)
         self._message_history: list[dict] = []  # Accumulated conversation context
 
+        # Post-LLM Hallucination Guard — detects unverifiable claims in LLM output
+        from jarvis.hallucination_guard import HallucinationGuard, GuardMode
+        self._hallucination_guard: HallucinationGuard = HallucinationGuard(
+            mode=GuardMode.STRICT,
+            enable_llm_verification=False,
+            max_correction_rounds=3,
+        )
+
         self._dispatch(LifecycleEvent.ON_INIT, emperor=self)
 
         # Load persisted state if data_dir set
@@ -468,6 +476,11 @@ class Emperor:
     def context_compressor(self):
         """Direct access to the ContextCompressor."""
         return self._context_compressor
+
+    @property
+    def hallucination_guard(self):
+        """Direct access to the HallucinationGuard (post-LLM hallucination detection)."""
+        return self._hallucination_guard
 
     @property
     def message_history(self) -> list[dict]:
@@ -808,6 +821,28 @@ class Emperor:
                         logger.warning("[Emperor] Reflexion failed for task=%s after %d attempts", task_id, refl.attempts)
                 except Exception:
                     logger.exception("[Emperor] Reflexion error for task=%s", task_id)
+
+            # ── Post-LLM Hallucination Guard ──
+            # Check LLM output for unverifiable claims before returning to user.
+            if result["success"] and result.get("response"):
+                try:
+                    hg_result = self._hallucination_guard.check(
+                        output=str(result["response"]),
+                        context=f"Task: {prompt}\nDomain: {domain}",
+                    )
+                    result["hallucination_guard"] = hg_result.to_dict()
+                    if hg_result.has_hallucinations:
+                        logger.warning(
+                            "[Emperor] HallucinationGuard flagged %d claims in task=%s "
+                            "(confidence=%.4f)",
+                            hg_result.flagged_sentences,
+                            task_id,
+                            hg_result.confidence,
+                        )
+                except Exception:
+                    logger.exception(
+                        "[Emperor] HallucinationGuard error for task=%s", task_id
+                    )
 
             # ── State Machine: reflection → completion ──
             _sm_ctx = _sm.trigger("completion", _sm_ctx)
