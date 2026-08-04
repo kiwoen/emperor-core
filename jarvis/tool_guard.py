@@ -5,14 +5,19 @@ Tool Call Guard Middleware — Agent 工具调用的安全护栏。
   - InputValidator   : SQL注入 / 路径遍历 / 参数类型范围校验
   - RateLimiter      : 滑动窗口频率限制（按工具名分别限流）
   - OutputFilter     : PII检测 / 敏感词替换 / 输出长度限制
+  - ToolActionClassifier : 工具 action_type 分类（read/write/external）
+  - ToolRiskLevel         : 四级风险定级（low/medium/high/critical）
+  - RoleScopedAccess      : agent role 工具权限控制（admin/standard/viewer）
+  - ThreeTierGuardEnhancement : 三层护栏集成层（分类 + 风险 + 角色 → 确认策略）
   - ToolGuardMiddleware : 统一编排 input → rate-limit → execute → output 流水线
 
 所有拦截事件写入审计日志，并与 GovernanceAgent 联动触发治理规则校验。
 
 Usage:
-    from jarvis.tool_guard import ToolGuardMiddleware
+    from jarvis.tool_guard import ToolGuardMiddleware, ThreeTierGuardEnhancement
 
-    guard = ToolGuardMiddleware(audit_logger=audit, governance_agent=gov)
+    tiers = ThreeTierGuardEnhancement(tool_registry={"read_file": "read", "write_file": "write", "send_message": "external"})
+    guard = ToolGuardMiddleware(audit_logger=audit, governance_agent=gov, tiers=tiers)
     safe_delete = guard.wrap_tool_call("delete", original_delete_fn)
     result = safe_delete(paths=["/tmp/test.txt"])
 """
@@ -472,6 +477,369 @@ class OutputFilter:
 
 
 # ═══════════════════════════════════════════════════════════════════
+# 3.5 Three-Tier Guard Enhancement (P0.5)
+# ═══════════════════════════════════════════════════════════════════
+
+
+class ToolActionType(Enum):
+    """Action type classification for tool calls."""
+    READ = "read"        # 只读操作：读取文件、查询数据库、搜索
+    WRITE = "write"      # 写入操作：创建文件、修改数据、编辑
+    EXTERNAL = "external"  # 外部操作：发送消息、外发数据、支付、API调用
+
+
+class ToolRiskLevel(Enum):
+    """Four-tier risk classification for tool actions."""
+    LOW = "low"          # read 类，无副作用
+    MEDIUM = "medium"    # write 类，有副作用但可逆
+    HIGH = "high"        # external 类，影响外部系统/用户
+    CRITICAL = "critical"  # 支付/删除/格式化等不可逆高危操作
+
+
+class AgentRole(Enum):
+    """Agent角色定义，控制工具访问权限范围。"""
+    ADMIN = "admin"        # 全部工具
+    STANDARD = "standard"  # read + write
+    VIEWER = "viewer"      # 仅 read
+
+
+class ConfirmationStrategy(Enum):
+    """确认策略 — 不同 action_type 走不同确认层级。"""
+    AUTO = "auto"          # 自动放行 (read)
+    CHECK = "check"        # 检查业务规则后放行 (write)
+    CONFIRM = "confirm"    # 需显式用户确认 (external)
+    BLOCK = "block"        # 直接拦截 (viewer 做 write/external)
+
+
+# ── Risk-level ↔ Action-type mapping ──
+
+_ACTION_TO_RISK: Dict[ToolActionType, ToolRiskLevel] = {
+    ToolActionType.READ: ToolRiskLevel.LOW,
+    ToolActionType.WRITE: ToolRiskLevel.MEDIUM,
+    ToolActionType.EXTERNAL: ToolRiskLevel.HIGH,
+}
+
+# ── Agent role → permitted action types ──
+
+_ROLE_PERMISSIONS: Dict[AgentRole, Set[ToolActionType]] = {
+    AgentRole.ADMIN:    {ToolActionType.READ, ToolActionType.WRITE, ToolActionType.EXTERNAL},
+    AgentRole.STANDARD: {ToolActionType.READ, ToolActionType.WRITE},
+    AgentRole.VIEWER:   {ToolActionType.READ},
+}
+
+# ── Action-type → confirmation strategy ──
+
+_ACTION_CONFIRMATION: Dict[ToolActionType, ConfirmationStrategy] = {
+    ToolActionType.READ:     ConfirmationStrategy.AUTO,
+    ToolActionType.WRITE:    ConfirmationStrategy.CHECK,
+    ToolActionType.EXTERNAL: ConfirmationStrategy.CONFIRM,
+}
+
+# ── Known external tool pattern hints (substring match in tool_name) ──
+
+_EXTERNAL_TOOL_HINTS: Set[str] = {
+    "send", "message", "publish", "pay", "charge", "transfer",
+    "notify", "email", "sms", "webhook", "http", "api", "call",
+    "broadcast", "dispatch", "forward", "relay", "upload",
+    "post", "put", "patch", "delete_remote",
+}
+
+_WRITE_TOOL_HINTS: Set[str] = {
+    "write", "create", "delete", "remove", "edit", "update", "save",
+    "install", "uninstall", "move", "copy", "rename", "set", "config",
+    "register", "deregister", "grant", "revoke", "deploy",
+}
+
+_READ_TOOL_HINTS: Set[str] = {
+    "read", "get", "list", "search", "query", "find", "fetch",
+    "stat", "check", "inspect", "describe", "show", "view",
+    "lookup", "scan", "ls", "cat", "head", "tail",
+}
+
+
+@dataclass
+class ActionClassification:
+    """Result of classifying a tool call."""
+    tool_name: str
+    action_type: ToolActionType
+    risk_level: ToolRiskLevel
+    requires_confirmation: bool = False
+    matched_by: str = ""  # "registry" | "hint" | "default"
+
+
+@dataclass
+class AccessCheckResult:
+    """Result of a role-scoped access check."""
+    allowed: bool
+    role: AgentRole
+    tool_name: str
+    action_type: ToolActionType
+    block_reason: str = ""
+    confirmation_strategy: ConfirmationStrategy = ConfirmationStrategy.AUTO
+
+
+class ToolActionClassifier:
+    """Classify each tool call into read/write/external action type.
+
+    Classification priority:
+      1. Explicit registrations map (tool_action_registry[full_name])
+      2. Wildcard registrations (tool_action_registry[prefix*] or *=action)
+      3. Hint-based matching (tool name substring → heuristic)
+      4. Default: fallback_action_type (defaults to WRITE for safety)
+
+    Usage:
+        classifier = ToolActionClassifier(
+            tool_action_registry={"read_file": "read", "write_file": "write"},
+        )
+        result = classifier.classify("read_file")
+        assert result.action_type == ToolActionType.READ
+    """
+
+    def __init__(
+        self,
+        tool_action_registry: Dict[str, str] = None,
+        fallback_action_type: str = "write",
+    ):
+        self._exact_registry: Dict[str, ToolActionType] = {}
+        self._wildcard_registry: Dict[str, ToolActionType] = {}
+        self._fallback = ToolActionType(fallback_action_type)
+
+        raw = tool_action_registry or {}
+        self._parse_registry(raw)
+
+    def _parse_registry(self, raw: Dict[str, str]) -> None:
+        for key, value in raw.items():
+            at = ToolActionType(value)
+            if key.endswith("*"):
+                self._wildcard_registry[key.rstrip("*")] = at
+            elif key.startswith("*="):
+                self._fallback = at
+            else:
+                self._exact_registry[key] = at
+
+    def classify(self, tool_name: str, params: dict = None) -> ActionClassification:
+        """Classify a tool call and return its action type + risk level.
+
+        Args:
+            tool_name: The tool's unique identifier.
+            params: Optional parameter dict (reserved for future param-based classification).
+
+        Returns:
+            ActionClassification with action_type, risk_level, and metadata.
+        """
+        params = params or {}
+
+        # Priority 1: exact match
+        if tool_name in self._exact_registry:
+            at = self._exact_registry[tool_name]
+            return ActionClassification(
+                tool_name=tool_name,
+                action_type=at,
+                risk_level=_ACTION_TO_RISK[at],
+                matched_by="registry",
+            )
+
+        # Priority 2: wildcard match
+        for prefix, at in self._wildcard_registry.items():
+            if tool_name.startswith(prefix):
+                return ActionClassification(
+                    tool_name=tool_name,
+                    action_type=at,
+                    risk_level=_ACTION_TO_RISK[at],
+                    matched_by="wildcard",
+                )
+
+        # Priority 3: hint-based
+        lower = tool_name.lower()
+
+        for hint in _EXTERNAL_TOOL_HINTS:
+            if hint in lower:
+                at = ToolActionType.EXTERNAL
+                return ActionClassification(
+                    tool_name=tool_name,
+                    action_type=at,
+                    risk_level=_ACTION_TO_RISK[at],
+                    matched_by="hint",
+                )
+
+        for hint in _WRITE_TOOL_HINTS:
+            if hint in lower:
+                at = ToolActionType.WRITE
+                return ActionClassification(
+                    tool_name=tool_name,
+                    action_type=at,
+                    risk_level=_ACTION_TO_RISK[at],
+                    matched_by="hint",
+                )
+
+        for hint in _READ_TOOL_HINTS:
+            if hint in lower:
+                at = ToolActionType.READ
+                return ActionClassification(
+                    tool_name=tool_name,
+                    action_type=at,
+                    risk_level=_ACTION_TO_RISK[at],
+                    matched_by="hint",
+                )
+
+        # Priority 4: fallback
+        return ActionClassification(
+            tool_name=tool_name,
+            action_type=self._fallback,
+            risk_level=_ACTION_TO_RISK[self._fallback],
+            matched_by="default",
+        )
+
+    def register(self, tool_name: str, action_type: str) -> None:
+        """Register or update a tool's action type."""
+        self._exact_registry[tool_name] = ToolActionType(action_type)
+
+
+class RoleScopedAccess:
+    """Enforce agent role → tool permission boundaries.
+
+    Access rules:
+      - ADMIN:    ALL actions permitted
+      - STANDARD: READ + WRITE permitted, EXTERNAL denied
+      - VIEWER:   READ only permitted, WRITE/EXTERNAL denied
+
+    Usage:
+        rsa = RoleScopedAccess()
+        result = rsa.check_access(AgentRole.STANDARD, "send_message", ToolActionType.EXTERNAL)
+        assert not result.allowed  # standard cannot call external tools
+    """
+
+    def __init__(self):
+        pass
+
+    def check_access(
+        self,
+        role: AgentRole,
+        tool_name: str,
+        action_type: ToolActionType,
+    ) -> AccessCheckResult:
+        """Check if a role can access a tool with the given action type.
+
+        Args:
+            role: The agent's role.
+            tool_name: The tool being invoked.
+            action_type: The classified action type of the tool.
+
+        Returns:
+            AccessCheckResult with allowed flag and block reason if denied.
+        """
+        permitted = _ROLE_PERMISSIONS.get(role, set())
+
+        if action_type in permitted:
+            strategy = _ACTION_CONFIRMATION.get(action_type, ConfirmationStrategy.AUTO)
+            return AccessCheckResult(
+                allowed=True,
+                role=role,
+                tool_name=tool_name,
+                action_type=action_type,
+                confirmation_strategy=strategy,
+            )
+        else:
+            # Determine the reason
+            if role == AgentRole.VIEWER and action_type in (
+                ToolActionType.WRITE, ToolActionType.EXTERNAL,
+            ):
+                reason = f"Role '{role.value}' is restricted to READ-only; cannot invoke {action_type.value} tool '{tool_name}'"
+            elif role == AgentRole.STANDARD and action_type == ToolActionType.EXTERNAL:
+                reason = f"Role '{role.value}' cannot invoke EXTERNAL tool '{tool_name}'; requires ADMIN role"
+            else:
+                reason = f"Role '{role.value}' denied access to '{tool_name}' ({action_type.value})"
+
+            return AccessCheckResult(
+                allowed=False,
+                role=role,
+                tool_name=tool_name,
+                action_type=action_type,
+                block_reason=reason,
+                confirmation_strategy=ConfirmationStrategy.BLOCK,
+            )
+
+
+class ThreeTierGuardEnhancement:
+    """P0.5 Three-Tier Tool Guardrail: 分类 → 风险定级 → 角色访问控制。
+
+    三层护栏：
+      Tier 1 — ToolActionClassifier：每个工具标记 action_type
+      Tier 2 — ToolRiskLevel：external → high, write → medium, read → low
+      Tier 3 — RoleScopedAccess：admin=全部, standard=read+write, viewer=read-only
+
+    确认策略路由：
+      read     → AUTO      (自动放行)
+      write    → CHECK     (检查业务规则)
+      external → CONFIRM   (需显式确认)
+      viewer做write/external → BLOCK (直接拦截)
+
+    Usage:
+        tiers = ThreeTierGuardEnhancement(
+            tool_registry={"read_file": "read", "write_file": "write"},
+            default_role=AgentRole.STANDARD,
+        )
+        result = tiers.evaluate("read_file", role=AgentRole.STANDARD)
+        assert result.allowed and result.confirmation_strategy == ConfirmationStrategy.AUTO
+    """
+
+    def __init__(
+        self,
+        tool_registry: Dict[str, str] = None,
+        default_role: AgentRole = AgentRole.STANDARD,
+        fallback_action: str = "write",
+    ):
+        self.classifier = ToolActionClassifier(
+            tool_action_registry=tool_registry,
+            fallback_action_type=fallback_action,
+        )
+        self.access_control = RoleScopedAccess()
+        self.default_role = default_role
+
+    def evaluate(
+        self,
+        tool_name: str,
+        params: dict = None,
+        role: Optional[AgentRole] = None,
+    ) -> AccessCheckResult:
+        """Run the full three-tier pipeline on a tool call.
+
+        Tier 1: classify action type
+        Tier 2: derive risk level
+        Tier 3: check role-scoped access + assign confirmation strategy
+
+        Args:
+            tool_name: Name of the tool.
+            params: Tool call parameters (optional).
+            role: Agent role override; defaults to self.default_role.
+
+        Returns:
+            AccessCheckResult with allowed, action_type, confirmation_strategy, etc.
+        """
+        role = role or self.default_role
+
+        # Tier 1 + 2: classify + risk
+        classification = self.classifier.classify(tool_name, params)
+
+        # Tier 3: access check
+        result = self.access_control.check_access(
+            role=role,
+            tool_name=tool_name,
+            action_type=classification.action_type,
+        )
+
+        return result
+
+    def classify_only(self, tool_name: str, params: dict = None) -> ActionClassification:
+        """Classify a tool without role checks (for standalone use)."""
+        return self.classifier.classify(tool_name, params)
+
+    def register_tool(self, tool_name: str, action_type: str) -> None:
+        """Register a tool's action type dynamically."""
+        self.classifier.register(tool_name, action_type)
+
+
+# ═══════════════════════════════════════════════════════════════════
 # 4. ToolGuardMiddleware
 # ═══════════════════════════════════════════════════════════════════
 
@@ -530,13 +898,15 @@ class ToolGuardMiddleware:
                  output_filter: OutputFilter = None,
                  audit_logger=None,
                  governance_agent=None,
-                 enabled: bool = True):
+                 enabled: bool = True,
+                 tiers: ThreeTierGuardEnhancement = None):
         self.input_validator = input_validator or InputValidator()
         self.rate_limiter = rate_limiter or RateLimiter()
         self.output_filter = output_filter or OutputFilter()
         self.audit_logger = audit_logger
         self.governance_agent = governance_agent
         self.enabled = enabled
+        self.tiers = tiers  # P0.5: three-tier guard enhancement
 
         # Statistics
         self._stats_lock = threading.Lock()
@@ -601,6 +971,28 @@ class ToolGuardMiddleware:
                         events=events,
                         blocked=True,
                         block_reason="input_validation_failed",
+                        duration_ms=(time.time() - start_time) * 1000,
+                    )
+
+            # --- Step 1.5: Three-Tier Guard Enhancement (P0.5) ---
+            if guard.tiers is not None:
+                tier_result = guard.tiers.evaluate(tool_name, call_input)
+                if not tier_result.allowed:
+                    guard._audit_event(tool_name, "tier_blocked", {
+                        "role": tier_result.role.value,
+                        "action_type": tier_result.action_type.value,
+                        "reason": tier_result.block_reason,
+                    })
+                    guard._notify_governance(tool_name, "tier_access_denied", tier_result)
+                    with guard._stats_lock:
+                        guard.total_calls += 1
+                        guard.blocked_calls += 1
+                    return GuardResult(
+                        success=False,
+                        error=tier_result.block_reason,
+                        events=events,
+                        blocked=True,
+                        block_reason="tier_access_denied",
                         duration_ms=(time.time() - start_time) * 1000,
                     )
 
