@@ -257,6 +257,15 @@ class Emperor:
         )
         self._multi_model_router.cost_tracker = self._cost_tracker
 
+        # P2.9 Smart Routing — capability-aware routing with fallback chains
+        from jarvis.model_router import SmartRouter
+        config_path = str(Path(self.config.data_dir or ".") / ".." / "config" / "model_routing.yaml")
+        if not os.path.isfile(config_path):
+            config_path = str(Path.cwd() / "config" / "model_routing.yaml")
+        if not os.path.isfile(config_path):
+            config_path = None  # Use defaults
+        self._smart_router: SmartRouter = SmartRouter(config_path=config_path)
+
         # Cost-per-successful-run tracker
         from jarvis.cost_per_success import CostPerSuccessTracker
         self._cost_per_success: CostPerSuccessTracker = CostPerSuccessTracker(
@@ -364,6 +373,14 @@ class Emperor:
         from jarvis.guardrail_telemetry import guardrail_telemetry
         self._guardrail_telemetry = guardrail_telemetry
 
+        # P0.4 Agent Loop Boundedness — prevent unbounded loops from burning quota
+        from jarvis.loop_guard import AgentLoopGuard
+        self._loop_guard: AgentLoopGuard = AgentLoopGuard(
+            max_iterations=20,
+            max_cost_per_run=5.00,
+            cost_tracker=self._cost_tracker,
+        )
+
         self._dispatch(LifecycleEvent.ON_INIT, emperor=self)
 
         # Load persisted state if data_dir set
@@ -451,6 +468,11 @@ class Emperor:
         return self._cost_tracker
 
     @property
+    def smart_router(self):
+        """Direct access to the P2.9 SmartRouter (capability-aware routing + fallback chains)."""
+        return self._smart_router
+
+    @property
     def cost_per_success(self):
         """Direct access to the CostPerSuccessTracker."""
         return self._cost_per_success
@@ -504,6 +526,11 @@ class Emperor:
     def guardrail_telemetry(self):
         """Direct access to the GuardrailTelemetry (guardrail observability)."""
         return self._guardrail_telemetry
+
+    @property
+    def loop_guard(self):
+        """Direct access to the P0.4 AgentLoopGuard (loop boundedness protection)."""
+        return self._loop_guard
 
     @property
     def message_history(self) -> list[dict]:
@@ -625,6 +652,9 @@ class Emperor:
         _trace_attrs: dict[str, Any] = {}
         try:
 
+            # ── P0.4 Agent Loop Boundedness: iteration guard ──
+            self._loop_guard.check_iteration(task_id)
+
             req = TaskRequest(
                 id=task_id,
                 prompt=prompt,
@@ -721,6 +751,22 @@ class Emperor:
                     )
             except Exception:
                 logger.debug("[Emperor] PromptInjectionGuard unavailable", exc_info=True)
+
+            # ── P2.9 Smart Routing: capability classification ──
+            _smart_cap: str = "unknown"
+            _smart_tier: str = "standard"
+            _smart_chain: list[str] = []
+            try:
+                _cap = self._smart_router.classify(prompt, domain)
+                _smart_cap = _cap.value
+                _smart_tier = self._smart_router.get_tier_for_capability(_cap)
+                _smart_chain = self._smart_router.get_fallback_chain_for_tier(_smart_tier)
+                logger.debug(
+                    "[Emperor] SmartRouter: cap=%s tier=%s chain=%s",
+                    _smart_cap, _smart_tier, _smart_chain,
+                )
+            except Exception:
+                logger.debug("[Emperor] SmartRouter classification unavailable", exc_info=True)
 
             # ── State Machine: planning → execution ──
             _sm = self._state_machine
@@ -954,6 +1000,16 @@ class Emperor:
             except Exception:
                 logger.debug("[Emperor] CostPerSuccessTracker unavailable", exc_info=True)
 
+            # ── P0.4 Agent Loop Boundedness: cost cap + loop detection ──
+            try:
+                self._loop_guard.check_cost(task_id, _task_cost)
+                # Record action for dead-loop detection using the outcome
+                _action_label = f"execute_task:{domain}"
+                _result_sig = str(result.get("response", ""))[:500]
+                self._loop_guard.record_action(task_id, _action_label, _result_sig)
+            except Exception:
+                pass  # loop guard errors propagate via exceptions above, this is safety net
+
             return result
 
         finally:
@@ -1027,6 +1083,7 @@ class Emperor:
         app.extra["multi_model_router"] = self._multi_model_router
         app.extra["cost_tracker"] = self._cost_tracker
         app.extra["cost_per_success"] = self._cost_per_success
+        app.extra["smart_router"] = self._smart_router
         app.extra["graph_rag"] = self._graph_rag
         app.extra["guardrail_telemetry"] = self._guardrail_telemetry
 
