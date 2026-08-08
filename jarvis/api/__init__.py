@@ -7,6 +7,10 @@ Endpoints:
     GET  /api/domains      — List loaded domains
     GET  /api/memory       — Query memory
     GET  /api/evolution    — Evolution performance report
+    POST /api/feedback     — Submit user feedback
+    GET  /api/feedback/stats — Feedback statistics
+    GET  /api/feedback/dashboard — Feedback dashboard HTML
+    GET  /api/feedback/list   — Feedback list (paginated)
     WS   /ws               — Real-time bidirectional channel
 """
 
@@ -16,8 +20,9 @@ import asyncio
 import logging
 from typing import Any
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 logger = logging.getLogger("jarvis.api")
@@ -53,6 +58,14 @@ class ExecuteResponse(BaseModel):
     execution_time_ms: float = 0.0
 
 
+class FeedbackRequest(BaseModel):
+    rating: int  # 1-5
+    category: str = "other"  # bug / feature / ux / performance / other
+    message: str = ""
+    contact: str = ""
+    source: str = "web"
+
+
 @app.get("/api/status")
 async def get_status() -> dict[str, Any]:
     return {
@@ -61,6 +74,75 @@ async def get_status() -> dict[str, Any]:
         "status": "operational",
         "domains_loaded": len(_orchestrator.registry.list_domains()) if _orchestrator else 0,
     }
+
+
+@app.get("/health")
+async def health_check() -> dict[str, str]:
+    return {"status": "ok", "version": "2.0.0"}
+
+
+# ── Feedback Endpoints ───────────────────────────────────────
+
+
+@app.post("/api/feedback")
+async def submit_feedback(request: FeedbackRequest) -> dict[str, Any]:
+    """Submit user feedback."""
+    try:
+        from jarvis.feedback import FeedbackEntry, get_feedback_store
+
+        if request.rating < 1 or request.rating > 5:
+            return {"success": False, "error": "评分需在 1-5 之间"}
+
+        entry = FeedbackEntry(
+            id="",
+            rating=request.rating,
+            category=request.category,
+            message=request.message,
+            contact=request.contact,
+            source=request.source,
+        )
+        store = get_feedback_store()
+        entry_id = store.save(entry)
+        logger.info("Feedback saved: %s (rating=%d, category=%s)", entry_id, request.rating, request.category)
+        return {"success": True, "id": entry_id, "total": store.count()}
+    except Exception as e:
+        logger.exception("Failed to save feedback")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/feedback/stats")
+async def get_feedback_stats() -> dict[str, Any]:
+    """Get feedback statistics."""
+    try:
+        from jarvis.feedback import get_feedback_store
+
+        store = get_feedback_store()
+        return store.stats()
+    except Exception as e:
+        return {"error": str(e), "total": 0, "avg_rating": 0}
+
+
+@app.get("/api/feedback/dashboard", response_class=HTMLResponse)
+async def get_feedback_dashboard() -> str:
+    """Serve the feedback dashboard HTML page."""
+    from jarvis.feedback import FEEDBACK_DASHBOARD_HTML
+
+    return FEEDBACK_DASHBOARD_HTML
+
+
+@app.get("/api/feedback/list")
+async def list_feedback(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> list[dict[str, Any]]:
+    """List feedback entries (paginated)."""
+    try:
+        from jarvis.feedback import get_feedback_store
+
+        store = get_feedback_store()
+        return store.list_all(limit=limit, offset=offset)
+    except Exception as e:
+        return [{"error": str(e)}]
 
 
 @app.get("/api/domains")

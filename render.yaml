@@ -1,0 +1,34 @@
+# Render Blueprint — emperor-core v2.0.0
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: emperor-core
+    env: docker
+    region: singapore
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: PYTHONDONTWRITEBYTECODE
+        value: "1"
+      - key: EMPEROR_MODE
+        value: server
+      - key: EMPEROR_PORT
+        value: "8000"
+      - key: EMPEROR_HOST
+        value: 0.0.0.0
+      - key: EMPEROR_ENABLE_FEEDBACK
+        value: "true"
+      - key: EMPEROR_LLM_PROVIDER
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+
+databases:
+  - name: emperor-db
+    plan: free
+    ipAllowList: []

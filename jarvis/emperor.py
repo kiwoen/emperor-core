@@ -24,7 +24,7 @@ import logging
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 from jarvis.config import (
     EmperorConfig as AppConfig,
@@ -238,8 +238,7 @@ class Emperor:
 
         # Evals runner — regression testing
         from jarvis.eval import EvalRunner
-        self._eval_runner: EvalRunner = EvalRunner(
-            capability_registry=self._capability_registry, emperor=self)
+        self._eval_runner: EvalRunner = EvalRunner()
 
         # Model router — cost-aware multi-model routing
         from jarvis.core.router import ModelRouter
@@ -258,13 +257,16 @@ class Emperor:
         self._multi_model_router.cost_tracker = self._cost_tracker
 
         # P2.9 Smart Routing — capability-aware routing with fallback chains
-        from jarvis.model_router import SmartRouter
-        config_path = str(Path(self.config.data_dir or ".") / ".." / "config" / "model_routing.yaml")
-        if not os.path.isfile(config_path):
-            config_path = str(Path.cwd() / "config" / "model_routing.yaml")
-        if not os.path.isfile(config_path):
-            config_path = None  # Use defaults
-        self._smart_router: SmartRouter = SmartRouter(config_path=config_path)
+        try:
+            from jarvis.model_router import SmartRouter
+            config_path = str(Path(self.config.data_dir or ".") / ".." / "config" / "model_routing.yaml")
+            if not os.path.isfile(config_path):
+                config_path = str(Path.cwd() / "config" / "model_routing.yaml")
+            if not os.path.isfile(config_path):
+                config_path = None  # Use defaults
+            self._smart_router: Any = SmartRouter(config_path=config_path)
+        except ImportError:
+            self._smart_router = None
 
         # Cost-per-successful-run tracker
         from jarvis.cost_per_success import CostPerSuccessTracker
@@ -379,6 +381,20 @@ class Emperor:
             max_iterations=20,
             max_cost_per_run=5.00,
             cost_tracker=self._cost_tracker,
+        )
+
+        # P3.10 Task Router — intent-based multi-level routing
+        from jarvis.router import RouterEngine, IntentClassifier
+        self._task_router: RouterEngine = RouterEngine(
+            classifier=IntentClassifier(
+                llm_engine=getattr(self, '_llm_engine', None),
+            ),
+        )
+
+        # P3.11 Workflow Engine — DAG-based multi-step orchestration
+        from jarvis.workflow import WorkflowEngine
+        self._workflow_engine: WorkflowEngine = WorkflowEngine(
+            name="emperor_default",
         )
 
         self._dispatch(LifecycleEvent.ON_INIT, emperor=self)
@@ -531,6 +547,68 @@ class Emperor:
     def loop_guard(self):
         """Direct access to the P0.4 AgentLoopGuard (loop boundedness protection)."""
         return self._loop_guard
+
+    @property
+    def task_router(self):
+        """Direct access to the P3.10 TaskRouter (intent-based multi-level routing)."""
+        return self._task_router
+
+    def route_task(
+        self,
+        user_input: str,
+        available_capabilities: Optional[list[str]] = None,
+    ) -> dict:
+        """Route a user input through the task router for diagnostic preview.
+
+        Args:
+            user_input:  Natural-language user request.
+            available_capabilities:  Capabilities to consider for routing.
+
+        Returns:
+            Dict with routing decision details.
+        """
+        ministers = self._court.active_ministers
+        minister_names = [m.name for m in ministers]
+        capabilities = available_capabilities or self._capability_registry.list_capabilities()
+        decision = self._task_router.route(user_input, minister_names, capabilities)
+        return {
+            "target_type": decision.target_type,
+            "target_name": decision.target_name,
+            "confidence": decision.confidence,
+            "reasoning": decision.reasoning,
+            "intent": decision.intent,
+            "intent_confidence": decision.intent_confidence,
+            "suggested_minister": decision.suggested_minister,
+            "matched_capability": decision.matched_capability,
+        }
+
+    @property
+    def route_stats(self) -> dict:
+        """Return aggregated routing statistics."""
+        return self._task_router.stats()
+
+    @property
+    def workflow_engine(self):
+        """Direct access to the WorkflowEngine for DAG-based orchestration."""
+        return self._workflow_engine
+
+    @property
+    def llm_engine(self):
+        """Lazy-loaded LLMEngine for multi-provider LLM access (OpenAI / Anthropic / Ollama)."""
+        if not hasattr(self, '_llm_engine'):
+            from jarvis.llm import LLMEngine, LLMConfig, ModelProvider
+            self._llm_config = LLMConfig(
+                provider=ModelProvider.OPENAI,
+                model_name="gpt-4o",
+            )
+            self._llm_engine = LLMEngine(config=self._llm_config)
+        return self._llm_engine
+
+    @property
+    def llm_config(self):
+        """Access the current LLMConfig (lazy-initialized with llm_engine)."""
+        _ = self.llm_engine  # trigger lazy init
+        return self._llm_config
 
     @property
     def message_history(self) -> list[dict]:
@@ -768,6 +846,25 @@ class Emperor:
             except Exception:
                 logger.debug("[Emperor] SmartRouter classification unavailable", exc_info=True)
 
+            # ── P3.10 Task Router: intent classification & minister routing ──
+            _route_decision = None
+            try:
+                ministers = self._court.active_ministers
+                minister_names = [m.name for m in ministers]
+                caps = self._capability_registry.list_capabilities()
+                _route_decision = self._task_router.route(
+                    prompt, minister_names, caps,
+                )
+                logger.debug(
+                    "[Emperor] TaskRouter: intent=%s minister=%s cap=%s conf=%.2f",
+                    _route_decision.intent,
+                    _route_decision.target_name,
+                    _route_decision.matched_capability or "-",
+                    _route_decision.confidence,
+                )
+            except Exception:
+                logger.debug("[Emperor] TaskRouter unavailable", exc_info=True)
+
             # ── State Machine: planning → execution ──
             _sm = self._state_machine
             _sm_ctx = _sm.start("planning", data={
@@ -795,6 +892,9 @@ class Emperor:
                 "response": outcome.raw_response,
                 "error": outcome.error,
                 "handoff": None,  # populated below if a handoff occurs
+                "route_intent": _route_decision.intent if _route_decision else None,
+                "route_target": _route_decision.target_name if _route_decision else None,
+                "route_confidence": _route_decision.confidence if _route_decision else None,
             }
 
             # ── Post-execution handoff check ──
@@ -1014,6 +1114,151 @@ class Emperor:
 
         finally:
             _tracer.end_span(_trace_ctx.span_id, status=_trace_status, attributes=_trace_attrs)
+
+    # ── Consensus deliberation ─────────────────────────────────────
+
+    def deliberate(
+        self,
+        text: str,
+        *,
+        ministers: Optional[list[str]] = None,
+        strategy: Optional[Any] = None,
+        num_ministers: int = 3,
+        critique_rounds: int = 1,
+    ) -> Any:
+        """Run multi-minister deliberation to form a consensus answer.
+
+        Each selected minister independently processes the task,
+        then cross-critiques each other's outputs, and the chosen
+        strategy synthesizes a final consensus answer.
+
+        Args:
+            text: The task/question text to deliberate on.
+            ministers: Optional list of minister names. If None,
+                the top ``num_ministers`` from the court are auto-selected.
+            strategy: ConsensusStrategy to use. One of:
+                - MajorityVote (default)
+                - WeightedVote (minister merit-weighted)
+                - DebateRound (multi-round debate)
+                - BestOfN (highest-confidence answer)
+                - SynthesisConsensus (LLM synthesis)
+                Defaults to MajorityVote if not provided.
+            num_ministers: How many ministers to involve. Default 3.
+            critique_rounds: Cross-critique rounds. Default 1.
+
+        Returns:
+            ConsensusResult with ``final_answer``, ``confidence``,
+            ``votes``, ``scores``, ``critiques``, etc.
+
+        Example::
+
+            from jarvis.consensus import WeightedVote
+
+            result = emperor.deliberate(
+                "Should we refactor the auth module?",
+                strategy=WeightedVote(),
+                num_ministers=5,
+            )
+            print(result.final_answer)
+        """
+        from jarvis.consensus import ConsensusEngine, MajorityVote
+        from jarvis.consensus.engine import ConsensusConfig
+        from jarvis.consensus.strategies import MinisterOutput
+
+        if ministers is None:
+            ministers = self._court.active_ministers[:num_ministers]
+            if len(ministers) < 2:
+                # Fall back to default ministers if none are active
+                ministers = [t[0] for t in self.DEFAULT_MINISTERS[:num_ministers]]
+
+        config = ConsensusConfig(
+            num_ministers=num_ministers,
+            critique_rounds=critique_rounds,
+            require_critique=critique_rounds > 0,
+            strategy=strategy or MajorityVote(),
+        )
+
+        engine = ConsensusEngine(court=self._court, config=config)
+
+        def _executor(minister_name: str, task: str) -> MinisterOutput:
+            """Bridge: convert Emperor's execute_task output to MinisterOutput."""
+            result = self.execute_task(task, domain="general")
+            return MinisterOutput(
+                minister=minister_name,
+                answer=str(result.get("response", "")),
+                reasoning=str(result.get("reasoning", "")),
+                confidence=float(result.get("confidence", 0.75)),
+                merit_score=float(result.get("merit_score", 50.0)),
+            )
+
+        return engine.deliberate(
+            text,
+            ministers=ministers,
+            executor=_executor,
+            strategy=strategy,
+        )
+
+    # ── Workflow execution ─────────────────────────────────────────
+
+    def execute_workflow(
+        self,
+        workflow_def: Union[str, dict, Path],
+        *,
+        context: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
+        """Execute a DAG-based workflow.
+
+        Args:
+            workflow_def: A YAML/JSON file path, or a dict definition.
+            context: Optional initial context dict shared across all nodes.
+
+        Returns:
+            Dict with ``results``, ``statuses``, ``errors``,
+            ``execution_order``, and ``success``.
+
+        Example::
+
+            emperor.execute_workflow({
+                "name": "data_pipeline",
+                "nodes": [
+                    {"type": "TaskNode", "node_id": "A", "label": "Fetch"},
+                    {"type": "TaskNode", "node_id": "B", "label": "Transform"},
+                    {"type": "TaskNode", "node_id": "C", "label": "Save"},
+                ],
+                "edges": [["A", "B"], ["B", "C"]],
+            })
+        """
+        from jarvis.workflow import WorkflowEngine
+
+        if isinstance(workflow_def, (str, Path)):
+            path = Path(workflow_def)
+            if not path.exists():
+                raise FileNotFoundError(f"Workflow file not found: {path}")
+
+            if path.suffix.lower() in (".yaml", ".yml"):
+                engine = WorkflowEngine.from_yaml(path)
+            elif path.suffix.lower() == ".json":
+                engine = WorkflowEngine.from_json(path)
+            else:
+                raise ValueError(
+                    f"Unsupported workflow file format: {path.suffix}"
+                )
+        elif isinstance(workflow_def, dict):
+            engine = WorkflowEngine.from_dict(workflow_def)
+        else:
+            raise TypeError(
+                f"workflow_def must be str/Path/dict, got {type(workflow_def)}"
+            )
+
+        # Update the shared engine with the emperor's context
+        if context:
+            engine._base_context.update(context)
+
+        logger.info(
+            "[Emperor] executing workflow '%s' (%d nodes)",
+            engine.name, engine.dag.node_count,
+        )
+        return engine.run()
 
     def execute_batch(self, tasks: list[dict]) -> list[dict]:
         """Execute a batch of tasks. Each dict: {prompt, domain?, expected?}."""

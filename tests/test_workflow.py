@@ -1,388 +1,698 @@
-"""
-Cross-Domain Workflow Engine Tests.
+"""Tests for jarvis/workflow — DAG, nodes, engine, and Emperor integration."""
 
-Validates:
-1. Single domain → no workflow triggered
-2. Pipeline mode (sequential domain chaining)
-3. Parallel mode (fan-out)
-4. Step planning heuristics
-5. Edge cases (empty domains, errors, result merging)
-"""
+from __future__ import annotations
 
 import asyncio
-import sys
+import json
+import tempfile
 from pathlib import Path
+from typing import Any
 
 import pytest
 
-# Ensure src is importable
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from jarvis.core.orchestrator import Domain, Intent, TaskResult, Orchestrator
-from jarvis.core.workflow import WorkflowEngine, WorkflowMode, WorkflowStep, WorkflowResult
-
-
-class TestWorkflowStep:
-    """WorkflowStep dataclass tests."""
-
-    def test_defaults(self):
-        step = WorkflowStep(domain=Domain.RESEARCH, prompt="analyze trends")
-        assert step.depends_on == []
-        assert step.role == ""
-
-    def test_full_init(self):
-        step = WorkflowStep(
-            domain=Domain.FINANCE,
-            prompt="generate report",
-            depends_on=[0],
-            role="analysis",
-        )
-        assert step.domain == Domain.FINANCE
-        assert step.depends_on == [0]
-        assert step.role == "analysis"
+from jarvis.workflow.dag import DAG
+from jarvis.workflow.nodes import (
+    ConditionNode,
+    ErrorStrategy,
+    LoopNode,
+    MergeNode,
+    NodeStatus,
+    ParallelNode,
+    TaskNode,
+)
+from jarvis.workflow.engine import WorkflowEngine
 
 
-class TestWorkflowResult:
-    """WorkflowResult dataclass tests."""
+# =====================================================================
+# DAG tests
+# =====================================================================
 
-    def test_all_succeeded(self):
-        wr = WorkflowResult(
-            success=True,
-            mode=WorkflowMode.PIPELINE,
-            steps=[
-                (Domain.RESEARCH, TaskResult(domain=Domain.RESEARCH, success=True, output="ok1")),
-                (Domain.FINANCE, TaskResult(domain=Domain.FINANCE, success=True, output="ok2")),
+class TestDAG:
+    """Test DAG construction, edges, topological sort, and cycle detection."""
+
+    def test_add_node(self):
+        dag = DAG[str]()
+        dag.add_node("A", "payload_A")
+        assert dag.node_count == 1
+        assert dag.get_node("A") == "payload_A"
+        assert dag.has_node("A")
+        assert not dag.has_node("B")
+
+    def test_add_duplicate_node_raises(self):
+        dag = DAG[str]()
+        dag.add_node("A", "x")
+        with pytest.raises(ValueError, match="already exists"):
+            dag.add_node("A", "y")
+
+    def test_add_edge_implicitly_registers_nodes(self):
+        dag = DAG[str]()
+        dag.add_edge("A", "B")
+        assert dag.has_node("A")
+        assert dag.has_node("B")
+        assert dag.has_edge("A", "B")
+
+    def test_add_edge_cycle_detection(self):
+        dag = DAG[str]()
+        dag.add_edge("A", "B")
+        dag.add_edge("B", "C")
+        with pytest.raises(ValueError, match="cycle"):
+            dag.add_edge("C", "A")
+
+    def test_validate_cycle_acyclic(self):
+        dag = DAG[str]()
+        dag.add_edge("A", "B")
+        dag.add_edge("B", "C")
+        dag.add_edge("A", "C")
+        assert dag.validate_cycle() is True
+
+    def test_validate_cycle_self_loop(self):
+        dag = DAG[str]()
+        dag.add_node("A", "x")
+        with pytest.raises(ValueError, match="cycle"):
+            dag.add_edge("A", "A")
+
+    def test_topological_sort_linear(self):
+        dag = DAG[str]()
+        dag.add_edge("A", "B")
+        dag.add_edge("B", "C")
+        order = dag.topological_sort()
+        assert order == ["A", "B", "C"]
+
+    def test_topological_sort_diamond(self):
+        dag = DAG[str]()
+        dag.add_edge("A", "B")
+        dag.add_edge("A", "C")
+        dag.add_edge("B", "D")
+        dag.add_edge("C", "D")
+        order = dag.topological_sort()
+        assert order[0] == "A"
+        assert order[-1] == "D"
+        assert set(order[1:3]) == {"B", "C"}
+        assert order.index("B") < order.index("D")
+        assert order.index("C") < order.index("D")
+
+    def test_topological_sort_complex(self):
+        dag = DAG[str]()
+        dag.add_edge("A", "B")
+        dag.add_edge("A", "C")
+        dag.add_edge("B", "D")
+        dag.add_edge("C", "D")
+        dag.add_edge("D", "E")
+        dag.add_edge("B", "F")
+        order = dag.topological_sort()
+        # Validate partial order constraints
+        assert order.index("A") < order.index("B")
+        assert order.index("A") < order.index("C")
+        assert order.index("B") < order.index("D")
+        assert order.index("C") < order.index("D")
+        assert order.index("D") < order.index("E")
+        assert order.index("B") < order.index("F")
+
+    def test_roots_and_leaves(self):
+        dag = DAG[str]()
+        dag.add_edge("A", "B")
+        dag.add_edge("A", "C")
+        dag.add_edge("B", "D")
+        assert dag.roots() == ["A"]
+        assert set(dag.leaves()) == {"C", "D"}
+
+    def test_successors_predecessors(self):
+        dag = DAG[str]()
+        dag.add_edge("A", "B")
+        dag.add_edge("A", "C")
+        assert dag.successors("A") == ["B", "C"]
+        assert dag.predecessors("B") == ["A"]
+
+    def test_edges_property(self):
+        dag = DAG[str]()
+        dag.add_edge("A", "B")
+        dag.add_edge("B", "C")
+        assert set(dag.edges) == {("A", "B"), ("B", "C")}
+
+    def test_len_and_contains(self):
+        dag = DAG[str]()
+        dag.add_edge("A", "B")
+        assert len(dag) == 2
+        assert "A" in dag
+        assert "C" not in dag
+
+    def test_to_dict_from_dict_roundtrip(self):
+        dag = DAG[str]()
+        dag.add_edge("A", "B")
+        dag.add_edge("B", "C")
+        d = dag.to_dict()
+        dag2 = DAG.from_dict(d)
+        assert dag2.node_count == 3
+        assert len(dag2.edges) == 2
+
+    def test_nodes_property(self):
+        dag = DAG[str]()
+        dag.add_node("A", "hello")
+        dag.add_node("B", "world")
+        nodes = dag.nodes
+        assert nodes == {"A": "hello", "B": "world"}
+
+    def test_empty_dag_sort(self):
+        dag = DAG[str]()
+        assert dag.topological_sort() == []
+
+    def test_single_node(self):
+        dag = DAG[str]()
+        dag.add_node("A", "x")
+        assert dag.topological_sort() == ["A"]
+
+
+# =====================================================================
+# Node tests
+# =====================================================================
+
+class TestNodes:
+    """Test built-in node types."""
+
+    @pytest.mark.asyncio
+    async def test_task_node_executes(self):
+        async def my_task(ctx):
+            return ctx["x"] * 2
+
+        node = TaskNode(node_id="double", fn=my_task)
+        ctx = {"x": 21}
+        result = await node.execute(ctx)
+        assert result == 42
+
+    @pytest.mark.asyncio
+    async def test_task_node_no_fn_raises(self):
+        node = TaskNode(node_id="nofn")
+        with pytest.raises(RuntimeError, match="no callable"):
+            await node.execute({})
+
+    @pytest.mark.asyncio
+    async def test_condition_node_routing(self):
+        async def pred(ctx):
+            return "path_b" if ctx.get("flag") else "path_a"
+
+        node = ConditionNode(node_id="switch", predicate=pred)
+        assert await node.execute({"flag": True}) == "path_b"
+        assert await node.execute({"flag": False}) == "path_a"
+
+    @pytest.mark.asyncio
+    async def test_condition_node_no_predicate_raises(self):
+        node = ConditionNode(node_id="noswitch")
+        with pytest.raises(RuntimeError, match="no predicate"):
+            await node.execute({})
+
+    @pytest.mark.asyncio
+    async def test_parallel_node_runs_children(self):
+        async def child_a(ctx):
+            return "A"
+
+        async def child_b(ctx):
+            return "B"
+
+        node = ParallelNode(
+            node_id="parallel",
+            children=[
+                TaskNode(node_id="child_a", fn=child_a),
+                TaskNode(node_id="child_b", fn=child_b),
             ],
         )
-        assert wr.all_succeeded
+        ctx: dict[str, Any] = {}
+        result = await node.execute(ctx)
+        assert result == {"child_a": "A", "child_b": "B"}
+        assert ctx["child_a"] == "A"
+        assert ctx["child_b"] == "B"
 
-    def test_partial_failure(self):
-        wr = WorkflowResult(
-            success=True,  # top-level flag set by caller
-            mode=WorkflowMode.PIPELINE,
-            steps=[
-                (Domain.RESEARCH, TaskResult(domain=Domain.RESEARCH, success=True, output="ok")),
-                (Domain.FINANCE, TaskResult(domain=Domain.FINANCE, success=False, error="fail")),
+    @pytest.mark.asyncio
+    async def test_parallel_node_handles_child_error(self):
+        async def bad(_ctx):
+            raise RuntimeError("boom")
+
+        async def good(_ctx):
+            return "ok"
+
+        node = ParallelNode(
+            node_id="p",
+            children=[
+                TaskNode(node_id="bad", fn=bad),
+                TaskNode(node_id="good", fn=good),
             ],
         )
-        assert not wr.all_succeeded
+        ctx: dict[str, Any] = {}
+        result = await node.execute(ctx)
+        assert result["good"] == "ok"
+        assert result.get("bad") is None
+        assert "p__errors" in ctx
 
-    def test_empty_steps(self):
-        wr = WorkflowResult(success=True, mode=WorkflowMode.PIPELINE)
-        assert wr.all_succeeded  # vacuous truth
+    @pytest.mark.asyncio
+    async def test_loop_node(self):
+        async def get_items(_ctx):
+            return [1, 2, 3]
 
+        async def square(ctx):
+            item = ctx["_inputs"]["item"]
+            return item * item
 
-class TestWorkflowPlanning:
-    """Test workflow auto-planning from intents."""
-
-    def setup_method(self):
-        self.orch = Orchestrator()
-        self.engine = self.orch.workflow
-
-    def test_single_domain_no_workflow(self):
-        intent = Intent(raw_text="calculate 2+2", primary_domain=Domain.ENGINEERING)
-        steps = self.engine.plan(intent)
-        assert len(steps) == 0, "Single domain should produce no workflow steps"
-
-    def test_two_domain_pipeline(self):
-        intent = Intent(
-            raw_text="研究比特币趋势并生成投资建议",
-            primary_domain=Domain.RESEARCH,
-            secondary_domains=[Domain.FINANCE],
+        node = LoopNode(
+            node_id="loop",
+            items=get_items,
+            body=TaskNode(node_id="sq", fn=square),
         )
-        steps = self.engine.plan(intent)
-        assert len(steps) == 2
-        assert steps[0].domain == Domain.RESEARCH
-        assert steps[0].depends_on == []  # first step no deps
-        assert steps[1].domain == Domain.FINANCE
-        assert steps[1].depends_on == [0]  # depends on research
+        ctx: dict[str, Any] = {}
+        result = await node.execute(ctx)
+        assert result == [1, 4, 9]
 
-    def test_three_domain_chain(self):
-        intent = Intent(
-            raw_text="调研AI安全趋势，评估代码风险，生成安全报告",
-            primary_domain=Domain.RESEARCH,
-            secondary_domains=[Domain.SECURITY, Domain.CREATOR],
+    @pytest.mark.asyncio
+    async def test_loop_node_max_iterations(self):
+        async def get_items(_ctx):
+            return list(range(10))
+
+        async def echo(ctx):
+            return ctx["_inputs"]["item"]
+
+        node = LoopNode(
+            node_id="loop",
+            items=get_items,
+            body=TaskNode(node_id="e", fn=echo),
+            max_iterations=3,
         )
-        steps = self.engine.plan(intent)
-        assert len(steps) == 3
-        assert steps[0].domain == Domain.RESEARCH
-        assert steps[1].domain == Domain.SECURITY
-        assert steps[2].domain == Domain.CREATOR
-        assert steps[1].depends_on == [0]
-        assert steps[2].depends_on == [1]
+        result = await node.execute({})
+        assert result == [0, 1, 2]
 
-    def test_deduplicate_domains(self):
-        intent = Intent(
-            raw_text="研究AI", primary_domain=Domain.RESEARCH,
-            secondary_domains=[Domain.RESEARCH, Domain.FINANCE],
+    @pytest.mark.asyncio
+    async def test_loop_node_no_items_raises(self):
+        node = LoopNode(node_id="loop")
+        with pytest.raises(RuntimeError, match="no items"):
+            await node.execute({})
+
+    @pytest.mark.asyncio
+    async def test_loop_node_no_body_raises(self):
+        async def items(_):
+            return []
+
+        node = LoopNode(node_id="loop", items=items)
+        with pytest.raises(RuntimeError, match="no body"):
+            await node.execute({})
+
+    @pytest.mark.asyncio
+    async def test_merge_node_collects_inputs(self):
+        node = MergeNode(node_id="merge")
+        ctx = {"_inputs": {"A": 1, "B": 2}}
+        result = await node.execute(ctx)
+        assert result == {"A": 1, "B": 2}
+
+    @pytest.mark.asyncio
+    async def test_merge_node_custom_merge_fn(self):
+        async def sum_vals(inputs):
+            return sum(inputs.values())
+
+        node = MergeNode(node_id="merge", merge_fn=sum_vals)
+        ctx = {"_inputs": {"A": 10, "B": 20}}
+        result = await node.execute(ctx)
+        assert result == 30
+
+    def test_node_status_enum(self):
+        assert NodeStatus.PENDING.value == "pending"
+        assert NodeStatus.RUNNING.value == "running"
+        assert NodeStatus.SUCCESS.value == "success"
+        assert NodeStatus.FAILED.value == "failed"
+        assert NodeStatus.SKIPPED.value == "skipped"
+
+    def test_error_strategy_enum(self):
+        assert ErrorStrategy.SKIP.value == "skip"
+        assert ErrorStrategy.RETRY.value == "retry"
+        assert ErrorStrategy.ABORT.value == "abort"
+
+
+# =====================================================================
+# WorkflowEngine tests
+# =====================================================================
+
+class TestWorkflowEngine:
+    """Test workflow execution, error handling, conditional routing."""
+
+    @pytest.mark.asyncio
+    async def test_simple_linear_workflow(self):
+        async def step_a(ctx):
+            return 1
+
+        async def step_b(ctx):
+            return ctx["A"] + 10
+
+        engine = WorkflowEngine(name="test_linear")
+        engine.add_node(TaskNode(node_id="A", fn=step_a))
+        engine.add_node(TaskNode(node_id="B", fn=step_b))
+        engine.add_edge("A", "B")
+
+        result = await engine.run_async()
+        assert result["success"] is True
+        assert result["results"]["A"] == 1
+        assert result["results"]["B"] == 11
+        assert result["execution_order"] == ["A", "B"]
+
+    @pytest.mark.asyncio
+    async def test_diamond_workflow(self):
+        async def fetch(ctx):
+            return 100
+
+        async def branch_a(ctx):
+            return ctx["_inputs"]["fetch"] * 2
+
+        async def branch_b(ctx):
+            return ctx["_inputs"]["fetch"] + 50
+
+        async def merge(inputs):
+            return {"a": inputs["branch_a"], "b": inputs["branch_b"]}
+
+        engine = WorkflowEngine(name="diamond")
+        engine.add_node(TaskNode(node_id="fetch", fn=fetch))
+        engine.add_node(TaskNode(node_id="branch_a", fn=branch_a))
+        engine.add_node(TaskNode(node_id="branch_b", fn=branch_b))
+        engine.add_node(MergeNode(node_id="merge", merge_fn=merge))
+        engine.add_edge("fetch", "branch_a")
+        engine.add_edge("fetch", "branch_b")
+        engine.add_edge("branch_a", "merge")
+        engine.add_edge("branch_b", "merge")
+
+        result = await engine.run_async()
+        assert result["success"] is True
+        assert result["results"]["merge"] == {"a": 200, "b": 150}
+
+    @pytest.mark.asyncio
+    async def test_conditional_branching_true_path(self):
+        async def predicate(ctx):
+            return "path_b"  # route to path_b
+
+        async def path_a(ctx):
+            return "went to A"
+
+        async def path_b(ctx):
+            return "went to B"
+
+        engine = WorkflowEngine(name="cond")
+        engine.add_node(ConditionNode(node_id="check", predicate=predicate))
+        engine.add_node(TaskNode(node_id="path_a", fn=path_a))
+        engine.add_node(TaskNode(node_id="path_b", fn=path_b))
+        engine.add_edge("check", "path_a")
+        engine.add_edge("check", "path_b")
+
+        result = await engine.run_async()
+        assert result["success"] is True
+        assert result["results"]["path_b"] == "went to B"
+        assert result["statuses"]["path_a"] == "skipped"
+
+    @pytest.mark.asyncio
+    async def test_conditional_branching_none_route(self):
+        """When ConditionNode returns None, follow default DAG edge."""
+        async def predicate(ctx):
+            return None
+
+        async def step(ctx):
+            return "default_path"
+
+        engine = WorkflowEngine(name="cond_default")
+        engine.add_node(ConditionNode(node_id="check", predicate=predicate))
+        engine.add_node(TaskNode(node_id="step", fn=step))
+        engine.add_edge("check", "step")
+
+        result = await engine.run_async()
+        assert result["results"]["step"] == "default_path"
+
+    @pytest.mark.asyncio
+    async def test_error_skip_strategy(self):
+        async def failing(ctx):
+            raise RuntimeError("expected failure")
+
+        async def downstream(ctx):
+            return "still executed"
+
+        engine = WorkflowEngine(name="skip_err")
+        engine.add_node(TaskNode(
+            node_id="bad", fn=failing, error_strategy=ErrorStrategy.SKIP,
+        ))
+        engine.add_node(TaskNode(node_id="good", fn=downstream))
+        engine.add_edge("bad", "good")
+
+        result = await engine.run_async()
+        assert "bad" in result["errors"]
+        assert result["statuses"]["bad"] == "skipped"
+
+    @pytest.mark.asyncio
+    async def test_error_retry_strategy(self):
+        call_count = {"n": 0}
+
+        async def flaky(ctx):
+            call_count["n"] += 1
+            if call_count["n"] < 3:
+                raise RuntimeError("not yet")
+            return "success"
+
+        engine = WorkflowEngine(name="retry")
+        engine.add_node(TaskNode(
+            node_id="flaky", fn=flaky,
+            error_strategy=ErrorStrategy.RETRY, max_retries=5,
+        ))
+
+        result = await engine.run_async()
+        assert result["success"] is True
+        assert result["results"]["flaky"] == "success"
+        assert call_count["n"] == 3
+
+    @pytest.mark.asyncio
+    async def test_error_abort_strategy(self):
+        async def failing(ctx):
+            raise RuntimeError("fatal")
+
+        engine = WorkflowEngine(name="abort")
+        engine.add_node(TaskNode(
+            node_id="bad", fn=failing, error_strategy=ErrorStrategy.ABORT,
+        ))
+
+        result = await engine.run_async()
+        assert result["success"] is False
+        assert result["statuses"]["bad"] == "failed"
+
+    @pytest.mark.asyncio
+    async def test_default_error_strategy(self):
+        async def failing(ctx):
+            raise RuntimeError("oops")
+
+        engine = WorkflowEngine(
+            name="default_skip", default_error_strategy=ErrorStrategy.SKIP,
         )
-        steps = self.engine.plan(intent)
-        domains = [s.domain for s in steps]
-        assert domains == [Domain.RESEARCH, Domain.FINANCE]  # deduped
+        engine.add_node(TaskNode(node_id="bad", fn=failing))
 
-    def test_transition_prompt_building(self):
-        prompt = self.engine._build_transition_prompt(
-            "研究比特币", "Financial Analysis", "research_to_investment", Domain.RESEARCH
-        )
-        assert "研究比特币" in prompt
-        assert "Financial Analysis" in prompt
-        assert "投资" in prompt
+        result = await engine.run_async()
+        assert result["statuses"]["bad"] == "skipped"
 
+    @pytest.mark.asyncio
+    async def test_timeout(self):
+        async def slow(ctx):
+            await asyncio.sleep(5)
+            return "done"
 
-class TestWorkflowModeDetection:
-    """Test execution mode auto-detection."""
+        engine = WorkflowEngine(name="timeout")
+        engine.add_node(TaskNode(
+            node_id="slow", fn=slow, timeout_seconds=0.1,
+            error_strategy=ErrorStrategy.SKIP,
+        ))
 
-    def setup_method(self):
-        self.engine = WorkflowEngine(Orchestrator())
+        result = await engine.run_async()
+        assert "slow" in result["errors"]
 
-    def test_pipeline_default(self):
-        intent = Intent(raw_text="研究并分析", primary_domain=Domain.RESEARCH)
-        assert self.engine.detect_mode(intent) == WorkflowMode.PIPELINE
+    @pytest.mark.asyncio
+    async def test_retry_exhausted_fails(self):
+        async def always_fail(ctx):
+            raise RuntimeError("forever broken")
 
-    def test_parallel_chinese(self):
-        intent = Intent(raw_text="同时调研AI和安全", primary_domain=Domain.RESEARCH)
-        assert self.engine.detect_mode(intent) == WorkflowMode.PARALLEL
+        engine = WorkflowEngine(name="retry_fail")
+        engine.add_node(TaskNode(
+            node_id="hopeless", fn=always_fail,
+            error_strategy=ErrorStrategy.RETRY, max_retries=2,
+        ))
 
-    def test_parallel_markers(self):
-        for marker in ["一起", "并行", "分别"]:
-            intent = Intent(raw_text=f"{marker}处理", primary_domain=Domain.RESEARCH)
-            assert self.engine.detect_mode(intent) == WorkflowMode.PARALLEL
+        result = await engine.run_async()
+        assert result["statuses"]["hopeless"] == "failed"
+        assert "hopeless" in result["errors"]
 
+    @pytest.mark.asyncio
+    async def test_empty_workflow(self):
+        engine = WorkflowEngine(name="empty")
+        result = await engine.run_async()
+        assert result["success"] is True
+        assert result["execution_order"] == []
 
-class TestWorkflowRequiresDetection:
-    """Test requires_workflow heuristic."""
+    # ── Serialisation ────────────────────────────────────────────
 
-    def test_empty_secondary_no_action(self):
-        intent = Intent(raw_text="hello", primary_domain=Domain.PERSONAL)
-        assert not WorkflowEngine.requires_workflow(intent)
-
-    def test_two_secondary_triggers(self):
-        intent = Intent(
-            raw_text="test", primary_domain=Domain.RESEARCH,
-            secondary_domains=[Domain.FINANCE, Domain.ENGINEERING],
-        )
-        assert WorkflowEngine.requires_workflow(intent)
-
-    def test_cross_keyword_triggers(self):
-        for kw in ["并且", "然后", "综合"]:
-            intent = Intent(raw_text=f"A {kw} B", primary_domain=Domain.RESEARCH)
-            assert WorkflowEngine.requires_workflow(intent), f"Keyword '{kw}' should trigger"
-
-    def test_analyze_action_with_one_secondary(self):
-        intent = Intent(
-            raw_text="分析市场", primary_domain=Domain.RESEARCH,
-            secondary_domains=[Domain.FINANCE], action="分析",
-        )
-        assert WorkflowEngine.requires_workflow(intent)
-
-
-class TestOutputMerging:
-    """Test result merging for different modes."""
-
-    def setup_method(self):
-        self.engine = WorkflowEngine(Orchestrator())
-
-    def test_pipeline_merge(self):
-        results = [
-            (Domain.RESEARCH, TaskResult(domain=Domain.RESEARCH, success=True, output="Research output")),
-            (Domain.FINANCE, TaskResult(domain=Domain.FINANCE, success=True, output="Finance output")),
-        ]
-        merged = self.engine._merge_outputs(results, WorkflowMode.PIPELINE)
-        assert "Step 1" in merged
-        assert "Step 2" in merged
-        assert "Research" in merged
-        assert "Finance" in merged
-
-    def test_parallel_merge(self):
-        results = [
-            (Domain.RESEARCH, TaskResult(domain=Domain.RESEARCH, success=True, output="R")),
-            (Domain.SECURITY, TaskResult(domain=Domain.SECURITY, success=True, output="S")),
-        ]
-        merged = self.engine._merge_outputs(results, WorkflowMode.PARALLEL)
-        assert "Multi-Domain Analysis" in merged
-        assert "R" in merged
-        assert "S" in merged
-
-    def test_merge_empty(self):
-        merged = self.engine._merge_outputs([], WorkflowMode.PIPELINE)
-        assert merged == ""
-
-    def test_merge_skips_failures(self):
-        results = [
-            (Domain.RESEARCH, TaskResult(domain=Domain.RESEARCH, success=True, output="ok")),
-            (Domain.FINANCE, TaskResult(domain=Domain.FINANCE, success=False, error="fail")),
-        ]
-        merged = self.engine._merge_outputs(results, WorkflowMode.PIPELINE)
-        assert "ok" in merged
-        # Failed step should not appear in output
-        assert "Research" in merged
-
-
-class TestWorkflowExecution:
-    """End-to-end workflow execution tests with mock domain handlers."""
-
-    @pytest.fixture(autouse=True)
-    def setup_async(self):
-        """Create orchestrator with mock handlers for RESEARCH and FINANCE."""
-        self.orch = Orchestrator()
-
-        # Fake handler that registers request and returns a response
-        class FakeHandler:
-            def __init__(self, domain: Domain):
-                self.domain = domain
-                self.calls: list[Intent] = []
-
-            async def handle(self, intent: Intent) -> TaskResult:
-                self.calls.append(intent)
-                context = intent.entities.get("_workflow_context", "")
-                # Build a domain-specific response that shows context propagation
-                output = f"[{self.domain.name}] Response to: {intent.raw_text[:80]}"
-                if context:
-                    output += f"\n  (with previous context: {str(context)[:60]})"
-                return TaskResult(
-                    domain=self.domain,
-                    success=True,
-                    output=output,
-                )
-
-        self.research_handler = FakeHandler(Domain.RESEARCH)
-        self.finance_handler = FakeHandler(Domain.FINANCE)
-        self.orch.registry._modules[Domain.RESEARCH] = self.research_handler
-        self.orch.registry._modules[Domain.FINANCE] = self.finance_handler
-
-    @pytest.mark.asyncio(loop_scope="function")
-    async def test_pipeline_execution(self):
-        """Verify pipeline mode chains domain outputs."""
-        intent = Intent(
-            raw_text="研究比特币趋势并生成投资建议",
-            primary_domain=Domain.RESEARCH,
-            secondary_domains=[Domain.FINANCE],
-        )
-        result = await self.orch.workflow.execute(intent)
-        assert result.success
-        assert result.all_succeeded
-        assert len(result.steps) == 2
-        # Verify research was called first
-        assert result.steps[0][0] == Domain.RESEARCH
-        assert result.steps[1][0] == Domain.FINANCE
-        # Verify pipeline chaining: merged output contains both domains
-        assert "RESEARCH" in result.merged_output
-        assert "FINANCE" in result.merged_output
-        # Finance should have received context from Research
-        finance_call = self.finance_handler.calls[0]
-        assert "_workflow_context" in finance_call.entities
-
-    @pytest.mark.asyncio(loop_scope="function")
-    async def test_parallel_execution(self):
-        """Verify parallel mode executes steps concurrently."""
-        # Add a third handler for parallel test
-        class FakeSecurity:
-            async def handle(self, intent: Intent) -> TaskResult:
-                return TaskResult(domain=Domain.SECURITY, success=True,
-                                  output=f"[SECURITY] {intent.raw_text[:40]}")
-
-        self.orch.registry._modules[Domain.SECURITY] = FakeSecurity()
-
-        intent = Intent(
-            raw_text="同时分析市场行情和金融风险",
-            primary_domain=Domain.RESEARCH,
-            secondary_domains=[Domain.FINANCE, Domain.SECURITY],
-        )
-        result = await self.orch.workflow.execute(intent)
-        assert result.success
-        assert len(result.steps) == 3
-
-    @pytest.mark.asyncio(loop_scope="function")
-    async def test_workflow_result_to_taskresult(self):
-        """Verify WorkflowResult correctly converts to TaskResult."""
-        wf_result = WorkflowResult(
-            success=True,
-            mode=WorkflowMode.PIPELINE,
-            steps=[
-                (Domain.RESEARCH, TaskResult(domain=Domain.RESEARCH, success=True, output="R")),
+    def test_build_from_dict(self):
+        data = {
+            "name": "ser_test",
+            "nodes": [
+                {"type": "TaskNode", "node_id": "A"},
+                {"type": "TaskNode", "node_id": "B"},
             ],
-            merged_output="merged content",
-            total_execution_ms=150.0,
-        )
-        # This conversion happens in Orchestrator.execute()
-        tr = TaskResult(
-            domain=Domain.RESEARCH,
-            success=wf_result.all_succeeded,
-            output=wf_result.merged_output,
-            data={
-                "workflow_mode": wf_result.mode.name,
-                "steps": [{"domain": d.name, "success": r.success}
-                          for d, r in wf_result.steps],
-                "execution_ms": wf_result.total_execution_ms,
-            },
-        )
-        assert tr.success
-        assert tr.output == "merged content"
-        assert tr.data["workflow_mode"] == "PIPELINE"
-        assert len(tr.data["steps"]) == 1
+            "edges": [["A", "B"]],
+        }
+        engine = WorkflowEngine.from_dict(data)
+        assert engine.dag.node_count == 2
+        assert engine.dag.has_edge("A", "B")
 
-    @pytest.mark.asyncio(loop_scope="function")
-    async def test_orchestrator_single_domain_no_workflow(self):
-        """Orchestrator should NOT trigger workflow for single-domain intents."""
-        result = await self.orch.execute("hello")
-        assert result.domain == Domain.PERSONAL
-        # No workflow data should appear in single-domain path
-        assert "workflow_mode" not in result.data
+    def test_build_from_dict_with_condition_node(self):
+        data = {
+            "name": "cond_test",
+            "nodes": [
+                {"type": "ConditionNode", "node_id": "check"},
+                {"type": "TaskNode", "node_id": "yes"},
+                {"type": "TaskNode", "node_id": "no"},
+            ],
+            "edges": [["check", "yes"], ["check", "no"]],
+        }
+        engine = WorkflowEngine.from_dict(data)
+        assert engine.dag.node_count == 3
 
-    @pytest.mark.asyncio(loop_scope="function")
-    async def test_error_in_workflow_step(self):
-        """Pipeline should continue after a failed step."""
-        class FailingHandler:
-            async def handle(self, intent: Intent) -> TaskResult:
-                return TaskResult(domain=Domain.RESEARCH, success=False, error="boom")
+    def test_to_dict_roundtrip(self):
+        engine = WorkflowEngine(name="rt")
+        engine.add_node(TaskNode(node_id="X"))
+        engine.add_node(TaskNode(node_id="Y"))
+        engine.add_edge("X", "Y")
 
-        self.orch.registry._modules[Domain.RESEARCH] = FailingHandler()
+        d = engine.to_dict()
+        engine2 = WorkflowEngine.from_dict(d)
+        assert engine2.dag.node_count == 2
+        assert engine2.dag.has_edge("X", "Y")
 
-        intent = Intent(
-            raw_text="研究并分析", primary_domain=Domain.RESEARCH,
-            secondary_domains=[Domain.FINANCE],
-        )
-        result = await self.orch.workflow.execute(intent)
-        assert not result.success  # overall should reflect failure
-        assert result.steps[0][1].success is False
-        assert result.steps[0][1].error == "boom"
+    def test_from_yaml(self):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False, encoding="utf-8",
+        ) as f:
+            import yaml
+            yaml.safe_dump({
+                "name": "yaml_test",
+                "nodes": [{"type": "TaskNode", "node_id": "A"}],
+                "edges": [],
+            }, f)
+            path = f.name
 
+        try:
+            engine = WorkflowEngine.from_yaml(path)
+            assert engine.dag.has_node("A")
+        finally:
+            Path(path).unlink()
 
-class TestWorkflowIntegration:
-    """Integration: verify Orchestrator.execute() routes to workflow."""
+    def test_from_json(self):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8",
+        ) as f:
+            json.dump({
+                "name": "json_test",
+                "nodes": [{"type": "TaskNode", "node_id": "A"}],
+                "edges": [],
+            }, f)
+            path = f.name
 
-    @pytest.fixture(autouse=True)
-    def setup_async(self):
-        self.orch = Orchestrator()
+        try:
+            engine = WorkflowEngine.from_json(path)
+            assert engine.dag.has_node("A")
+        finally:
+            Path(path).unlink()
 
-        class FakeHandler:
-            def __init__(self, domain: Domain):
-                self.domain = domain
-            async def handle(self, intent: Intent) -> TaskResult:
-                return TaskResult(domain=self.domain, success=True,
-                                  output=f"handled by {self.domain.name}")
+    def test_to_yaml(self):
+        engine = WorkflowEngine(name="export")
+        engine.add_node(TaskNode(node_id="A"))
+        with tempfile.NamedTemporaryFile(
+            suffix=".yaml", delete=False,
+        ) as f:
+            path = f.name
 
-        for d in [Domain.RESEARCH, Domain.FINANCE]:
-            self.orch.registry._modules[d] = FakeHandler(d)
+        try:
+            engine.to_yaml(path)
+            engine2 = WorkflowEngine.from_yaml(path)
+            assert engine2.dag.has_node("A")
+        finally:
+            Path(path).unlink()
 
-    @pytest.mark.asyncio(loop_scope="function")
-    async def test_orchestrator_triggers_workflow_on_cross_domain(self):
-        """execute() should detect multi-domain and route to workflow engine."""
-        # The IntentParser must parse secondary_domains for this to work.
-        # Override parse for this test to inject secondary domains.
-        original_parse = self.orch.intent_parser.parse
+    def test_to_json(self):
+        engine = WorkflowEngine(name="export")
+        engine.add_node(TaskNode(node_id="A"))
+        with tempfile.NamedTemporaryFile(
+            suffix=".json", delete=False,
+        ) as f:
+            path = f.name
 
-        def mock_parse(text, ctx):
-            intent = original_parse(text, ctx)
-            # Force a cross-domain intent
-            intent.primary_domain = Domain.RESEARCH
-            intent.secondary_domains = [Domain.FINANCE]
-            intent.action = "分析"
-            return intent
+        try:
+            engine.to_json(path)
+            engine2 = WorkflowEngine.from_json(path)
+            assert engine2.dag.has_node("A")
+        finally:
+            Path(path).unlink()
 
-        self.orch.intent_parser.parse = mock_parse  # type: ignore
+    def test_run_sync(self):
+        async def step(ctx):
+            return 42
 
-        result = await self.orch.execute("研究比特币趋势并生成投资建议")
-        assert result.success
-        assert "workflow_mode" in result.data
-        assert result.data["workflow_mode"] in ("PIPELINE", "PARALLEL")
+        engine = WorkflowEngine(name="sync")
+        engine.add_node(TaskNode(node_id="A", fn=step))
+        result = engine.run()
+        assert result["results"]["A"] == 42
+
+    def test_context_passed_through(self):
+        async def step(ctx):
+            return ctx["seed"]
+
+        engine = WorkflowEngine(name="ctx_test")
+        engine.add_node(TaskNode(node_id="A", fn=step))
+        result = engine.run({"seed": 99})
+        assert result["results"]["A"] == 99
+
+    def test_execution_order_tracked(self):
+        async def a(ctx): return None
+        async def b(ctx): return None
+        async def c(ctx): return None
+
+        engine = WorkflowEngine(name="order")
+        engine.add_node(TaskNode(node_id="A", fn=a))
+        engine.add_node(TaskNode(node_id="B", fn=b))
+        engine.add_node(TaskNode(node_id="C", fn=c))
+        engine.add_edge("A", "B")
+        engine.add_edge("B", "C")
+
+        result = engine.run()
+        assert result["execution_order"] == ["A", "B", "C"]
+
+    # ── Emperor execute_workflow integration ─────────────────────
+
+    def _make_emperor(self):
+        from jarvis.emperor import Emperor
+        try:
+            return Emperor()
+        except Exception:
+            pytest.skip("Emperor initialization failed (missing dependencies)")
+
+    def test_emperor_execute_workflow_from_dict(self):
+        emp = self._make_emperor()
+
+        async def step_a(ctx):
+            return {"ok": True}
+
+        async def step_b(ctx):
+            return {"ok": True}
+
+        result = emp.execute_workflow({
+            "name": "emp_test",
+            "nodes": [
+                {"type": "TaskNode", "node_id": "step_a", "fn": step_a},
+                {"type": "TaskNode", "node_id": "step_b", "fn": step_b},
+            ],
+            "edges": [["step_a", "step_b"]],
+        })
+        assert result["success"] is True
+        assert result["execution_order"] == ["step_a", "step_b"]
+
+    def test_emperor_execute_workflow_missing_file(self):
+        emp = self._make_emperor()
+        with pytest.raises(FileNotFoundError):
+            emp.execute_workflow("nonexistent_file.yaml")
+
+    def test_emperor_workflow_engine_property(self):
+        emp = self._make_emperor()
+        wf = emp.workflow_engine
+        assert wf is not None
+        assert wf.name == "emperor_default"

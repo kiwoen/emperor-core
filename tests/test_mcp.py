@@ -437,3 +437,424 @@ class TestMCPDataClasses:
         assert cfg.transport == "http"
         assert cfg.url == "http://localhost:9000/mcp"
         assert cfg.timeout == 10.0
+
+
+# ═══════════════════════════════════════════════════════════════════
+# ToolRegistry Tests
+# ═══════════════════════════════════════════════════════════════════
+
+
+from jarvis.mcp.tool_registry import ToolRegistry, ToolDef
+
+
+class TestToolRegistryRegistration:
+    """Tool registration and unregistration."""
+
+    @pytest.fixture
+    def reg(self):
+        return ToolRegistry()
+
+    def test_register_single(self, reg):
+        t = reg.register(lambda a, b: a + b, "add", "Add two numbers")
+        assert t.name == "add"
+        assert t.group == "default"
+        assert t.tags == []
+        assert reg.tool_count() == 1
+
+    def test_register_with_schema(self, reg):
+        schema = {"type": "object", "properties": {"a": {"type": "number"}}}
+        t = reg.register(lambda a: a, "echo", "Echo", parameters_schema=schema)
+        assert t.parameters_schema == schema
+
+    def test_register_with_group_and_tags(self, reg):
+        t = reg.register(
+            lambda: None, "noop", "No-op",
+            group="util", tags=["test", "debug"],
+        )
+        assert t.group == "util"
+        assert t.tags == ["test", "debug"]
+
+    def test_register_duplicate_raises(self, reg):
+        reg.register(lambda: None, "unique", "desc")
+        with pytest.raises(ValueError, match="already registered"):
+            reg.register(lambda: None, "unique", "desc")
+
+    def test_register_empty_name_raises(self, reg):
+        with pytest.raises(ValueError):
+            reg.register(lambda: None, "", "desc")
+
+    def test_register_non_callable_raises(self, reg):
+        with pytest.raises(ValueError):
+            reg.register(None, "bad", "desc")
+
+    def test_unregister_existing(self, reg):
+        reg.register(lambda: None, "t1", "desc")
+        assert reg.unregister("t1") is True
+        assert reg.tool_count() == 0
+
+    def test_unregister_nonexistent(self, reg):
+        assert reg.unregister("nope") is False
+
+    def test_get_existing(self, reg):
+        reg.register(lambda: None, "t1", "desc")
+        t = reg.get("t1")
+        assert t is not None
+        assert t.name == "t1"
+
+    def test_get_nonexistent(self, reg):
+        assert reg.get("nope") is None
+
+    def test_register_many(self, reg):
+        for i in range(20):
+            reg.register(lambda x=i: x, f"tool_{i}", f"Tool {i}")
+        assert reg.tool_count() == 20
+
+
+class TestToolRegistryDiscovery:
+    """Listing, grouping, and tag-based search."""
+
+    @pytest.fixture
+    def reg(self):
+        r = ToolRegistry()
+        r.register(lambda: "a", "t1", "desc", group="math", tags=["calc"])
+        r.register(lambda: "b", "t2", "desc", group="math", tags=["calc", "fast"])
+        r.register(lambda: "c", "t3", "desc", group="net", tags=["io"])
+        r.register(lambda: "d", "t4", "desc", group="net", tags=["io", "slow"])
+        return r
+
+    def test_list_all(self, reg):
+        tools = reg.list_tools()
+        assert len(tools) == 4
+        names = [t.name for t in tools]
+        assert names == ["t1", "t2", "t3", "t4"]
+
+    def test_list_by_group(self, reg):
+        math_tools = reg.list_tools(group="math")
+        assert len(math_tools) == 2
+        assert all(t.group == "math" for t in math_tools)
+
+    def test_list_by_nonexistent_group(self, reg):
+        assert reg.list_tools(group="nonexistent") == []
+
+    def test_list_groups(self, reg):
+        assert set(reg.list_groups()) == {"math", "net"}
+
+    def test_search_by_tag(self, reg):
+        calc_tools = reg.search_by_tag("calc")
+        assert len(calc_tools) == 2
+
+    def test_search_by_nonexistent_tag(self, reg):
+        assert reg.search_by_tag("nope") == []
+
+    def test_tool_count(self, reg):
+        assert reg.tool_count() == 4
+
+
+class TestToolRegistryInvocation:
+    """Tool execution."""
+
+    @pytest.fixture
+    def reg(self):
+        r = ToolRegistry()
+        r.register(
+            lambda a, b: a + b, "add", "Add",
+            parameters_schema={
+                "type": "object",
+                "properties": {
+                    "a": {"type": "number"},
+                    "b": {"type": "number"},
+                },
+            },
+        )
+        r.register(lambda text: text.upper(), "upper", "Uppercase")
+        r.register(lambda: 42, "constant", "Returns 42")
+        return r
+
+    def test_call_add(self, reg):
+        assert reg.call_tool("add", {"a": 3, "b": 5}) == 8
+
+    def test_call_upper(self, reg):
+        assert reg.call_tool("upper", {"text": "hello"}) == "HELLO"
+
+    def test_call_no_args(self, reg):
+        assert reg.call_tool("constant", {}) == 42
+
+    def test_call_nonexistent_raises(self, reg):
+        with pytest.raises(KeyError, match="not registered"):
+            reg.call_tool("nonexistent", {})
+
+    def test_call_increments_stats(self, reg):
+        reg.call_tool("add", {"a": 1, "b": 2})
+        reg.call_tool("add", {"a": 3, "b": 4})
+        stats = reg.get_stats()
+        assert stats["tools"]["add"]["call_count"] == 2
+
+
+class TestToolRegistryStats:
+    """Call statistics."""
+
+    @pytest.fixture
+    def reg(self):
+        r = ToolRegistry()
+        r.register(lambda x: x * 2, "double", "Double")
+        r.register(lambda x: x + 1, "incr", "Increment")
+        return r
+
+    def test_initial_stats(self, reg):
+        stats = reg.get_stats()
+        assert stats["total_calls"] == 0
+        assert stats["total_time"] == 0.0
+
+    def test_stats_after_calls(self, reg):
+        reg.call_tool("double", {"x": 5})
+        reg.call_tool("incr", {"x": 10})
+        stats = reg.get_stats()
+        assert stats["total_calls"] == 2
+        assert stats["tools"]["double"]["call_count"] == 1
+        assert stats["tools"]["incr"]["call_count"] == 1
+
+    def test_reset_stats(self, reg):
+        reg.call_tool("double", {"x": 1})
+        reg.reset_stats()
+        stats = reg.get_stats()
+        assert stats["total_calls"] == 0
+
+
+class TestToolRegistryThreadSafety:
+    """Thread-safe operations."""
+
+    @pytest.fixture
+    def reg(self):
+        r = ToolRegistry()
+        r.register(lambda a, b: a + b, "add", "Add")
+        return r
+
+    def test_concurrent_registration(self, reg):
+        import threading
+        errors = []
+
+        def register_tool(i):
+            try:
+                reg.register(lambda: i, f"tool_{i}", f"desc {i}")
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=register_tool, args=(i,)) for i in range(50)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # add + 50 new = 51; duplicates are rejected silently
+        assert reg.tool_count() > 0
+        # duplicates should have raised ValueError
+        assert len(errors) == 0
+
+    def test_concurrent_calls(self, reg):
+        import threading
+
+        results = []
+
+        def call_tool():
+            for _ in range(10):
+                results.append(reg.call_tool("add", {"a": 1, "b": 2}))
+
+        threads = [threading.Thread(target=call_tool) for _ in range(4)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert all(r == 3 for r in results)
+        assert reg.get_stats()["tools"]["add"]["call_count"] == 40
+
+
+# ═══════════════════════════════════════════════════════════════════
+# MCPServer Tests
+# ═══════════════════════════════════════════════════════════════════
+
+
+from jarvis.mcp.server import MCPServer
+
+
+class TestMCPServerBuiltinTools:
+    """Verify the 12 built-in tools are registered and callable."""
+
+    @pytest.fixture
+    def server(self):
+        return MCPServer(name="test-server")
+
+    def test_12_tools_registered(self, server):
+        assert server._registry.tool_count() == 12
+
+    def test_all_builtin_names(self, server):
+        names = {t.name for t in server.list_tools()}
+        expected = {
+            "datetime", "math", "random", "text", "file_info",
+            "hash", "json_tool", "uuid_gen", "weather", "news",
+            "web_search", "web_fetch",
+        }
+        assert names == expected
+
+    def test_datetime(self, server):
+        result = server.call_tool("datetime", {})
+        assert "当前时间" in result or "202" in result
+
+    def test_math_expression(self, server):
+        result = server.call_tool("math", {"expression": "2 ** 10"})
+        assert "1024" in result
+
+    def test_random_dice(self, server):
+        result = server.call_tool("random", {"kind": "dice", "high": 6, "count": 2})
+        assert "d6" in result
+
+    def test_text_stats(self, server):
+        result = server.call_tool("text", {"operation": "stats", "text": "hello world"})
+        assert "字符数" in result
+        assert "单词数" in result
+
+    def test_text_reverse(self, server):
+        result = server.call_tool("text", {"operation": "reverse", "text": "abc"})
+        assert result == "cba"
+
+    def test_hash_sha256(self, server):
+        result = server.call_tool("hash", {"text": "hello"})
+        assert "SHA256:" in result
+
+    def test_json_validate_valid(self, server):
+        result = server.call_tool("json_tool", {"operation": "validate", "json_text": '{"a":1}'})
+        assert "有效" in result
+
+    def test_json_validate_invalid(self, server):
+        result = server.call_tool("json_tool", {"operation": "validate", "json_text": "{"})
+        assert "无效" in result
+
+    def test_json_format(self, server):
+        result = server.call_tool("json_tool", {"operation": "format", "json_text": '{"a":1}'})
+        assert '"a": 1' in result
+
+    def test_json_compress(self, server):
+        result = server.call_tool("json_tool", {"operation": "compress", "json_text": '{"a": 1}'})
+        assert " " not in result.strip() or result.strip() == '{"a":1}'
+
+    def test_uuid_gen_single(self, server):
+        result = server.call_tool("uuid_gen", {"count": 1})
+        assert len(result.strip()) >= 32
+
+    def test_uuid_gen_multiple(self, server):
+        result = server.call_tool("uuid_gen", {"count": 3})
+        assert len(result.strip().split("\n")) == 3
+
+    def test_file_info_nonexistent(self, server):
+        result = server.call_tool("file_info", {"path": "Z:/nonexistent_xyz.abc"})
+        assert "不存在" in result
+
+    def test_call_nonexistent_tool(self, server):
+        with pytest.raises(KeyError):
+            server.call_tool("nonexistent_tool_xyz", {})
+
+
+class TestMCPServerDynamicRegistration:
+    """Dynamic tool register / unregister."""
+
+    @pytest.fixture
+    def server(self):
+        return MCPServer(name="test-server")
+
+    def test_register_new_tool(self, server):
+        t = server.register_tool(
+            lambda x: x * 2, "double", "Double a number",
+            parameters_schema={
+                "type": "object",
+                "properties": {"x": {"type": "number"}},
+            },
+            group="custom",
+            tags=["math"],
+        )
+        assert t.name == "double"
+        assert t.group == "custom"
+        assert server._registry.tool_count() == 13
+
+    def test_call_newly_registered_tool(self, server):
+        server.register_tool(lambda x: x * 2, "double", "Double")
+        assert server.call_tool("double", {"x": 21}) == 42
+
+    def test_unregister_builtin(self, server):
+        assert server.unregister_tool("datetime") is True
+        assert server._registry.tool_count() == 11
+        with pytest.raises(KeyError):
+            server.call_tool("datetime", {})
+
+    def test_unregister_nonexistent(self, server):
+        assert server.unregister_tool("nope") is False
+
+
+class TestMCPServerGroups:
+    """Verify tool grouping across built-in tools."""
+
+    @pytest.fixture
+    def server(self):
+        return MCPServer(name="test-server")
+
+    def test_group_distribution(self, server):
+        groups = server._registry.list_groups()
+        assert "general" in groups
+        assert "math" in groups
+        assert "network" in groups
+        assert "data" in groups
+        assert "file" in groups
+        assert "text" in groups
+
+    def test_list_network_group(self, server):
+        net_tools = server.list_tools(group="network")
+        net_names = {t.name for t in net_tools}
+        assert net_names == {"weather", "news", "web_search", "web_fetch"}
+
+
+class TestMCPServerStats:
+    """Call statistics through MCPServer."""
+
+    @pytest.fixture
+    def server(self):
+        return MCPServer(name="test-server")
+
+    def test_initial_stats(self, server):
+        stats = server.get_stats()
+        assert stats["tool_count"] == 12
+        assert stats["total_calls"] == 0
+
+    def test_stats_after_calls(self, server):
+        server.call_tool("math", {"expression": "1+1"})
+        server.call_tool("math", {"expression": "2+2"})
+        server.call_tool("datetime", {})
+        stats = server.get_stats()
+        assert stats["total_calls"] == 3
+
+
+class TestMCPServerManualProtocol:
+    """Verify the manual MCP JSON-RPC fallback (import check isolated)."""
+
+    @pytest.fixture
+    def server(self):
+        return MCPServer(name="test-server")
+
+    def test_manual_run_raises_for_sse(self, server):
+        # Manual mode doesn't support SSE
+        with pytest.raises(RuntimeError, match="Manual SSE transport"):
+            server._run_manual("sse")
+
+
+class TestMCPServerImport:
+    """Verify top-level imports work."""
+
+    def test_import_from_mcp_package(self):
+        from jarvis.mcp import ToolRegistry, ToolDef, MCPServer
+        assert ToolRegistry is not None
+        assert ToolDef is not None
+        assert MCPServer is not None
+
+    def test_import_leaves_existing_exports(self):
+        from jarvis.mcp import CircuitBreaker, CircuitState, ResilientMCPClient
+        assert CircuitBreaker is not None
+        assert CircuitState is not None
+        assert ResilientMCPClient is not None

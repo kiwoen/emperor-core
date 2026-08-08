@@ -273,3 +273,11 @@ class SandboxManager:
     def _is_unix(self) -> bool:
         import platform
         return platform.system() != "Windows"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# New sub-modules (engine + policy)
+# ═══════════════════════════════════════════════════════════════════
+
+from jarvis.sandbox.engine import SandboxEngine, SandboxResult   # noqa: E402, F401
+from jarvis.sandbox.policy import SecurityPolicy, PolicyLevel, ValidationResult  # noqa: E402, F401

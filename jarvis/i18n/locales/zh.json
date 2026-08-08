@@ -1,0 +1,99 @@
+{
+    "_comment": "Emperor Core - Chinese (zh) language pack",
+
+    "system": {
+        "start": "帝王系统启动中...",
+        "shutdown": "帝王系统正在关闭...",
+        "ready": "帝王系统已就绪",
+        "error": "系统错误",
+        "fatal": "系统致命错误，正在终止",
+        "warning": "系统警告",
+        "loading": "正在加载",
+        "initialized": "初始化完成",
+        "config_loaded": "配置加载成功",
+        "config_saved": "配置保存成功",
+        "restart_required": "需要重启系统以使更改生效"
+    },
+
+    "dashboard": {
+        "title": "帝王 Dashboard",
+        "subtitle": "进化型 AI 管理系统",
+        "ministers_label": "已任命大臣",
+        "tasks_label": "任务队列",
+        "metrics_label": "系统指标",
+        "evolution_label": "进化进度",
+        "idle": "系统空闲",
+        "busy": "系统繁忙",
+        "alert_active": "活跃告警",
+        "no_alerts": "暂无告警",
+        "refresh": "刷新"
+    },
+
+    "minister": {
+        "appoint": "任命大臣：{name}",
+        "dismiss": "罢免大臣：{name}",
+        "evolve": "大臣 {name} 正在进化 (第 {cycle} 轮)",
+        "promote": "大臣 {name} 晋升为 {rank}",
+        "demote": "大臣 {name} 降级为 {rank}",
+        "gold_content": "含金量：{value}%",
+        "merit_change": "功勋变动：{delta}",
+        "stability": "稳定度：{value}",
+        "streak": "大臣 {name} 连胜 {count} 轮",
+        "retire": "大臣 {name} 已退休",
+        "revive": "大臣 {name} 已复活",
+        "duel": "大臣 {a} 与 {b} 正在进行对决",
+        "idle": "大臣 {name} 空闲中"
+    },
+
+    "task": {
+        "accepted": "任务已受理：{task_id}",
+        "completed": "任务完成：{task_id}",
+        "failed": "任务失败：{task_id}，原因：{reason}",
+        "timeout": "任务超时：{task_id}",
+        "canceled": "任务已取消：{task_id}",
+        "queued": "任务已排队：{task_id}",
+        "delegated": "任务已委派给大臣 {minister}"
+    },
+
+    "evolution": {
+        "start": "第 {cycle} 轮进化开始",
+        "complete": "第 {cycle} 轮进化完成，存活 {survivors} / {total} 位大臣",
+        "crossover": "交叉配对：{parent_a} x {parent_b}",
+        "mutation": "突变发生在大臣 {name}，基因 {gene}",
+        "elite_survived": "精英大臣 {name} 存活",
+        "breeding": "繁育新大臣：{name}",
+        "extinct": "大臣 {name} 已淘汰"
+    },
+
+    "capability": {
+        "datetime": "获取当前日期、时间、时区、星期等信息",
+        "math": "安全计算数学表达式（加减乘除、幂、取模）",
+        "random": "生成随机数、掷骰子、随机选择",
+        "text": "文本统计、反转、大小写转换、计数",
+        "file_info": "获取文件大小、修改时间、行数等信息",
+        "hash": "计算字符串的 MD5 / SHA1 / SHA256 哈希摘要",
+        "json_tool": "JSON 格式化美化 / 校验 / 压缩",
+        "uuid_gen": "生成 UUID4 唯一标识符",
+        "weather": "查询城市天气（温度 / 湿度 / 风力 / 降水概率）",
+        "news": "查询最新新闻资讯，支持中英文关键词，返回标题和来源",
+        "web_search": "搜索互联网信息（通过 DuckDuckGo）",
+        "web_fetch": "抓取指定网页的内容"
+    },
+
+    "error": {
+        "not_found": "未找到：{resource}",
+        "unauthorized": "权限不足",
+        "invalid_config": "配置无效：{detail}",
+        "network_timeout": "网络请求超时",
+        "db_error": "数据库错误：{detail}",
+        "unknown": "未知错误"
+    },
+
+    "court": {
+        "session_open": "朝会开启",
+        "session_close": "朝会结束",
+        "verdict": "裁决：{result}",
+        "appeal": "大臣 {name} 提起上诉",
+        "censor_report": "御史弹劾：{detail}"
+    }
+}
