@@ -365,6 +365,7 @@ class SurvivalMechanism:
         genome_generator: Optional[GenomeGenerator] = None,
         genome_path: Optional[str] = None,
         history: Optional["EvolutionHistory"] = None,
+        enabled: bool = True,
     ) -> None:
         # ── Sliding merit: auto-wrap if enabled and board is plain MeritBoard ──
         if (
@@ -445,6 +446,28 @@ class SurvivalMechanism:
 
         # ── History recorder ───────────────────────────────────────
         self._history = history
+
+        # ── P0.3: destructive-selection kill switch ────────────────
+        # When False the mechanism runs in *dry-run* mode: demotion,
+        # probation and elimination are still **computed and recorded**
+        # into ``self._events`` / ``EvolutionHistory``, but no minister
+        # status is mutated and no probation counter is reset.  This lets
+        # operators observe what natural selection *would* do before
+        # letting it touch a live court.
+        #
+        # The class default stays True so the primitive behaves as its
+        # name advertises; the production composition root
+        # (``jarvis.court.court.Court``) freezes it — see
+        # ``CourtConfig.enable_auto_elimination``.
+        self._enabled = bool(enabled)
+        # Ministers already reported as "would be eliminated" — prevents the
+        # same dry-run event from being re-emitted on every subsequent cycle.
+        self._dry_run_eliminated: set[str] = set()
+        if not self._enabled:
+            logger.warning(
+                "[Evolution] SurvivalMechanism 处于 dry-run 模式 "
+                "(enabled=False)：淘汰只记录到 evolution_history，不实际执行"
+            )
 
     # ------------------------------------------------------------------
     # Registration
@@ -1031,6 +1054,10 @@ class SurvivalMechanism:
                 continue
 
             merit = self._merit_board.compute_merit(minister)
+            # Probation is a *reversible warning* state, so it is applied even
+            # in dry-run mode — otherwise the lifecycle would never advance and
+            # operators could never observe which ministers are heading for
+            # elimination.  Only the terminal, destructive step is frozen.
             self._statuses[minister] = MinisterStatus.PROBATION
             self._probation_cycles[minister] = 0
             event = EvolutionEvent(
@@ -1092,6 +1119,34 @@ class SurvivalMechanism:
 
                 # Too many cycles — eliminate
                 if self._can_eliminate():
+                    if not self._enabled:
+                        # ── P0.3 dry-run: record, do not execute ──────
+                        # Emit the ELIMINATE event exactly once per
+                        # minister so ``evolution_history`` shows what
+                        # selection *would* have done, while the court
+                        # itself is left untouched (no ELIMINATED status,
+                        # no genome archiving, no merit zeroing).
+                        if minister not in self._dry_run_eliminated:
+                            self._dry_run_eliminated.add(minister)
+                            event = EvolutionEvent(
+                                timestamp=datetime.now(timezone.utc).isoformat(),
+                                minister=minister,
+                                action=EvolutionAction.ELIMINATE,
+                                reason=(
+                                    f"[dry-run] 连续{cycles}轮考核未通过，"
+                                    "本应末位淘汰（自动淘汰已冻结，未执行）"
+                                ),
+                                previous_merit=merit,
+                            )
+                            actions.append(event)
+                            self._events.append(event)
+                            logger.warning(
+                                "[Evolution] %s 本应被淘汰 (probation=%d轮, "
+                                "merit=%.1f) — dry-run 模式未执行",
+                                minister, cycles, merit,
+                            )
+                        continue
+
                     self._statuses[minister] = MinisterStatus.ELIMINATED
                     self._archive_genome(minister)
                     if self._merit_board:
@@ -1451,6 +1506,14 @@ class SurvivalMechanism:
 
         # Check
         if not self.diversity.is_catastrophe_needed(self._cycle_count):
+            return []
+
+        # P0.3: catastrophe is a *mass* elimination — always frozen in dry-run.
+        if not self._enabled:
+            logger.warning(
+                "[Evolution] 多样性危机触发大灾变，但自动淘汰已冻结 "
+                "(enabled=False) — 已跳过，未重组种群"
+            )
             return []
 
         # Plan
@@ -1943,6 +2006,22 @@ class SurvivalMechanism:
     # ------------------------------------------------------------------
     # Query
     # ------------------------------------------------------------------
+
+    @property
+    def enabled(self) -> bool:
+        """Whether destructive selection (elimination) actually executes.
+
+        When ``False`` the mechanism is in P0.3 dry-run mode: elimination
+        decisions are recorded to the evolution history but never applied.
+        """
+        return self._enabled
+
+    def get_dry_run_eliminations(self) -> list[str]:
+        """Ministers that *would* have been eliminated while frozen.
+
+        Always empty when :attr:`enabled` is ``True``.
+        """
+        return sorted(self._dry_run_eliminated)
 
     def get_status(self, minister: str) -> MinisterStatus:
         """Get the evolutionary status of a minister."""

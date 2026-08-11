@@ -33,6 +33,8 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any, Callable, Optional, Protocol
 
+from jarvis.court.fitness import FitnessSignal, RealTaskFitness
+
 # ══════════════════════════════════════════════════════════════════
 # Core types
 # ══════════════════════════════════════════════════════════════════
@@ -94,7 +96,17 @@ class TaskOutcome:
 
 
 def _simple_confidence(response: str, expected: Optional[str]) -> float:
-    """0.3 – 0.95 heuristic based on length and correctness."""
+    """DEPRECATED length-based heuristic — kept only for regression tests.
+
+    .. deprecated:: P0.3
+        This scorer awarded up to +0.30 for ``len(response) / 2000``, which
+        turned the evolutionary merit signal into a verbosity contest (classic
+        reward hacking).  :class:`jarvis.court.fitness.RealTaskFitness` is now
+        the :class:`TaskEngine` default.  **Do not wire this into new code.**
+
+    Returns:
+        A 0.1 – 0.95 heuristic score based on length and expected-answer match.
+    """
     base = 0.3
     if not response.strip():
         return 0.1
@@ -125,14 +137,44 @@ class TaskEngine:
         llm: Optional[LLMBackend] = None,
         scorer: Optional[Callable[[str, Optional[str]], float]] = None,
         capability_registry: Optional[Any] = None,
+        router: Optional[Any] = None,  # SmartRouter
     ):
         self._court = court
         self._llm = llm or _default_llm_backend
-        self._scorer = scorer or _simple_confidence
+        # P0.3: the default fitness signal is now derived from real task
+        # outcomes (execution success + unit-test pass rate), not from how
+        # many characters the model happened to emit.
+        self._scorer = scorer or RealTaskFitness()
         self._capability_registry = capability_registry  # CapabilityRegistry instance
+        self._smart_router: Optional[Any] = router  # P0.4 — set via set_router()
 
         self._outcomes: list[TaskOutcome] = []
         self._pending: dict[str, TaskRequest] = {}
+
+    # ── Router wiring (P0.4) ───────────────────────────────────────
+
+    def set_router(self, router: Optional[Any]) -> None:
+        """Attach (or detach) the SmartRouter used for minister selection.
+
+        Passing ``None`` is explicitly supported and means "routing is
+        unavailable" — :meth:`_select_minister` then degrades to plain
+        domain-string matching plus merit ranking.  The caller is expected to
+        have already logged *why* the router is missing.
+        """
+        self._smart_router = router
+        if router is None:
+            logger.warning(
+                "[TaskEngine] 未接入 SmartRouter，选臣退化为域名字符串匹配 + 功勋排序"
+            )
+        else:
+            logger.info(
+                "[TaskEngine] SmartRouter 已接入：%s", type(router).__name__
+            )
+
+    @property
+    def router(self) -> Optional[Any]:
+        """The attached SmartRouter, or ``None`` when routing is unavailable."""
+        return self._smart_router
 
     # ── Properties ─────────────────────────────────────────────────
 
@@ -171,7 +213,7 @@ class TaskEngine:
 
         # 1. Select minister
         if minister is None:
-            minister = self._select_minister(request.domain)
+            minister = self._select_minister(request.domain, request.prompt)
 
         # 2. Build genome-aware parameters
         genome_params = self._get_genome_params(minister)
@@ -229,8 +271,15 @@ class TaskEngine:
         # Combine raw LLM output with capability output
         combined_response = raw + capability_output
 
-        # 4. Score
-        confidence = self._scorer(combined_response, request.expected)
+        # 4. Score — P0.3: fitness comes from the real execution outcome.
+        confidence = self._score(
+            response=combined_response,
+            expected=request.expected,
+            executed_ok=state == TaskState.COMPLETED,
+            error=error,
+            domain=request.domain,
+            test_pass_rate=request.meta.get("test_pass_rate"),
+        )
         success = state == TaskState.COMPLETED and confidence > 0.3
 
         merit = confidence * 100
@@ -274,15 +323,24 @@ class TaskEngine:
         # 5b. Publish task_completed event for SSE dashboard
         try:
             from jarvis.event_bus import event_bus, Event
-            result_text = outcome.get("result", "") or ""
+            # NOTE: this used to call ``outcome.get("result", "")``.  TaskOutcome
+            # is a dataclass, not a dict, so it raised AttributeError on every
+            # single task and the bare ``except`` below swallowed it — meaning
+            # the dashboard never received a task_completed event.
+            result_text = outcome.raw_response or ""
             event_bus.publish(Event("task_completed", {
                 "minister": minister,
                 "domain": request.domain,
                 "capability": capability_name or "",
+                "success": outcome.success,
+                "confidence": outcome.confidence,
                 "result_preview": result_text[:100],
             }))
         except Exception:
-            pass
+            logger.debug(
+                "[TaskEngine] task_completed 事件发布失败 (task=%s)",
+                request.id, exc_info=True,
+            )
 
         # 6. Feed back to merit board
         try:
@@ -349,8 +407,80 @@ class TaskEngine:
 
     # ── Internals ─────────────────────────────────────────────────
 
-    def _select_minister(self, domain: str) -> str:
-        """Pick the best-fit minister for a domain."""
+    def _score(
+        self,
+        *,
+        response: str,
+        expected: Optional[str],
+        executed_ok: bool,
+        error: Optional[str],
+        domain: str,
+        test_pass_rate: Optional[float] = None,
+    ) -> float:
+        """Run the configured scorer, adapting to its supported signature.
+
+        :class:`~jarvis.court.fitness.RealTaskFitness` (the default) receives a
+        full :class:`FitnessSignal` so it can see whether the task *actually*
+        succeeded.  A user-supplied legacy scorer with the historical
+        ``(response, expected)`` signature still works unchanged.
+        """
+        signal = FitnessSignal(
+            execution_success=executed_ok,
+            test_pass_rate=test_pass_rate,
+            response=response,
+            expected=expected,
+            error=error,
+            domain=domain,
+        )
+
+        scorer = self._scorer
+        if hasattr(scorer, "score") and callable(getattr(scorer, "score")):
+            try:
+                return float(scorer.score(signal))
+            except Exception:
+                logger.warning(
+                    "[TaskEngine] scorer.score() 失败，回退到旧式两参调用",
+                    exc_info=True,
+                )
+
+        try:
+            return float(scorer(response, expected))
+        except Exception:
+            logger.error(
+                "[TaskEngine] scorer 调用失败，本次任务置信度记为 0.0",
+                exc_info=True,
+            )
+            return 0.0
+
+    def _select_minister(self, domain: str, prompt: str = "") -> str:
+        """Pick the best-fit minister for a task (P0.4 / P0.5).
+
+        Selection is a three-tier preference, each tier internally ordered by
+        merit (highest first):
+
+            1. **Exact domain match** — the minister's genome domain equals the
+               requested domain.
+            2. **Capability match** — the minister's domain and the request map
+               to the same :class:`~jarvis.model_router.Capability` according to
+               the attached ``SmartRouter``.  This is what lets a ``science``
+               minister pick up a ``math`` task.
+            3. **Merit fallback** — no domain signal at all, so the
+               highest-merit active minister takes the task.
+
+        Previously this method contained a ``for name in active: pass`` loop,
+        i.e. routing was decorative: every task always fell through to
+        "highest merit". That is now a real, tested selection path.
+
+        Args:
+            domain: The requested task domain.
+            prompt: The task prompt, used by the router for classification.
+
+        Returns:
+            The name of the selected minister.
+
+        Raises:
+            RuntimeError: If the court has no active ministers.
+        """
         active = self._court.active_ministers
 
         if not active:
@@ -359,21 +489,150 @@ class TaskEngine:
                 "emperor register --name turing --domain math"
             )
 
-        # Try domain match
+        merits = self._merit_map()
+        requested = (domain or "general").strip().lower()
+
+        exact: list[str] = []
+        by_capability: list[str] = []
+
+        target_cap = self._classify_request(prompt, requested)
+
         for name in active:
-            # We can't easily access genome domain from active list,
-            # so use merit ranking as a proxy
-            pass
+            minister_domain = self._minister_domain(name)
+            if minister_domain and minister_domain == requested:
+                exact.append(name)
+                continue
+            if (
+                target_cap is not None
+                and minister_domain
+                and self._classify_domain(minister_domain) == target_cap
+            ):
+                by_capability.append(name)
 
-        # Fallback: pick highest-merit minister
-        try:
-            ranking = self._court.merit_ranking
-            if ranking:
-                return ranking[0].name
-        except Exception:
-            pass
+        for tier_name, tier in (("domain", exact), ("capability", by_capability)):
+            if not tier:
+                continue
+            chosen = max(tier, key=lambda n: merits.get(n, 0.0))
+            logger.debug(
+                "[TaskEngine] 选臣命中 %s 匹配：domain=%s → %s (候选 %s)",
+                tier_name, requested, chosen, tier,
+            )
+            return chosen
 
+        # Tier 3 — no domain signal: fall back to the highest-merit minister.
+        ranked_active = [n for n in active if n in merits]
+        if ranked_active:
+            chosen = max(ranked_active, key=lambda n: merits[n])
+            logger.debug(
+                "[TaskEngine] 选臣无领域命中，回退功勋第一：domain=%s → %s",
+                requested, chosen,
+            )
+            return chosen
+
+        logger.debug(
+            "[TaskEngine] 选臣无领域命中且无功勋数据，取首位活跃大臣：%s", active[0]
+        )
         return active[0]
+
+    # Attribute names used by the various merit report dataclasses.
+    # ``SlidingMeritReport`` / ``MeritReport`` expose ``minister`` +
+    # ``merit_score``.  The old code here read ``entry.name``, which does not
+    # exist on either — it raised AttributeError on every call and was
+    # swallowed by a bare ``except``, so the "merit fallback" never ran.
+    _MERIT_NAME_ATTRS = ("minister", "name", "minister_name")
+    _MERIT_SCORE_ATTRS = ("merit_score", "merit", "windowed_merit", "score")
+
+    def _merit_map(self) -> dict[str, float]:
+        """Return ``{minister_name: merit}`` for every ranked minister.
+
+        Ministers with no dispatch history simply do not appear in the merit
+        ranking; callers must treat a missing key as "no merit signal" rather
+        than as zero merit.
+
+        Returns an empty mapping when the merit board is unavailable, so
+        selection degrades gracefully instead of crashing task execution.
+        """
+        try:
+            ranking = self._court.merit_ranking or []
+        except Exception:
+            logger.warning(
+                "[TaskEngine] 无法读取功勋排行，选臣将忽略功勋权重", exc_info=True
+            )
+            return {}
+
+        merits: dict[str, float] = {}
+        for entry in ranking:
+            name = self._first_attr(entry, self._MERIT_NAME_ATTRS)
+            if not name:
+                logger.debug(
+                    "[TaskEngine] 功勋条目缺少大臣名字段，已跳过：%r", entry
+                )
+                continue
+            score = self._first_attr(entry, self._MERIT_SCORE_ATTRS)
+            try:
+                merits[str(name)] = float(score) if score is not None else 0.0
+            except (TypeError, ValueError):
+                merits[str(name)] = 0.0
+        return merits
+
+    @staticmethod
+    def _first_attr(obj: Any, names: tuple[str, ...]) -> Any:
+        """Return the first present, non-``None`` attribute among *names*."""
+        for attr in names:
+            value = getattr(obj, attr, None)
+            if value is not None:
+                return value
+        return None
+
+    def _minister_domain(self, minister: str) -> str:
+        """Return a minister's genome domain, lower-cased; ``""`` if unknown."""
+        try:
+            genome = self._court._sm._genomes.get(minister)
+        except Exception:
+            return ""
+        if genome is None:
+            return ""
+        return str(getattr(genome, "domain", "") or "").strip().lower()
+
+    def _classify_request(self, prompt: str, domain: str) -> Optional[Any]:
+        """Classify a request into a routing capability.
+
+        Returns ``None`` when no router is attached or the router cannot make
+        a meaningful (non-``UNKNOWN``) decision, in which case capability-based
+        matching is skipped entirely rather than guessed at.
+        """
+        if self._smart_router is None:
+            return None
+        try:
+            cap = self._smart_router.classify(prompt or "", domain)
+        except Exception:
+            logger.error(
+                "[TaskEngine] SmartRouter.classify 失败，本次选臣跳过能力匹配",
+                exc_info=True,
+            )
+            return None
+        return None if self._is_unknown_capability(cap) else cap
+
+    def _classify_domain(self, minister_domain: str) -> Optional[Any]:
+        """Map a minister's domain string onto a routing capability."""
+        if self._smart_router is None:
+            return None
+        try:
+            cap = self._smart_router.classify_domain(minister_domain)
+        except Exception:
+            logger.error(
+                "[TaskEngine] SmartRouter.classify_domain('%s') 失败",
+                minister_domain, exc_info=True,
+            )
+            return None
+        return None if self._is_unknown_capability(cap) else cap
+
+    @staticmethod
+    def _is_unknown_capability(cap: Any) -> bool:
+        """Whether a router verdict carries no usable routing information."""
+        if cap is None:
+            return True
+        return str(getattr(cap, "value", cap)).lower() in ("unknown", "")
 
     def _get_genome_params(self, minister: str) -> dict[str, Any]:
         """Extract LLM parameters from minister's genome."""

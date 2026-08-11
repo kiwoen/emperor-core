@@ -21,6 +21,7 @@ Configuration:
 from __future__ import annotations
 
 import logging
+import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -257,6 +258,9 @@ class Emperor:
         self._multi_model_router.cost_tracker = self._cost_tracker
 
         # P2.9 Smart Routing — capability-aware routing with fallback chains
+        # P0.4: an unavailable router used to be swallowed silently, which is
+        # how "smart routing" shipped as a permanently-dead code path.  A
+        # missing router is now a loud, explicit degradation.
         try:
             from jarvis.model_router import SmartRouter
             config_path = str(Path(self.config.data_dir or ".") / ".." / "config" / "model_routing.yaml")
@@ -267,6 +271,16 @@ class Emperor:
             self._smart_router: Any = SmartRouter(config_path=config_path)
         except ImportError:
             self._smart_router = None
+            logger.error(
+                "[Emperor] SmartRouter 缺失，路由降级为功勋第一 "
+                "(jarvis.model_router import failed — minister selection "
+                "falls back to merit ranking)",
+                exc_info=True,
+            )
+
+        # P0.4/P0.5: hand the router to the TaskEngine so minister selection
+        # actually consumes the routing decision instead of ignoring it.
+        self._task_engine.set_router(self._smart_router)
 
         # Cost-per-successful-run tracker
         from jarvis.cost_per_success import CostPerSuccessTracker
@@ -381,6 +395,35 @@ class Emperor:
             max_iterations=20,
             max_cost_per_run=5.00,
             cost_tracker=self._cost_tracker,
+        )
+
+        # Three-tier tool guardrail — classify → risk → role-scoped access
+        from jarvis.tool_guard import ThreeTierGuardEnhancement
+        self._tool_guard: ThreeTierGuardEnhancement = ThreeTierGuardEnhancement()
+
+        # Bounded autonomy — GREEN / YELLOW / RED action zones.
+        # No approval_engine is injected on purpose: this instance is used by
+        # the observation chain, and creating HITL approval requests as a
+        # side-effect of a *check* would change business flow.  The real HITL
+        # gate stays where it is, at the top of execute_task().
+        from jarvis.bounded_autonomy import BoundedAutonomyEngine
+        self._bounded_autonomy: BoundedAutonomyEngine = BoundedAutonomyEngine(
+            approval_engine=None,
+        )
+
+        # P0.2 Guardrail chain — wires tool/loop/bounded-autonomy/hallucination
+        # guards into the main execution path.  Shadow mode by default.
+        from jarvis.guardrail_chain import GuardrailChain
+        self._guardrail_chain: GuardrailChain = GuardrailChain(
+            tool_guard=self._tool_guard,
+            loop_guard=self._loop_guard,
+            bounded_autonomy=self._bounded_autonomy,
+            hallucination_guard=self._hallucination_guard,
+            telemetry=self._guardrail_telemetry,
+        )
+        logger.info(
+            "[Emperor] Guardrail chain armed — mode=%s",
+            self._guardrail_chain.mode.value,
         )
 
         # P3.10 Task Router — intent-based multi-level routing
@@ -537,6 +580,21 @@ class Emperor:
     def hallucination_guard(self):
         """Direct access to the HallucinationGuard (post-LLM hallucination detection)."""
         return self._hallucination_guard
+
+    @property
+    def tool_guard(self):
+        """Direct access to the three-tier ToolGuard (classify → risk → role)."""
+        return self._tool_guard
+
+    @property
+    def bounded_autonomy(self):
+        """Direct access to the BoundedAutonomyEngine (GREEN/YELLOW/RED zones)."""
+        return self._bounded_autonomy
+
+    @property
+    def guardrail_chain(self):
+        """Direct access to the GuardrailChain wired into the execution path."""
+        return self._guardrail_chain
 
     @property
     def guardrail_telemetry(self):
@@ -803,32 +861,106 @@ class Emperor:
                     "message": f"Task requires human approval (risk={approval_req.risk_level}). Approval ID: {approval_req.id}",
                 }
 
-            # ── Pre-LLM Prompt Injection Guard ──
+            # ── Pre-LLM Prompt Injection Guard (P0.1) ──
             # Scan the user prompt before it reaches the LLM through TaskEngine.
+            #
+            # Two bugs were fixed here:
+            #   1. PromptGuard() defaults to severity_threshold="warn", which
+            #      downgrades every `dangerous` verdict to `suspicious` — so the
+            #      blocking branch below could never fire.  We now request
+            #      "block" semantics explicitly (override via
+            #      EMPEROR_PROMPT_GUARD_MODE for a staged rollout).
+            #   2. The dangerous branch only logged a warning and fell through
+            #      to the LLM, while telemetry recorded action="blocked".  That
+            #      is a guardrail that lies.  It now really aborts the task.
             import time as _pg_time
             _pg_t0 = _pg_time.perf_counter_ns()
+            _pg_result = None
+            _pg_available = True
             try:
                 from jarvis.prompt_guard import PromptGuard
-                _pg = PromptGuard()
+                _pg_mode = os.environ.get("EMPEROR_PROMPT_GUARD_MODE", "block")
+                _pg = PromptGuard(severity_threshold=_pg_mode)
                 _pg_result = _pg.scan_input(prompt)
+            except Exception:
+                _pg_available = False
+                logger.error(
+                    "[Emperor] PromptInjectionGuard UNAVAILABLE for task=%s — "
+                    "prompt reached the LLM unscreened",
+                    task_id, exc_info=True,
+                )
+
+            if _pg_available and _pg_result is not None:
                 _pg_latency_us = (_pg_time.perf_counter_ns() - _pg_t0) // 1000
-                _pg_action = "blocked" if _pg_result.level == "dangerous" else "allowed"
+                _pg_blocked = _pg_result.level == "dangerous"
                 self._guardrail_telemetry.emit(GuardrailEvent(
                     guardrail_type=GuardrailType.PRE_LLM,
                     trigger_rule=_pg_result.matched_rules,
                     severity=_pg_result.level,
-                    action=EventAction(_pg_action),
+                    action=EventAction.BLOCKED if _pg_blocked else EventAction.ALLOWED,
                     input_snippet=prompt[:200],
                     latency_us=_pg_latency_us,
                 ))
-                if _pg_result.level == "dangerous":
+                if _pg_blocked:
                     logger.warning(
                         "[Emperor] PromptInjectionGuard BLOCKED task=%s "
                         "level=%s rules=%s",
                         task_id, _pg_result.level, _pg_result.matched_rules,
                     )
-            except Exception:
-                logger.debug("[Emperor] PromptInjectionGuard unavailable", exc_info=True)
+                    _trace_status = "ok"
+                    _trace_attrs = {
+                        "status": "blocked",
+                        "guard": "prompt_guard",
+                        "rules": ",".join(_pg_result.matched_rules),
+                    }
+                    self._dispatch(
+                        LifecycleEvent.ON_TASK_AFTER,
+                        task_id=task_id, success=False, blocked=True,
+                    )
+                    return {
+                        "task_id": task_id,
+                        "status": "blocked",
+                        "minister": "__guard__",
+                        "success": False,
+                        "confidence": 0.0,
+                        "merit_score": 0.0,
+                        "execution_time_ms": 0.0,
+                        "response": "",
+                        "error": (
+                            "prompt_injection_blocked:rules="
+                            f"{','.join(_pg_result.matched_rules)}"
+                        ),
+                        "handoff": None,
+                        "guard": {
+                            "name": "prompt_guard",
+                            "level": _pg_result.level,
+                            "matched_rules": list(_pg_result.matched_rules),
+                            "confidence": _pg_result.confidence,
+                            "reason": _pg_result.reason,
+                        },
+                    }
+
+            # ── P0.2 Guardrail chain (tool / loop / bounded autonomy) ──
+            # Shadow mode by default: every guard runs and emits telemetry,
+            # nothing is blocked.  EMPEROR_GUARDRAIL_MODE=enforce turns a
+            # `dangerous` verdict into a real stop.
+            _chain_pre = self._guardrail_chain.run_pre_execution(
+                task_id=task_id, prompt=prompt, domain=domain,
+            )
+            if _chain_pre.blocked:
+                _trace_status = "ok"
+                _trace_attrs = {
+                    "status": "blocked",
+                    "guard": (
+                        _chain_pre.blocking_check.guard
+                        if _chain_pre.blocking_check else "guardrail"
+                    ),
+                }
+                self._dispatch(
+                    LifecycleEvent.ON_TASK_AFTER,
+                    task_id=task_id, success=False, blocked=True,
+                )
+                return self._guardrail_chain.blocked_payload(_chain_pre, task_id)
 
             # ── P2.9 Smart Routing: capability classification ──
             _smart_cap: str = "unknown"
@@ -1021,42 +1153,37 @@ class Emperor:
                 except Exception:
                     logger.exception("[Emperor] Reflexion error for task=%s", task_id)
 
-            # ── Post-LLM Hallucination Guard ──
-            # Check LLM output for unverifiable claims before returning to user.
+            # ── Post-LLM guardrail chain (P0.2) ──
+            # Runs HallucinationGuard through the same shadow/enforce chain as
+            # the pre-LLM guards, so telemetry is emitted 1:1 with invocations
+            # and the `action` field always matches what actually happened.
             if result["success"] and result.get("response"):
-                try:
-                    hg_result = self._hallucination_guard.check(
-                        output=str(result["response"]),
-                        context=f"Task: {prompt}\nDomain: {domain}",
+                _chain_post = self._guardrail_chain.run_post_execution(
+                    task_id=task_id,
+                    response=str(result["response"]),
+                    prompt=prompt,
+                    domain=domain,
+                )
+                result["guardrail"] = _chain_post.to_dict()
+                for _check in _chain_post.checks:
+                    if _check.guard == "hallucination_guard" and _check.payload:
+                        result["hallucination_guard"] = _check.payload
+                        if _check.payload.get("has_hallucinations"):
+                            logger.warning(
+                                "[Emperor] HallucinationGuard flagged %d claims in "
+                                "task=%s (confidence=%.4f)",
+                                _check.payload.get("flagged_sentences", 0),
+                                task_id,
+                                _check.payload.get("confidence", 0.0),
+                            )
+                if _chain_post.blocked:
+                    result["success"] = False
+                    result["error"] = (
+                        "guardrail_blocked:guard="
+                        f"{_chain_post.blocking_check.guard}"
+                        if _chain_post.blocking_check else "guardrail_blocked"
                     )
-                    result["hallucination_guard"] = hg_result.to_dict()
-                    if hg_result.has_hallucinations:
-                        logger.warning(
-                            "[Emperor] HallucinationGuard flagged %d claims in task=%s "
-                            "(confidence=%.4f)",
-                            hg_result.flagged_sentences,
-                            task_id,
-                            hg_result.confidence,
-                        )
-                except Exception:
-                    logger.exception(
-                        "[Emperor] HallucinationGuard error for task=%s", task_id
-                    )
-
-            # ── Post-LLM Guardrail Telemetry ──
-            # Emit telemetry for any guardrail activity in this task.
-            if result.get("hallucination_guard"):
-                hg = result["hallucination_guard"]
-                hg_action = "corrected" if hg.get("flagged_sentences", 0) > 0 else "allowed"
-                import time as _gt_time
-                self._guardrail_telemetry.emit(GuardrailEvent(
-                    guardrail_type=GuardrailType.POST_LLM,
-                    trigger_rule=["hallucination_guard"],
-                    severity="suspicious" if hg.get("flagged_sentences", 0) > 0 else "harmless",
-                    action=EventAction(hg_action),
-                    input_snippet=str(result.get("response", ""))[:200],
-                    latency_us=0,
-                ))
+                    result["response"] = ""
 
             # ── State Machine: reflection → completion ──
             _sm_ctx = _sm.trigger("completion", _sm_ctx)

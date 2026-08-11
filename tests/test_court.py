@@ -367,3 +367,159 @@ class TestEmperorTaskDBPersistence:
 
         result = emp.execute_task("Task without DB")
         assert result is not None
+
+
+# ── P0.3: 冻结自动淘汰 (dry-run survival) ────────────────────────────────────
+
+
+class TestSurvivalDryRun:
+    """SurvivalMechanism(enabled=False) records verdicts but never removes."""
+
+    @staticmethod
+    def _failing_court(enabled: bool):
+        """Build a court whose 太卜 minister is a guaranteed elimination target."""
+        from jarvis.court.evolution import SurvivalMechanism
+        from jarvis.court.merit_board import MeritBoard
+
+        mb = MeritBoard()
+        for i in range(15):
+            mb.record_dispatch("太卜", f"e{i}", "task", False, 0.05)
+
+        sm = SurvivalMechanism(merit_board=mb, enabled=enabled)
+        for name, domain in [
+            ("丞相", "writing"),
+            ("太卜", "science"),
+            ("工部尚书", "code"),
+            ("太史令", "search"),
+            ("卫尉", "security"),
+        ]:
+            sm.register_minister(name, domain)
+        return sm
+
+    def _run_to_elimination(self, sm):
+        from jarvis.court.evolution import SurvivalMechanism
+
+        for _ in range(SurvivalMechanism.MAX_PROBATION_CYCLES + 1):
+            sm.run_evolution_cycle()
+
+    # ── Control: the mechanism still works when armed ─────────────
+
+    def test_enabled_still_eliminates(self):
+        """Sanity check — the freeze must not break real selection."""
+        from jarvis.court.evolution import MinisterStatus
+
+        sm = self._failing_court(enabled=True)
+        assert sm.enabled is True
+        self._run_to_elimination(sm)
+        assert sm.get_status("太卜") == MinisterStatus.ELIMINATED
+        assert "太卜" in sm.get_eliminated_ministers()
+        assert sm.get_dry_run_eliminations() == []
+
+    # ── The actual freeze ─────────────────────────────────────────
+
+    def test_disabled_does_not_eliminate(self):
+        from jarvis.court.evolution import MinisterStatus
+
+        sm = self._failing_court(enabled=False)
+        assert sm.enabled is False
+        self._run_to_elimination(sm)
+
+        assert sm.get_status("太卜") != MinisterStatus.ELIMINATED
+        assert sm.get_eliminated_ministers() == []
+
+    def test_disabled_still_records_history(self):
+        """The verdict must be observable even though it is not applied."""
+        from jarvis.court.evolution import EvolutionAction
+
+        sm = self._failing_court(enabled=False)
+        self._run_to_elimination(sm)
+
+        eliminate_events = [
+            e for e in sm.get_evolution_history()
+            if e.action == EvolutionAction.ELIMINATE
+        ]
+        assert eliminate_events, "dry-run 也必须留下淘汰决策记录"
+        assert eliminate_events[0].minister == "太卜"
+        assert "dry-run" in eliminate_events[0].reason
+        assert sm.get_dry_run_eliminations() == ["太卜"]
+
+    def test_disabled_does_not_zero_merit(self):
+        """`不清零` — merit must survive a frozen elimination verdict."""
+        sm = self._failing_court(enabled=False)
+        self._run_to_elimination(sm)
+        # mark_eliminated() would have wiped the record; it must not have run.
+        assert sm._merit_board.compute_merit("太卜") is not None
+        assert "太卜" in sm._genomes
+
+    def test_disabled_does_not_archive_genome(self):
+        sm = self._failing_court(enabled=False)
+        self._run_to_elimination(sm)
+        archived = [g.name for g in sm._archive]
+        assert "太卜" not in archived
+
+    def test_dry_run_event_emitted_only_once(self):
+        """Repeated cycles must not spam the history with the same verdict."""
+        from jarvis.court.evolution import EvolutionAction
+
+        sm = self._failing_court(enabled=False)
+        for _ in range(12):
+            sm.run_evolution_cycle()
+
+        eliminate_events = [
+            e for e in sm.get_evolution_history()
+            if e.action == EvolutionAction.ELIMINATE and e.minister == "太卜"
+        ]
+        assert len(eliminate_events) == 1
+
+    def test_probation_still_applied_when_frozen(self):
+        """Probation is reversible, so it stays active for observability."""
+        from jarvis.court.evolution import MinisterStatus
+
+        sm = self._failing_court(enabled=False)
+        sm.run_evolution_cycle()
+        assert sm.get_status("太卜") in (
+            MinisterStatus.PROBATION, MinisterStatus.SHADOW,
+        )
+
+    def test_default_is_armed(self):
+        """The primitive itself keeps its advertised behaviour by default."""
+        from jarvis.court.evolution import SurvivalMechanism
+
+        assert SurvivalMechanism().enabled is True
+
+
+class TestCourtFreezesElimination:
+    """The production composition root ships with elimination frozen."""
+
+    def test_court_default_freezes_elimination(self):
+        from jarvis.court.court import Court
+
+        court = Court()
+        assert court._sm.enabled is False
+
+    def test_court_config_can_rearm(self):
+        from jarvis.court.court import Court, CourtConfig
+
+        court = Court(CourtConfig(enable_auto_elimination=True))
+        assert court._sm.enabled is True
+
+    def test_court_evolve_never_removes_ministers(self):
+        """Many evolution cycles must not shrink a live court."""
+        from jarvis.court.court import Court
+
+        court = Court()
+        for name, domain in [
+            ("丞相", "writing"), ("太卜", "science"), ("工部尚书", "code"),
+            ("太史令", "search"), ("卫尉", "security"),
+        ]:
+            court.register(name, domain=domain)
+
+        for i in range(15):
+            court.record_dispatch(
+                minister="太卜", edict_id=f"bad{i}", intent="task",
+                success=False, confidence=0.05,
+            )
+
+        court.evolve(6)
+        assert court._sm.get_eliminated_ministers() == []
+        assert "太卜" in court._sm._genomes
