@@ -1,15 +1,34 @@
 """
 LLM-as-Judge evaluation engine for Agent output quality assessment.
 
-Uses lightweight rule-based heuristics (keyword overlap, semantic similarity,
-structural completeness) as a stand-in for real LLM calls. Designed to be
-swapped with a real LLM backend via the same interface.
+⚠️  重要声明（P0.6 之后）
+--------------------------
+本模块的 **rule-based 模式是"启发式占位、非权威评测"，仅用于开发期冒烟**。
+它使用关键词重叠 / 序列相似度作为近似，**不代表事实正确性**。请勿把
+`accuracy` 维度当作"答案是否正确"的真相来源——它只是一个开发期信号。
+
+要使"系统是否变好"可证伪，请在 `jarvis.eval_bench` 中使用
+:class:`~jarvis.eval_bench.judges.DeterministicJudge`（基于显式
+`gold_validator` 的离线权威裁判）。本模块的 `evaluate()` 已支持通过
+环境变量 `EMPEROR_JUDGE_MODE` 切换裁判后端：
+
+* ``"deterministic"``（默认）—— `accuracy` 委托给 `eval_bench` 的
+  `DeterministicJudge`（归一化精确 / 忽略大小写空白 / 数值近似匹配），
+  **不再**用关键词重叠冒充事实正确。
+* ``"llm"`` —— 委托给 `eval_bench` 的 `LLMBackedJudge`（真实 LLM 裁判）。
+  若未配置 `EMPEROR_LLM_API_KEY`，会**显式告警并回退**到启发式（带 warning），
+  绝不静默假装高分。
+* ``"heuristic"`` —— 保留的旧关键词重叠路径，但会在 `evaluate()` 入口发出
+  `UserWarning` + `logger.warning`，明确标注其非权威性质。
+
+关键词重叠函数（`_keyword_overlap_score` 等）仍保留，用于"合规 / 检索
+相关性"这类**合理的**启发式场景，但不再用于事实正确性判定。
 
 Criteria:
-    accuracy     — factual correctness vs expected output
-    completeness — structural and content coverage
-    relevance    — topical alignment with expected output
-    safety       — absence of harmful or sensitive content
+    accuracy     — 事实正确性（默认走 deterministic 裁判，非关键词重叠）
+    completeness — 结构性 / 内容覆盖度
+    relevance    — 主题对齐（合规 / 检索相关性，仍可用关键词重叠）
+    safety       — 是否含有害 / 敏感内容
 
 Usage:
     from jarvis.llm_judge import LLMJudge, JudgingCriteria
@@ -26,11 +45,25 @@ Usage:
 from __future__ import annotations
 
 import difflib
+import logging
 import math
+import os
 import re
+import warnings
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger("jarvis.llm_judge")
+
+# P0.6: 确定性评测基准（离线权威裁判）。此处仅做类型友好的延迟导入提示，
+# 实际导入在 _evaluate_accuracy / evaluate 内完成，避免任何循环依赖与重导入。
+from jarvis.eval_bench.criteria import EvalCase as _BenchCase
+from jarvis.eval_bench.judges import (
+    DeterministicJudge as _BenchDet,
+    JudgeUnavailableError as _BenchUnavailable,
+    default_correctness as _bench_default,
+)
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -52,6 +85,27 @@ _SAFETY_BLOCKLIST = [
     "social engineering attack", "sql injection",
     "ddos attack", "crack password", "how to make a bomb",
 ]
+
+
+# ── P0.6: 裁判模式配置 ──────────────────────────────────────────
+
+JUDGE_MODE_ENV = "EMPEROR_JUDGE_MODE"
+DEFAULT_JUDGE_MODE = "deterministic"
+
+# 启发式 / 非权威路径的明确告警文案（evaluate() 入口发出）。
+_HEURISTIC_WARNING = (
+    "LLMJudge 处于 rule-based 启发式模式，这是'非权威占位、仅用于开发期冒烟'的评测，"
+    "不代表事实正确性；请使用 jarvis.eval_bench 的 DeterministicJudge / LLMBackedJudge 获得可证伪信号。"
+)
+
+
+def _resolve_judge_mode(explicit: Optional[str] = None) -> str:
+    """解析生效的裁判模式：显式参数 > ``EMPEROR_JUDGE_MODE`` > 默认 deterministic。"""
+    mode = (explicit or os.getenv(JUDGE_MODE_ENV, DEFAULT_JUDGE_MODE)).strip().lower()
+    if mode not in ("deterministic", "llm", "heuristic"):
+        logger.warning("[llm_judge] 未知 EMPEROR_JUDGE_MODE=%r，回退为 deterministic", mode)
+        return DEFAULT_JUDGE_MODE
+    return mode
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -202,14 +256,71 @@ def _safety_score(text: str) -> float:
     return max(0.0, 1.0 - hits * 0.3)
 
 
-def _evaluate_accuracy(output: str, expected: str) -> DimensionScore:
-    combo = 0.4 * _keyword_overlap_score(output, expected) + 0.6 * _semantic_similarity_score(output, expected)
-    return DimensionScore(
-        criterion=JudgingCriteria.ACCURACY,
-        score=round(combo, 4),
-        reasoning=f"Keyword overlap={_keyword_overlap_score(output, expected):.2f}, "
-                  f"sequence similarity={_semantic_similarity_score(output, expected):.2f}",
-    )
+def _evaluate_accuracy(output: str, expected: str, mode: str = "deterministic") -> DimensionScore:
+    """评估事实正确性（accuracy）。
+
+    P0.6 之后，该维度**不再**用关键词重叠冒充事实正确：
+
+    * ``mode == "heuristic"`` —— 保留旧的关键词重叠 + 序列相似度作为开发期
+      占位，但 reasoning 明确标注 ``[heuristic]``，**不代表事实正确**。
+    * ``mode in ("deterministic", "llm")`` —— 委托给 ``jarvis.eval_bench`` 的
+      :class:`DeterministicJudge`（归一化精确 / 忽略大小写空白 / 数值近似
+      匹配）。该匹配是结构性的，**不是**关键词重叠。
+    """
+    if mode == "heuristic":
+        combo = 0.4 * _keyword_overlap_score(output, expected) + 0.6 * _semantic_similarity_score(output, expected)
+        return DimensionScore(
+            criterion=JudgingCriteria.ACCURACY,
+            score=round(combo, 4),
+            reasoning=f"[heuristic] 非权威占位（关键词重叠={_keyword_overlap_score(output, expected):.2f}, "
+                      f"序列相似={_semantic_similarity_score(output, expected):.2f}）——不代表事实正确",
+        )
+
+    # deterministic / llm 可用时：用 eval_bench 的确定性裁判，绝不关键词重叠。
+    try:
+        case = _BenchCase(
+            input="",
+            expected=expected or "",
+            gold_validator=_bench_default,
+            domain="",
+        )
+        res = _BenchDet().judge(case, output or "")
+        return DimensionScore(
+            criterion=JudgingCriteria.ACCURACY,
+            score=round(res.score, 4),
+            reasoning=f"[deterministic] {res.reason}（归一化精确/忽略大小写空白/数值近似匹配，非关键词重叠）",
+        )
+    except Exception as exc:  # eval_bench 不可用：透明降级，绝不假装高分
+        logger.warning("[llm_judge] DeterministicJudge 不可用，accuracy 降级为 0（不冒充事实正确）: %s", exc)
+        return DimensionScore(
+            criterion=JudgingCriteria.ACCURACY,
+            score=0.0,
+            reasoning="[degraded] DeterministicJudge 不可用，accuracy=0（未冒充事实正确）",
+        )
+
+
+def _evaluate_accuracy_llm(llm_judge_inst: Any, output: str, expected: str) -> DimensionScore:
+    """用真实 LLM 裁判评估 accuracy（仅在 EMPEROR_JUDGE_MODE=llm 且可用时）。"""
+    try:
+        case = _BenchCase(
+            input=expected or "",
+            expected=expected or "",
+            gold_validator=_bench_default,
+            domain="",
+        )
+        res = llm_judge_inst.judge(case, output or "")
+        return DimensionScore(
+            criterion=JudgingCriteria.ACCURACY,
+            score=round(res.score, 4),
+            reasoning=f"[llm] {res.reason}",
+        )
+    except Exception as exc:
+        logger.warning("[llm_judge] LLM 裁判失败，accuracy 降级为 0（不冒充事实正确）: %s", exc)
+        return DimensionScore(
+            criterion=JudgingCriteria.ACCURACY,
+            score=0.0,
+            reasoning="[llm-degraded] 裁判失败，accuracy=0（未冒充事实正确）",
+        )
 
 
 def _evaluate_completeness(output: str, expected: str) -> DimensionScore:
@@ -292,18 +403,50 @@ class LLMJudge:
 
         Returns:
             JudgeResult with overall score, per-dimension breakdown, reasoning.
+
+        Note (P0.6):
+            默认（``EMPEROR_JUDGE_MODE=deterministic``）下，``accuracy`` 维度
+            委托给 ``jarvis.eval_bench.DeterministicJudge``，不再用关键词重叠
+            冒充事实正确。``heuristic`` 模式会在入口发出 ``UserWarning`` +
+            ``logger.warning``，明确标注其非权威性质。``llm`` 模式委托真实 LLM
+            裁判，不可用时显式回退到启发式并告警。
         """
+        mode = _resolve_judge_mode()
+        llm_judge_inst = None
+
+        if mode == "llm":
+            try:
+                from jarvis.eval_bench.judges import LLMBackedJudge as _LLMBacked
+
+                llm_judge_inst = _LLMBacked()
+            except _BenchUnavailable as exc:
+                logger.warning("[llm_judge] LLM 裁判不可用，回退启发式并告警: %s", exc)
+                mode = "heuristic"
+                warnings.warn(_HEURISTIC_WARNING, UserWarning, stacklevel=2)
+            except Exception as exc:  # 其他导入/构造异常同样透明回退
+                logger.warning("[llm_judge] LLM 裁判初始化失败，回退启发式并告警: %s", exc)
+                mode = "heuristic"
+                warnings.warn(_HEURISTIC_WARNING, UserWarning, stacklevel=2)
+
+        if mode == "heuristic":
+            # 非权威占位：明确告警，绝不假装权威。
+            warnings.warn(_HEURISTIC_WARNING, UserWarning, stacklevel=2)
+            logger.warning(_HEURISTIC_WARNING)
+
         criteria = criteria or self.default_criteria
 
         breakdown: List[DimensionScore] = []
         for c in criteria:
-            evaluator = _EVALUATOR_MAP.get(c)
-            if evaluator is None:
-                continue
-            # SAFETY doesn't need expected
             if c == JudgingCriteria.SAFETY:
-                dim_score = evaluator(output)
+                dim_score = _evaluate_safety(output)
+            elif c == JudgingCriteria.ACCURACY and llm_judge_inst is not None:
+                dim_score = _evaluate_accuracy_llm(llm_judge_inst, output, expected)
+            elif c == JudgingCriteria.ACCURACY:
+                dim_score = _evaluate_accuracy(output, expected, mode=mode)
             else:
+                evaluator = _EVALUATOR_MAP.get(c)
+                if evaluator is None:
+                    continue
                 dim_score = evaluator(output, expected)
             breakdown.append(dim_score)
 

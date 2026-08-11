@@ -281,9 +281,74 @@ class RealTaskFitness:
         )
 
 
+# ══════════════════════════════════════════════════════════════════
+# EvalBenchEvaluator — P0.6 真实正确性信号（opt-in）
+# ══════════════════════════════════════════════════════════════════
+
+
+class EvalBenchEvaluator:
+    """接入 P0.6 确定性评测基准的可选质量评估器（实现 :class:`QualityEvaluator`）。
+
+    当任务提供了 ground-truth ``expected`` 时，用
+    :class:`~jarvis.eval_bench.judges.DeterministicJudge` 判定产出的
+    ``response`` 是否正确，返回 1.0 / 0.0。未提供 ground truth 时**弃权**
+    （返回 ``None``），从而保持 P0.3 的"成败 + 单测通过率"为主。
+
+    是否启用真实信号由 ``EMPEROR_JUDGE_MODE`` 门控：仅 ``"deterministic"`` /
+    ``"llm"`` 提供真实正确性信号；``"heuristic"`` 弃权，避免把假高分喂进适应度。
+
+    用法（不改变默认行为）：:
+
+        from jarvis.court.fitness import make_eval_bench_fitness
+        fitness = make_eval_bench_fitness(evaluator_weight=0.2)
+        # 默认 RealTaskFitness() 行为完全不变（NullEvaluator, weight=0）
+    """
+
+    def evaluate(self, signal: "FitnessSignal") -> Optional[float]:
+        if not signal.expected or not signal.expected.strip():
+            return None
+        from jarvis.eval_bench.criteria import EvalCase as _BenchCase
+        from jarvis.eval_bench.judges import (
+            DeterministicJudge as _BenchDet,
+            default_correctness as _bench_default,
+            resolve_judge_mode,
+        )
+
+        mode = resolve_judge_mode()
+        if mode == "heuristic":
+            # 绝不把启发式假高分喂进适应度。
+            return None
+
+        case = _BenchCase(
+            input="",
+            expected=signal.expected or "",
+            gold_validator=_bench_default,
+            domain=signal.domain or "general",
+        )
+        res = _BenchDet().judge(case, signal.response or "")
+        return res.score
+
+
+def make_eval_bench_fitness(evaluator_weight: float = 0.2) -> "RealTaskFitness":
+    """构造一个把 P0.6 评测基准并入适应度的 :class:`RealTaskFitness`。
+
+    基准分量权重默认很小（0.2），使 P0.3 信号（任务成败 + 单测通过率）保持主导。
+    传入 ``evaluator_weight=0.0`` 即退化为纯 P0.3 行为。
+
+    Args:
+        evaluator_weight: 评测基准分量在适应度中的混合权重（0.0–1.0）。
+    """
+    return RealTaskFitness(
+        evaluator=EvalBenchEvaluator(),
+        evaluator_weight=evaluator_weight,
+    )
+
+
 __all__ = [
     "FitnessSignal",
     "QualityEvaluator",
     "NullEvaluator",
     "RealTaskFitness",
+    "EvalBenchEvaluator",
+    "make_eval_bench_fitness",
 ]
