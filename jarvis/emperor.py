@@ -1212,7 +1212,10 @@ class Emperor:
                         _task_tokens_out += r.tokens_out
                         _model_calls += 1
             except Exception:
-                pass
+                logger.debug(
+                    "[Emperor] 成本快照不可用（成本追踪快照读取失败，已跳过，不阻断主流程）",
+                    exc_info=True,
+                )
             try:
                 self._cost_per_success.record(
                     task_id=task_id,
@@ -1235,7 +1238,10 @@ class Emperor:
                 _result_sig = str(result.get("response", ""))[:500]
                 self._loop_guard.record_action(task_id, _action_label, _result_sig)
             except Exception:
-                pass  # loop guard errors propagate via exceptions above, this is safety net
+                logger.warning(
+                    "[Emperor] loop guard 检查失败，已跳过（静默失效已消除）",
+                    exc_info=True,
+                )
 
             return result
 
