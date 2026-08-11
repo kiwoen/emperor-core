@@ -43,6 +43,17 @@ class CourtConfig:
     breeding_cooldown: int = 2
     max_breed_per_cycle: int = 2
     genome_path: Optional[str] = None
+    # P0.3: automatic last-place elimination is FROZEN by default.
+    #
+    # The merit signal that drives elimination used to be a length-based
+    # heuristic (see jarvis.court.fitness), which means every minister the
+    # court ever "evolved away" was removed on a fabricated signal.  Until
+    # RealTaskFitness has accumulated enough real outcomes, the court runs
+    # selection in dry-run: decisions are recorded to the evolution history
+    # so they can be reviewed, but no minister is actually removed.
+    #
+    # Set to True to re-arm destructive selection.
+    enable_auto_elimination: bool = False
 
 
 class Court:
@@ -95,7 +106,13 @@ class Court:
             max_breed_per_cycle=cfg.max_breed_per_cycle,
             genome_path=cfg.genome_path,
             history=self.history,
+            enabled=cfg.enable_auto_elimination,
         )
+        if not cfg.enable_auto_elimination:
+            logger.warning(
+                "[Court] 自动末位淘汰已冻结 (enable_auto_elimination=False)："
+                "淘汰决策仅记录到 evolution_history，不会移除大臣"
+            )
 
         self._inspector: Any = None
         self._config = cfg
