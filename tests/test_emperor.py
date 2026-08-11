@@ -5,6 +5,8 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
+from unittest.mock import MagicMock
+
 import pytest
 
 from jarvis.emperor import Emperor, EmperorConfig
@@ -413,6 +415,27 @@ class TestPromptGuardBlocks:
         emp = _emperor_with_minister()
         result = emp.execute_task(DANGEROUS_PROMPTS[0], domain="math")
         assert result["status"] == "blocked"
+
+    def test_dangerous_prompt_never_reaches_the_llm(self, monkeypatch):
+        """Strongest proof of P0.1: the LLM backend is never invoked at all.
+
+        The original bug fell through to the model after "blocking", so the
+        guardrail only *lied*.  Here we replace the engine's LLM callable with
+        a spy: a dangerous prompt must short-circuit before that spy is ever
+        touched, while a benign prompt must exercise it.
+        """
+        emp = _emperor_with_minister()
+        spy = MagicMock(return_value="42")
+        monkeypatch.setattr(emp.task_engine, "_llm", spy)
+
+        blocked = emp.execute_task(DANGEROUS_PROMPTS[0], domain="math")
+        assert blocked["status"] == "blocked"
+        spy.assert_not_called()
+
+        # Control: a benign prompt is actually executed by the LLM.
+        ok = emp.execute_task("What is 2+2?", domain="math")
+        assert ok["success"] is True
+        spy.assert_called()
 
 
 # ══════════════════════════════════════════════════════════════════
