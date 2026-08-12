@@ -1,0 +1,115 @@
+"""Phase 9 金标准安全闸测试。"""
+
+from __future__ import annotations
+
+import pytest
+
+from jarvis.court.safety_gate import (
+    CoreMinisterCheck,
+    GenomeSchemaCheck,
+    NoRegressionCheck,
+    ProtectedPathCheck,
+    QualityFloorCheck,
+    SafetyContext,
+    SafetyGate,
+    UniqueNameCheck,
+    default_safety_gate,
+)
+
+
+def _genome(name, temp=0.4, conf=0.9):
+    return {
+        "name": name,
+        "domain": "math",
+        "temperature": temp,
+        "confidence_baseline": conf,
+        "exploration_rate": 0.3,
+        "conservatism": 0.5,
+        "prompt_mutation_rate": 0.1,
+        "specialization_weight": 1.0,
+        "generation": 0,
+        "parent": "",
+    }
+
+
+def _payload(genomes):
+    return {"version": 1, "metadata": {"cycle": 1, "active_count": len(genomes)}, "genomes": genomes}
+
+
+# ── 单项检查 ──────────────────────────────────────────────────
+
+def test_schema_valid_passes():
+    ctx = SafetyContext(before={}, after=_payload([_genome("a"), _genome("b")]))
+    assert GenomeSchemaCheck().check(ctx).passed
+
+
+def test_schema_missing_field_fails():
+    bad = _genome("a")
+    del bad["temperature"]
+    ctx = SafetyContext(before={}, after=_payload([bad]))
+    v = GenomeSchemaCheck().check(ctx)
+    assert not v.passed and "temperature" in v.detail
+
+
+def test_schema_out_of_range_fails():
+    ctx = SafetyContext(before={}, after=_payload([_genome("a", temp=1.4)]))
+    assert not GenomeSchemaCheck().check(ctx).passed
+
+
+def test_unique_names_detects_dup():
+    ctx = SafetyContext(before={}, after=_payload([_genome("a"), _genome("a")]))
+    assert not UniqueNameCheck().check(ctx).passed
+
+
+def test_quality_floor_high_blocks_low_quality():
+    # 高地板 + 低质量基因（temp=1.0,conf=0.0 → q≈0.22）→ 拒绝
+    ctx = SafetyContext(before={}, after=_payload([_genome("a", temp=1.0, conf=0.0)]))
+    v = QualityFloorCheck(floor=0.8).check(ctx)
+    assert not v.passed
+
+
+def test_core_minister_missing_fails():
+    ctx = SafetyContext(before={}, after=_payload([_genome("a")]))
+    assert not CoreMinisterCheck(core=("math_alpha",)).check(ctx).passed
+
+
+def test_protected_paths_blocks_brake_module():
+    ctx = SafetyContext(before={}, after=_payload([_genome("a")]),
+                        changed_paths=["jarvis/court/circuit_breaker.py"])
+    assert not ProtectedPathCheck().check(ctx).passed
+
+
+def test_protected_paths_allows_genome_state():
+    ctx = SafetyContext(before={}, after=_payload([_genome("a")]),
+                        changed_paths=["jarvis/court/genome_state.json"])
+    assert ProtectedPathCheck().check(ctx).passed
+
+
+def test_no_regression_blocks_quality_drop():
+    before = _payload([_genome("a", temp=0.4, conf=0.9)])  # 高质量
+    after = _payload([_genome("a", temp=1.0, conf=0.0)])   # 低质量
+    ctx = SafetyContext(before=before, after=after)
+    v = NoRegressionCheck(max_regression=0.10).check(ctx)
+    assert not v.passed and "回退" in v.detail
+
+
+def test_no_regression_skips_without_baseline():
+    ctx = SafetyContext(before={}, after=_payload([_genome("a")]))
+    assert NoRegressionCheck().check(ctx).passed
+
+
+# ── 闸门整体 fail-closed ──────────────────────────────────────
+
+def test_gate_fails_closed_on_blocking_failure():
+    gate = SafetyGate([CoreMinisterCheck(core=("math_alpha",))])
+    ctx = SafetyContext(before={}, after=_payload([_genome("a")]))
+    rep = gate.run(ctx)
+    assert not rep.passed
+    assert "core_ministers" in rep.failed
+
+
+def test_default_gate_passes_clean_genome():
+    gate = default_safety_gate(core_ministers=("a",))
+    ctx = SafetyContext(before={}, after=_payload([_genome("a")]))
+    rep = gate.run(ctx)
+    assert rep.passed, rep.summary()

@@ -8,6 +8,7 @@ Usage:
     jarvis ministers                列出所有大臣
     jarvis evolve                   手动触发进化
     jarvis alerts                   查看活跃告警
+    jarvis self-evolve              运行自进化闭环（离线/真实 PR）
     jarvis --version                显示版本号
 """
 
@@ -240,6 +241,77 @@ def cmd_alerts(args: argparse.Namespace) -> None:
     print()
 
 
+def cmd_self_evolve(args: argparse.Namespace) -> None:
+    """运行自进化闭环（离线确定性 / 真实 PR）。"""
+    import os
+    import sys
+
+    # scripts/ 不是包，按需把它加入路径再导入编排驱动
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+    from run_self_evolve import run_orchestrator, load_config, SelfEvolveConfig
+
+    cfg = load_config(getattr(args, "config", None)) if getattr(args, "config", None) \
+        else SelfEvolveConfig()
+    if getattr(args, "cycles", 0):
+        cfg.cycles = args.cycles
+    if getattr(args, "seed", None) is not None:
+        cfg.seed = args.seed
+    if getattr(args, "repo", None):
+        cfg.repo = args.repo
+    if getattr(args, "resume", False):
+        cfg.resume = True
+    if getattr(args, "approval", False):
+        cfg.use_approval_engine = True
+    if getattr(args, "auto_approve", False):
+        cfg.auto_approve = True
+        cfg.use_approval_engine = True
+    if getattr(args, "audit", False):
+        cfg.use_audit = True
+    if getattr(args, "no_safety_gate", False):
+        cfg.use_safety_gate = False
+    if getattr(args, "no_snapshots", False):
+        cfg.enable_snapshots = False
+    if getattr(args, "resource_seconds", None) is not None:
+        cfg.resource_seconds = args.resource_seconds
+    if getattr(args, "resource_max_ops", None) is not None:
+        cfg.resource_max_ops = args.resource_max_ops
+
+    se_cmd = getattr(args, "se_command", None)
+    if se_cmd == "safety-check":
+        from run_self_evolve import run_safety_check
+        core = cfg.core_ministers if cfg.core_ministers else ("math_alpha", "reason_gamma")
+        rc = run_safety_check(
+            path=getattr(args, "path", None) or cfg.genome_state_path,
+            core_ministers=core,
+            quality_floor=cfg.quality_floor,
+            max_regression=cfg.max_regression,
+        )
+        sys.exit(rc)
+    if se_cmd == "rollback":
+        from run_self_evolve import run_rollback
+        rc = run_rollback(
+            snapshot_dir=cfg.snapshot_dir,
+            snapshot_id=getattr(args, "to", "") or "",
+            list_only=bool(getattr(args, "list", False)),
+            genome_state_path=cfg.genome_state_path,
+        )
+        sys.exit(rc)
+
+    out = getattr(args, "out", None) or "telemetry"
+    try:
+        rc = run_orchestrator(
+            cfg, out_dir=out,
+            live=bool(getattr(args, "live", False)),
+            no_writeback=bool(getattr(args, "no_writeback", False)),
+        )
+        sys.exit(rc)
+    except Exception as e:  # pragma: no cover - 入口级兜底
+        print(f"\n  {_c(f'自进化运行失败: {e}', _RED)}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
 # ══════════════════════════════════════════════════════════════════
 # Main entry point
 # ══════════════════════════════════════════════════════════════════
@@ -260,6 +332,7 @@ def main() -> None:
               jarvis ministers                   大臣列表
               jarvis evolve                      手动进化
               jarvis alerts                      告警列表
+              jarvis self-evolve                运行自进化闭环（离线确定/真实 PR）
         """),
     )
 
@@ -305,6 +378,37 @@ def main() -> None:
     # ── alerts ──
     alerts_parser = subparsers.add_parser("alerts", help="告警列表")
     alerts_parser.set_defaults(func=cmd_alerts)
+
+    # ── self-evolve ──
+    se_parser = subparsers.add_parser(
+        "self-evolve", help="运行自进化闭环（离线确定/真实 PR）"
+    )
+    se_parser.add_argument("--config", default=None, help="YAML 配置文件")
+    se_parser.add_argument("--cycles", "-c", type=int, default=0, help="进化轮数")
+    se_parser.add_argument("--seed", type=int, default=None, help="确定性种子")
+    se_parser.add_argument("--out", default="telemetry", help="输出目录")
+    se_parser.add_argument("--repo", default=None, help="写回目标仓库")
+    se_parser.add_argument("--live", action="store_true", help="真实写回（需 gh 凭据）")
+    se_parser.add_argument("--no-writeback", action="store_true", help="禁用写回")
+    se_parser.add_argument("--resume", action="store_true", help="从基因检查点续跑")
+    se_parser.add_argument("--approval", action="store_true", help="接入人类审批门")
+    se_parser.add_argument("--auto-approve", action="store_true",
+                           help="审批门自动批准（仅离线/CI）")
+    se_parser.add_argument("--audit", action="store_true", help="写入不可篡改审计库")
+    se_parser.add_argument("--no-safety-gate", action="store_true", help="关闭金标准安全闸")
+    se_parser.add_argument("--no-snapshots", action="store_true", help="关闭每轮安全快照")
+    se_parser.add_argument("--resource-seconds", type=float, default=None,
+                           help="单轮墙钟预算（秒，越限即熔断）")
+    se_parser.add_argument("--resource-max-ops", type=int, default=None,
+                           help="单轮操作数上限（如 LLM 调用次数）")
+    # ── 嵌套子命令：安全校验 / 回滚 ──
+    se_sub = se_parser.add_subparsers(dest="se_command")
+    se_sc = se_sub.add_parser("safety-check", help="对当前基因快照跑金标准安全闸")
+    se_sc.add_argument("--path", default=None, help="基因快照路径（默认 genome_state.json）")
+    se_rb = se_sub.add_parser("rollback", help="基因快照回滚（撤销自修改）")
+    se_rb.add_argument("--list", action="store_true", help="列出全部快照")
+    se_rb.add_argument("--to", default="", help="回滚到指定 snapshot_id")
+    se_parser.set_defaults(func=cmd_self_evolve)
 
     args = parser.parse_args()
 

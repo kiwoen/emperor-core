@@ -1,0 +1,59 @@
+# emperor-core 自进化闭环运行配置（落地部署用）
+#
+# 用法：
+#   python scripts/run_self_evolve.py --config configs/self_evolve.yaml
+#   jarvis self-evolve --config configs/self_evolve.yaml
+#
+# 安全姿态（生产推荐）：
+#   - 评测闸严格（min_pass_rate 高 + 禁止回归），基准不过绝不写回
+#   - 人类审批门开启（use_approval_engine: true，auto_approve: false）
+#     → 每次写回只"创建审批请求"进 approval.db，等人类 approve 后才由另一条流程发 PR
+#   - 写回默认离线记录（writeback: record），确需自动 PR 时再切 live
+#
+# 离线演示想直接看到"真实基因 diff 的 PR 意图"，可把 write_gate.min_pass_rate 调低、
+# 并把 use_approval_engine 设为 false（仅为展示机制，非生产姿态）。
+
+cycles: 6
+tasks_per_minister: 2
+seed: 7
+repo: kiwoen/emperor-core
+genome_state_path: jarvis/court/genome_state.json
+resume: false
+
+# 人类审批门：生产必须为 false（需人工复核）。离线演示可用 --auto-approve 临时开启。
+auto_approve: false
+use_approval_engine: true
+use_audit: true
+
+# 写回模式：record(离线记录) | none(禁用) | live(真实 PR，需 gh 凭据)
+writeback: record
+
+write_gate:
+  min_pass_rate: 0.9            # 生产应 ≥ 0.9，黄金基准可设 1.0
+  forbid_regression: true
+
+circuit_breaker:
+  drop_fraction: 0.25          # 平均功勋相对峰值跌幅 ≥ 25% 即熔断
+  consecutive_negative: 4      # 连续 4 轮下降即熔断
+  min_cycles_before_trip: 2
+
+promotion_gate:
+  required_consecutive_gains: 3
+  min_merit: 50.0
+
+enable_auto_elimination: false  # 安全默认：淘汰仍冻结（dry-run）
+
+# ── Phase 9：生产级安全护栏（fail-closed，写回前最后一道闸门）──
+use_safety_gate: true            # 金标准安全闸：schema/唯一性/质量地板/核心大臣在位/受保护路径/无回归
+quality_floor: 0.05              # 任一基因质量不得低于此地板
+core_ministers: ["math_alpha", "reason_gamma"]  # 核心大臣一个都不能少
+max_regression: 0.10             # 金标准大臣平均质量允许的最大回退
+
+# 资源预算护栏：单轮越限即熔断，防止自进化跑飞（墙钟 / 操作数）
+resource_seconds: 120.0
+resource_max_ops: null
+
+# 安全快照：每轮写回前落盘，事后可一键回滚到 safe 已知点
+enable_snapshots: true
+snapshot_dir: jarvis/court/snapshots
+

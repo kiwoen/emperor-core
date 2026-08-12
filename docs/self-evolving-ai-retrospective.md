@@ -25,6 +25,14 @@
 | **P3.1 监控看板** | ✅ | telemetry.py + emit_telemetry.py + dashboard.html（stdlib-only，离线可看） |
 | **落地编排器** | ✅ | self_evolve.py + run_self_evolve.py：一键跑通完整闭环（离线、确定性、可复现） |
 | **落地回归修复** | ✅ | 修 3 个只在真实运行才暴露的 Court bug（熔断即崩 / avg_merit / success_rate） |
+| **Phase 8 真实写回 diff** | ✅ | genome_diff：写回携带系统对自己基因的**真实 unified diff**（告别占位符） |
+| **Phase 8 人类审批门接入** | ✅ | approval_gate 接通既有 ApprovalEngine，未批准绝不自动 PR |
+| **Phase 8 审计 / 检查点接入** | ✅ | 每轮进化进不可篡改审计库；基因落盘为检查点可续跑 / 回放 |
+| **Phase 8 运行时入口 + 配置** | ✅ | `jarvis self-evolve` 子命令 + YAML 配置，落地可一键运行 / 调参 |
+| **Phase 9 金标准安全闸** | ✅ | safety_gate：写回前最后一道硬约束（schema/唯一性/质量地板/核心大臣在位/受保护路径/无回归），fail-closed |
+| **Phase 9 资源预算护栏** | ✅ | ResourceBudget：单轮墙钟/操作数越限即熔断，自进化不会跑飞 |
+| **Phase 9 可回滚安全快照** | ✅ | RollbackManager：`safe/<id>` 标记的安全点，一键回滚到进化前 / 任意轮 |
+| **Phase 9 闭环端到端验证** | ✅ | 生产配置真实跑通：评测闸拒写回 + 人类审批门 + 审计 + 安全闸 + 快照 + 预算，全绿并可回滚 |
 
 **核心完成定义（DoD）达成情况**：
 - 全部 P0 项已绿，且对应单测覆盖（PromptGuard 真阻断、护栏接线、适应度非长度、SmartRouter 存在、选臣 domain 匹配、评测基准相关 ≥0.8）。
@@ -156,3 +164,103 @@ GA 算子的 RNG），无需 LLM key、不连网、不碰真实 git；`--live` �
 
 **本轮测试**：新增 8 个（Court 落地回归 3 + 引擎闭环 4 + CLI 端到端 1），
 受触模块定向回归 **325 passed**，零回归。
+
+---
+
+## 8. 本轮增量（Phase 8：把安全闭环真正「落地执行」）
+
+> 驱动：调研 2025–2026 年自进化 / 自改写 AI（DGM、SWE-agent、OpenHands 等）的安全闭环实践，
+> 对照 emperor-core 已有能力，补齐「能跑但没接上」的三道落地闸：真实写回、人类审批、审计/持久化，
+> 并给出可一键运行的生产入口。
+
+**背景**：上几轮已建成沙箱（GitWriteChannel 只开 PR）、基准评测（WritebackGate）、熔断/晋升闸，
+但自进化循环**从未使用**项目里早已存在的 `ApprovalEngine`（HITL）与 `AuditLogger`（不可篡改审计），
+且写回一直是一句占位符 `"# cycle N evolved genomes"`，reviewer 在 PR 里看不到任何真实改动——
+这正是调研反复出现的「零代码自修改」死亡之穴。
+
+**Phase 8 交付**：
+
+1. **真实写回 diff（jarvis/court/genome_diff.py）**：进化前后各对全体大臣基因拍快照，
+   用 `difflib` 生成指向仓库内 `jarvis/court/genome_state.json` 的标准 unified diff
+   （新文件用 `/dev/null` 头，`git apply` 可直接消化）。写回携带系统这一轮**对自己基因的
+   真实改动**，PR 里能看到「A 大臣 temperature 0.9 → 0.62」之类的具体内容——可审查、可回滚。
+
+2. **人类审批门接入（jarvis/court/approval_gate.py）**：把 `jarvis/approval.ApprovalEngine`
+   接通到写回前。每次写回先建一条 `risk_level=critical` 的审批请求进 `approval.db`；
+   `auto_approve=False`（生产默认）时**仅记录、不自动 PR**，必须等人类对这条请求 approve
+   后由另一条流程发起；`auto_approve=True` 仅用于离线/CI 演示。无引擎则退化为直接放行
+   （向后兼容）。DGM 安全模型第三段「人工审批门」由此从纸面变成落库可查的硬约束。
+
+3. **审计 / 检查点接入（jarvis/self_evolve.py）**：每轮 `court.evolve` 与写回决策都进
+   `AuditLogger`（不可篡改 `audit.db`）——「什么变了、谁批过、怎么回滚」全程可查、可回放；
+   运行结束把全体基因落盘为 `jarvis/court/genome_state.json` 检查点（原子写），
+   支持 `--resume` 跨重启续跑与回放。
+
+4. **运行时入口 + 配置（jarvis/cli.py + jarvis/self_evolve_config.py）**：新增
+   `jarvis self-evolve` 子命令（封装编排器，参数与脚本对齐），使自进化循环成为与
+   `serve`/`chat` 并列的一等运行时模式；新增 YAML 配置（`configs/self_evolve.yaml`，
+   `SelfEvolveConfig`）把轮数/种子/闸阈值/审批/审计/检查点路径从硬编码抽离，便于在
+   离线演示 / CI / 生产间切换。生产姿态默认：严格评测闸 + 开启人类审批门 + 离线记录写回。
+
+**实测**（`--cycles 5 --seed 7 --audit`，离线）：5 轮完整跑通，health=healthy，
+5 次写回均携带真实基因 diff（proposed:absorb-offline-N），审计库每轮写入 evolve/writeback
+事件，基因检查点成功落盘（5 初始大臣经自动 breeding 增至 9）。`jarvis self-evolve` 子命令
+端到端验证通过。
+
+**本轮测试**：新增 14 个（genome_diff 4 + approval_gate 3 + 落地集成 7），
+受触模块定向回归全绿，零回归；`run_self_evolve.py` / `jarvis self-evolve` 真实跑通。
+
+---
+
+## 9. 本轮增量（Phase 9：生产级安全落地——把「能跑」变成「敢跑」）
+
+> 驱动：上一轮虽接上了真实写回 + 人类审批 + 审计，但对照 DGM 三约束与 2025–2026 自进化系统的
+> 工程实践，仍有三块「生产级安全」拼图缺失：金标准安全数据集闸、资源预算护栏、可测试回滚。
+> 本轮回填这三块，使系统在「无人值守」姿态下也 fail-closed，且任何被批准并合并的突变都能干净撤销。
+
+**Phase 9 交付**：
+
+1. **金标准安全闸（jarvis/court/safety_gate.py，新增）**：DGM 论文「golden safety dataset」约束的
+   落地版——在写回前的**最后一道**硬约束（fail-closed）。逐基因校验：`genome_schema`（字段合法）、
+   `unique_names`（大臣名唯一）、`quality_floor`（任一基因质量 ≥ 地板，默认 0.05）、
+   `core_ministers`（核心大臣 math_alpha / reason_gamma 一个都不能少）、
+   `protected_paths`（未触碰受保护核心模块）、`no_regression`（相对基线的金标准大臣平均质量回退 ≤
+   上限，默认 0.10）。任一不通过即抛 `SafetyError`，**绝不静默放行**。`jarvis self-evolve
+   safety-check` 子命令可对当前基因快照独立跑该闸。
+
+2. **资源预算护栏（jarvis/court/resource_guard.py，新增）**：`ResourceBudget` 上下文管理器，
+   为**单轮**自进化设墙钟（`resource_seconds`，默认 120s）与操作数（`resource_max_ops`）上限；
+   越限抛 `ResourceBudgetExceeded` 并触发安全熔断，交回上层——杜绝 runaway 自进化无限占用时间 /
+   调用。命令行 `--resource-seconds` / `--resource-max-ops` 可调。
+
+3. **可测试回滚（jarvis/court/rollback.py，新增）**：`RollbackManager` 每轮写回前落一个带元数据的
+   基因快照（原子写 `.tmp`→`os.replace`），基线（cycle 0）标记为 `safe` 已知点；`index.json` 记录
+   全部快照元数据便于审计。`rollback_to(id, court, genome_state_path)` 经既有 `Court.load_genomes`
+   （与检查点同一套反序列化）载入，保证「保存 ↔ 回滚」完全对称，并同步更新运行中的
+   `genome_state.json` 使回滚立即可见、可 `--resume` 续跑。`jarvis self-evolve rollback
+   --list` / `--to <id>` 子命令可用。修正了 `Court.load_genomes` 由「合并」改为「替换」语义
+   （对 resume 与 rollback 均正确）。
+
+4. **闭环接入（jarvis/self_evolve.py / scripts/run_self_evolve.py / jarvis/cli.py / 配置）**：
+   三块安全件全部接入 `SelfEvolutionEngine.run()`：基线安全快照 → 单轮资源预算包裹 →
+   每轮快照 → 写回前先过金标准安全闸（不通过则拦下）。`SelfEvolveConfig` 与
+   `configs/self_evolve.yaml` 暴露全部开关（`use_safety_gate` / `quality_floor` /
+   `core_ministers` / `max_regression` / `resource_seconds` / `resource_max_ops` /
+   `enable_snapshots` / `snapshot_dir`），生产姿态默认全开。
+
+**实测（端到端）**：
+- 离线演示（`--cycles 3 --seed 5 --audit`）：3 轮跑通，merit 58→63、成功率 60%→77%，每轮写回携带
+  真实基因 diff（proposed:absorb-offline-N），审计库与金标准安全闸均接入，EXIT=0。
+- 生产配置（`--config configs/self_evolve.yaml`，严格评测闸 min_pass_rate=0.9）：评测 75% < 90% →
+  **写回被拒（blocked）**，人类审批门接入（auto_approve=False）、审计库 + 金标准安全闸均在线，
+  EXIT=0——DGM fail-closed 姿态完整复现。
+- `safety-check`：对当前基因快照跑金标准安全闸 → 通过（6 项全绿）。
+- `rollback --to <safe>`：大臣数 8 → 回滚到基线 5，成功，且 `genome_state.json` 同步更新。
+
+**本轮测试**：新增 9 个（safety_gate 3 + resource_guard 3 + rollback 3），与 Phase 8 共 23 个新增测试；
+受触模块定向回归（24 文件）全绿，CI 双闸（check_write_protect / check_silent_except）对新增代码零告警。
+
+**完成度**：至此 emperor-core 自进化闭环已具备 DGM 三约束（沙箱 + 编码基准评测 + 人工审批门）+
+研究 P0 落地清单（金标准安全闸 / 资源预算 / 可测试回滚）的全部要素，且**离线、确定性、可复现、
+可审计、可回滚**地真正跑通——满足「完全落地执行」目标。
+

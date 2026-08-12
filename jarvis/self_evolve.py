@@ -37,12 +37,23 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import random
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Protocol
 
 from jarvis.court.fitness import FitnessSignal, RealTaskFitness
+from jarvis.court.genome_diff import (
+    GENOME_STATE_RELPATH,
+    genome_state_diff,
+    genome_state_file_content,
+)
+from jarvis.court.approval_gate import WritebackApprovalGate
+from jarvis.court.rollback import RollbackManager
+from jarvis.court.resource_guard import ResourceBudget, ResourceBudgetExceeded
+from jarvis.court.safety_gate import SafetyContext, SafetyGate, default_safety_gate
+from jarvis.audit import AuditLogger
 from jarvis.eval_bench.criteria import EvalReport
 from jarvis.eval_bench.run import run_suite
 from jarvis.eval_bench.suites.canonical import build_canonical_suite
@@ -50,9 +61,8 @@ from jarvis.vcs.writeback_gate import WritebackGate
 
 logger = logging.getLogger("jarvis.self_evolve")
 
-# 基因最优区：进化要逼近的目标。温度≈0.4、置信基线≈0.9 时「真实质量」最高。
-_OPT_TEMPERATURE = 0.4
-_OPT_CONFIDENCE = 0.9
+# 基因「真实质量」统一来源（见 jarvis/court/genome_quality，安全闸与引擎共用）。
+from jarvis.court.genome_quality import true_quality  # re-exported via __all__
 
 
 def _uniform01(*parts: Any) -> float:
@@ -62,16 +72,7 @@ def _uniform01(*parts: Any) -> float:
     return int(digest[:16], 16) / float(0xFFFFFFFFFFFFFFFF)
 
 
-def true_quality(genome: Any) -> float:
-    """基因的「真实质量」：离最优区越近越高（进化的优化目标）。
-
-    只依赖温度与置信基线两个公开基因字段，夹在 [0.05, 0.97]，
-    保证任何基因都有非零成功率、且永远达不到完美（留上升空间）。
-    """
-    temp = float(getattr(genome, "temperature", 0.7))
-    conf = float(getattr(genome, "confidence_baseline", 0.75))
-    q = 1.0 - 0.7 * abs(temp - _OPT_TEMPERATURE) - 0.4 * abs(conf - _OPT_CONFIDENCE)
-    return max(0.05, min(0.97, q))
+# 注：true_quality 现由 jarvis.court.genome_quality 提供（上方已导入并 re-export）。
 
 
 # ── 任务与执行器 ──────────────────────────────────────────────
@@ -165,13 +166,15 @@ class _Proposed:
     branch: str
     base: str
     title: str
+    diff: str = ""
 
 
 class RecordingWriteChannel:
     """离线写回通道：不碰真实 git，只记录「本会发起的 PR」。
 
     与真实 :class:`GitWriteChannel` 保持同样的安全约束——拒绝把受保护分支
-    当作写回目标。用于离线跑通完整闭环并审计写回意图。
+    当作写回目标。用于离线跑通完整闭环并审计写回意图。在线下记录中额外保存
+    该轮真实产生的基因 diff，便于复盘「系统对自己改了什么」。
     """
 
     def __init__(self, protected=("master", "main")) -> None:
@@ -184,9 +187,10 @@ class RecordingWriteChannel:
             # base 是受保护分支本身是合法的（PR 目标），但我们绝不直推——离线只记录。
             pass
         branch = f"absorb-offline-{len(self.proposals) + 1}"
-        self.proposals.append(_Proposed(branch=branch, base=base, title=title))
+        self.proposals.append(_Proposed(
+            branch=branch, base=base, title=title, diff=patch_text or ""))
         logger.info("[RecordingWriteChannel] 记录写回意图：%s → %s", branch, base)
-        return _Proposed(branch=branch, base=base, title=title)
+        return _Proposed(branch=branch, base=base, title=title, diff=patch_text or "")
 
 
 # ── 报告 ─────────────────────────────────────────────────────
@@ -272,6 +276,19 @@ class SelfEvolutionEngine:
         write_gate: Optional[WritebackGate] = None,
         repo: str = "kiwoen/emperor-core",
         tasks: Optional[List[SimulatedTask]] = None,
+        approval_engine: Any = None,
+        auto_approve: bool = False,
+        audit_logger: Any = None,
+        genome_state_path: str = GENOME_STATE_RELPATH,
+        resume: bool = False,
+        # ── 落地增强（Phase 9：生产级安全护栏）──
+        safety_gate: Optional[SafetyGate] = None,
+        use_safety_gate: bool = True,
+        resource_seconds: float = 120.0,
+        resource_max_ops: Optional[int] = None,
+        rollback_manager: Any = None,
+        enable_snapshots: bool = True,
+        snapshot_dir: str = "jarvis/court/snapshots",
     ) -> None:
         self.court = court
         self.executor = executor or GenomeDrivenExecutor()
@@ -284,6 +301,20 @@ class SelfEvolutionEngine:
         self.repo = repo
         self.tasks = tasks if tasks is not None else default_tasks()
         self._baseline_report: Optional[EvalReport] = None
+        # ── 落地增强：人类审批门 / 审计 / 检查点持久化 ──
+        self._approval_gate = WritebackApprovalGate(approval_engine, auto_approve=auto_approve)
+        self._audit = audit_logger
+        self._genome_state_path = genome_state_path
+        self._resume = bool(resume)
+        self._baseline_genomes: Dict[str, Any] = {}
+        self._run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        # ── 落地增强（Phase 9）：金标准安全闸 / 资源预算 / 回滚 ──
+        self._safety_gate = safety_gate or (default_safety_gate() if use_safety_gate else None)
+        self._resource_seconds = float(resource_seconds)
+        self._resource_max_ops = resource_max_ops
+        self._rollback = rollback_manager or (
+            RollbackManager(snapshot_dir) if enable_snapshots else None
+        )
 
     # ── 主循环 ────────────────────────────────────────────────
 
@@ -295,36 +326,157 @@ class SelfEvolutionEngine:
         if seed is not None:
             random.seed(seed)
 
+        # 续跑：从已有基因检查点恢复（落地持久化，便于跨重启累积进化）
+        if self._resume and os.path.exists(self._genome_state_path):
+            try:
+                self.court.load_genomes(self._genome_state_path)
+                logger.info("[SelfEvolve] 已从检查点恢复基因：%s", self._genome_state_path)
+            except Exception:
+                logger.warning("[SelfEvolve] 检查点恢复失败，从初始基因开始", exc_info=True)
+
         report = RunReport(started_at=datetime.now(timezone.utc).isoformat())
+        # 基线安全快照（标记为 safe 已知点），便于一键回滚到「进化前」。
+        self._save_snapshot(0, self.court.genome_state_payload(), safe=True)
+
         for cycle in range(1, n_cycles + 1):
-            self._execute_tasks(cycle, tasks_per_minister)
-            evo = self.court.evolve(1)          # 熔断则返回带 halted 的 dict
-            halted = bool(isinstance(evo, dict) and evo.get("halted"))
-
-            eval_report = self._evaluate(cycle)
-            writeback = self._maybe_writeback(eval_report, cycle, halted)
-
-            rec = CycleRecord(
-                cycle=cycle,
-                avg_merit=round(self.court.avg_merit, 3),
-                success_rate=round(self.court.success_rate, 3),
-                active_ministers=len(self.court.active_ministers),
-                eval_pass_rate=(round(eval_report.pass_rate, 3) if eval_report else None),
-                circuit_state=self._circuit_state(),
-                halted=halted,
-                writeback=writeback,
-            )
-            report.cycles.append(rec)
-            logger.info("[SelfEvolve] 轮 %d 完成：%s", cycle, rec)
-
-            if halted:
+            # 资源预算护栏：单轮墙钟/操作数越限即安全熔断，交回上层（绝不跑飞）。
+            try:
+                with ResourceBudget(seconds=self._resource_seconds,
+                                   max_operations=self._resource_max_ops,
+                                   label=f"cycle-{cycle}"):
+                    cycle_halted = self._run_cycle(cycle, tasks_per_minister, report)
+            except ResourceBudgetExceeded as exc:
+                logger.error("[SelfEvolve] 轮 %d 资源预算耗尽，熔断：%s", cycle, exc)
+                rec = CycleRecord(
+                    cycle=cycle, avg_merit=round(self.court.avg_merit, 3),
+                    success_rate=round(self.court.success_rate, 3),
+                    active_ministers=len(self.court.active_ministers), eval_pass_rate=None,
+                    circuit_state=self._circuit_state(), halted=True,
+                    writeback=f"halted-resource:{exc.used_seconds:.1f}s",
+                )
+                report.cycles.append(rec)
                 report.halted = True
-                report.trip_reason = str(evo.get("trip_reason", "")) if isinstance(evo, dict) else ""
+                report.trip_reason = f"resource budget exceeded: {exc}"
                 break
+            else:
+                if cycle_halted:
+                    break
 
+        # 检查点：把最终基因落盘，保证可回放 / 可续跑（落地持久化）
+        self._save_checkpoint()
         report.finished_at = datetime.now(timezone.utc).isoformat()
         report.final_health = self._health()
+        self._audit_run(report)
         return report
+
+    def _run_cycle(self, cycle: int, tasks_per_minister: int, report: "RunReport") -> None:
+        """单轮进化+评测+写回的主体（被资源预算护栏包裹）。"""
+        # 进化前快照：用于和进化后对比，生成这一轮的真实基因 diff
+        self._baseline_genomes = self.court.genome_state_payload()
+        self._execute_tasks(cycle, tasks_per_minister)
+        evo = self.court.evolve(1)          # 熔断则返回带 halted 的 dict
+        halted = bool(isinstance(evo, dict) and evo.get("halted"))
+        self._audit_evolve(cycle, evo, halted)
+
+        eval_report = self._evaluate(cycle)
+        writeback = self._maybe_writeback(eval_report, cycle, halted)
+        self._audit_writeback(cycle, writeback, halted)
+
+        rec = CycleRecord(
+            cycle=cycle,
+            avg_merit=round(self.court.avg_merit, 3),
+            success_rate=round(self.court.success_rate, 3),
+            active_ministers=len(self.court.active_ministers),
+            eval_pass_rate=(round(eval_report.pass_rate, 3) if eval_report else None),
+            circuit_state=self._circuit_state(),
+            halted=halted,
+            writeback=writeback,
+        )
+        report.cycles.append(rec)
+        logger.info("[SelfEvolve] 轮 %d 完成：%s", cycle, rec)
+
+        # 安全快照：每轮落一个可回滚点（便于事后撤销坏突变）。
+        self._save_snapshot(cycle, self.court.genome_state_payload(), safe=False)
+
+        if halted:
+            report.halted = True
+            report.trip_reason = str(evo.get("trip_reason", "")) if isinstance(evo, dict) else ""
+        return halted
+
+    def _save_snapshot(self, cycle: int, payload: Dict[str, Any], safe: bool = False) -> None:
+        """把当前基因落盘为一个可回滚快照（失败容错，绝不拖垮主循环）。"""
+        if self._rollback is None:
+            return
+        try:
+            self._rollback.snapshot(
+                label=f"cycle-{cycle}", payload=payload, cycle=cycle, safe=safe)
+        except Exception:
+            logger.warning("[SelfEvolve] 基因快照保存失败（已忽略）", exc_info=True)
+
+    # ── 落地增强：检查点与审计 ──────────────────────────────────
+
+    def _save_checkpoint(self) -> None:
+        """把当前基因落盘为检查点（原子写由 GenomeStore 保证）。"""
+        try:
+            self.court.save_genomes(self._genome_state_path)
+        except Exception:
+            logger.warning("[SelfEvolve] 基因检查点保存失败", exc_info=True)
+
+    def _audit_evolve(self, cycle: int, evo: Any, halted: bool) -> None:
+        if self._audit is None:
+            return
+        try:
+            # 只存可序列化的摘要，避免把含 enum 的原始 EvolutionReport 塞进 extra
+            safe: Dict[str, Any] = {}
+            if isinstance(evo, dict):
+                safe = {
+                    "cycle": evo.get("cycle"),
+                    "active_count": evo.get("active_count"),
+                    "shadow_count": evo.get("shadow_count"),
+                    "eliminated_count": evo.get("eliminated_count"),
+                    "new_spawns": evo.get("new_spawns"),
+                    "actions": len(evo.get("actions_taken") or []),
+                }
+            self._audit.log(
+                trace_id=self._run_id, step=cycle, phase="evolve",
+                action="court.evolve", actor="court",
+                input_summary=f"cycle={cycle}",
+                output_summary=("HALTED: " + str(evo.get("trip_reason", ""))[:200] if halted else "ok"),
+                extra={"halted": halted, **safe},
+                success=not halted,
+            )
+        except Exception:
+            logger.debug("[SelfEvolve] 审计 evolve 事件失败", exc_info=True)
+
+    def _audit_writeback(self, cycle: int, writeback: str, halted: bool) -> None:
+        if self._audit is None:
+            return
+        try:
+            self._audit.log(
+                trace_id=self._run_id, step=cycle, phase="writeback",
+                action="writeback." + ("skip" if halted else "attempt"),
+                actor="self_evolve",
+                input_summary=f"cycle={cycle}",
+                output_summary=writeback,
+                success=writeback.startswith("proposed") or writeback.startswith("approved"),
+            )
+        except Exception:
+            logger.debug("[SelfEvolve] 审计 writeback 事件失败", exc_info=True)
+
+    def _audit_run(self, report: "RunReport") -> None:
+        if self._audit is None:
+            return
+        try:
+            self._audit.log(
+                trace_id=self._run_id, step=0, phase="pipeline",
+                action="self_evolve.run", actor="self_evolve",
+                input_summary=f"cycles={len(report.cycles)}",
+                output_summary=report.summary().replace("\n", " ")[:500],
+                extra={"halted": report.halted, "health": report.final_health},
+                success=not report.halted,
+            )
+        except Exception:
+            logger.debug("[SelfEvolve] 审计 run 事件失败", exc_info=True)
 
     # ── 各阶段 ────────────────────────────────────────────────
 
@@ -388,9 +540,39 @@ class SelfEvolutionEngine:
         if not decision.allowed:
             logger.warning("[SelfEvolve] 评测闸拒绝写回（轮 %d）：%s", cycle, decision.reason)
             return f"blocked"
+
+        # 这一轮「系统对自己基因的真正改动」——进化前后快照的真实 diff。
+        after = self.court.genome_state_payload()
+        diff = genome_state_diff(self._baseline_genomes, after)
+        if not diff:
+            return "no-change"   # 评测过了但基因没动，不开空 PR
+
+        # 金标准安全闸（DGM「编码基准」落地形态）：任何 blocking 不变式不过即拒，
+        # 绝不静默放行——这是「自我修改 AI 不能卸自己刹车」的最后一道硬约束。
+        if self._safety_gate is not None:
+            ctx = SafetyContext(
+                before=self._baseline_genomes, after=after, diff=diff,
+                changed_paths=(),  # 离线写回只改 genome_state，live 模式应填充真实改动路径
+            )
+            safety = self._safety_gate.run(ctx)
+            if not safety.passed:
+                logger.error("[SelfEvolve] 金标准安全闸拒绝写回（轮 %d）：%s",
+                             cycle, safety.failed)
+                return f"blocked-safety:{','.join(safety.failed)}"
+
+        # 人类审批门（DGM 安全模型第三段约束）
+        outcome = self._approval_gate.decide(
+            self.repo, "master", diff, cycle, title=f"auto-absorb: cycle {cycle}")
+        if outcome.status == "pending":
+            return f"pending-approval:{outcome.request_id}"
+        if outcome.status != "approved":
+            return "blocked-approval"
+
         res = self.write_channel.propose_change(
-            repo=self.repo, patch_text=f"# cycle {cycle} evolved genomes\n",
-            title=f"auto-absorb: cycle {cycle}", base="master",
+            repo=self.repo,
+            patch_text=diff,
+            title=f"auto-absorb: cycle {cycle}",
+            base="master",
         )
         return f"proposed:{getattr(res, 'branch', '?')}"
 

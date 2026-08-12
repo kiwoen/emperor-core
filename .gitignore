@@ -83,3 +83,9 @@ jarvis/plugins/demo_plugin.py
 
 # 自进化可观测性运行产物（emit_telemetry.py 生成）
 telemetry/
+
+# 运行时基因检查点（自进化落盘产物，环境相关，不入库）
+jarvis/court/genome_state.json
+
+# 自进化安全快照（回滚点，运行时生成，不入库）
+jarvis/court/snapshots/

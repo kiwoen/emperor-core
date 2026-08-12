@@ -15,6 +15,7 @@ Usage:
 from __future__ import annotations
 
 import logging
+from enum import Enum
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
@@ -246,7 +247,8 @@ class Court:
             "eliminated_count": getattr(result, "eliminated_count", None),
             "new_spawns": getattr(result, "new_spawns", None),
             "actions_taken": [
-                getattr(a, "action", str(a))
+                (a.action.value if isinstance(getattr(a, "action", None), Enum)
+                 else str(getattr(a, "action", a)))
                 for a in getattr(result, "actions_taken", []) or []
             ],
             "systemic_issues": list(getattr(result, "systemic_issues", []) or []),
@@ -360,17 +362,49 @@ class Court:
 
     # ── Persistence ───────────────────────────────────────────────
 
-    def save_genomes(self) -> Optional[str]:
-        return self._sm.save_genomes()
+    def save_genomes(self, path: Optional[str] = None) -> Optional[str]:
+        return self._sm.save_genomes(path)
 
     def load_genomes(self, path: str) -> Any:
         from jarvis.court.genome_store import GenomeStore
         from jarvis.court.evolution import MinisterStatus
         genomes, meta = GenomeStore.load(path)
+        # 替换式载入：把整组基因整体替换为存档内容（而非按名合并），
+        # 这样「续跑」与「回滚」语义一致——载入即代表系统此刻的完整基因状态。
+        self._sm._genomes.clear()
+        self._sm._statuses.clear()
         for g in genomes:
             self._sm._genomes[g.name] = g
             self._sm._statuses[g.name] = MinisterStatus.ACTIVE
         return genomes, meta
+
+    def genome_state_payload(self) -> dict:
+        """Snapshot all living genomes as a GenomeStore-style payload dict.
+
+        Returns ``{"version": 1, "metadata": {...}, "genomes": [...]}`` — the
+        exact shape :class:`~jarvis.court.genome_store.GenomeStore` persists.
+        Used by the self-evolution loop to (a) checkpoint progress and (b) build
+        a real, reviewable diff of what the system changed about *itself*.
+        """
+        from jarvis.court.evolution import MinisterStatus
+        from jarvis.court.genome_store import GenomeStore
+
+        living = [
+            g for name, g in self._sm._genomes.items()
+            if self._sm._statuses.get(name) != MinisterStatus.ELIMINATED
+        ]
+        active = sum(1 for s in self._sm._statuses.values() if s == MinisterStatus.ACTIVE)
+        shadow = sum(1 for s in self._sm._statuses.values() if s == MinisterStatus.SHADOW)
+        return {
+            "version": 1,
+            "metadata": {
+                "cycle": self._sm._cycle_count,
+                "active_count": active,
+                "shadow_count": shadow,
+                "total_genomes": len(living),
+            },
+            "genomes": [GenomeStore.to_dict(g) for g in living],
+        }
 
     def save_history(self, path: str) -> None:
         """Save evolution history to JSON file."""
