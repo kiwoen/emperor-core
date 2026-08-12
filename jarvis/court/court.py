@@ -43,6 +43,14 @@ class CourtConfig:
     breeding_cooldown: int = 2
     max_breed_per_cycle: int = 2
     genome_path: Optional[str] = None
+    # P1.4: evolution safety gate (opt-in). When set, Court.evolve stops
+    # spawning further cycles the moment the breaker trips (merit collapse
+    # or cost overrun), so a "thawed" court can never run away.
+    circuit_breaker: Any = None
+    # P1.4: promotion gate (opt-in). When set, SurvivalMechanism promotes a
+    # shadow minister only after ``required_consecutive_gains`` consecutive
+    # merit increases — no more reward-hacking on a single lucky cycle.
+    promotion_gate: Any = None
     # P0.3: automatic last-place elimination is FROZEN by default.
     #
     # The merit signal that drives elimination used to be a length-based
@@ -107,6 +115,7 @@ class Court:
             genome_path=cfg.genome_path,
             history=self.history,
             enabled=cfg.enable_auto_elimination,
+            promotion_gate=cfg.promotion_gate,
         )
         if not cfg.enable_auto_elimination:
             logger.warning(
@@ -117,6 +126,8 @@ class Court:
         self._inspector: Any = None
         self._config = cfg
         self._minister_seq: int = 0
+        # P1.4: evolution safety breaker (may be None → no gating).
+        self._circuit_breaker = cfg.circuit_breaker
 
     # ── Registration ──────────────────────────────────────────────
 
@@ -152,6 +163,12 @@ class Court:
     # ── Evolution ─────────────────────────────────────────────────
 
     def evolve(self, n_cycles: int = 1) -> dict:
+        # P1.4: when a CircuitBreaker is installed, drive the evolution loop
+        # one cycle at a time so we can HALT the moment it trips — a "thawed"
+        # court must never be allowed to run away on a collapsing merit signal.
+        if self._circuit_breaker is not None:
+            return self._evolve_with_breaker(n_cycles)
+
         if self._db is not None:
             events_before = len(self._sm._events)
         result = self._sm.emperor_evolve(n_cycles)
@@ -171,6 +188,38 @@ class Court:
                         event.minister,
                     )
         return result
+
+    def _evolve_with_breaker(self, n_cycles: int) -> dict:
+        """Cycle-by-cycle evolution with a hard CircuitBreaker stop.
+
+        Returns the underlying SurvivalMechanism result of the *last* executed
+        cycle, augmented with ``halted`` / ``trip_reason`` so callers can see
+        that evolution was cut short by the safety gate.
+        """
+        breaker = self._circuit_breaker
+        last_result: dict = {}
+        for _ in range(n_cycles):
+            if breaker.is_open:
+                logger.error(
+                    "[Court] 进化已在熔断状态下中止（%s），不再执行后续轮",
+                    breaker._last_reason,
+                )
+                last_result.setdefault("halted", True)
+                last_result.setdefault("trip_reason", breaker._last_reason)
+                break
+            last_result = self.run_cycle()
+            decision = breaker.record(
+                self.cycle, self.avg_merit,
+            )
+            if decision.open:
+                last_result["halted"] = True
+                last_result["trip_reason"] = decision.reason
+                logger.error(
+                    "[Court] 进化被 CircuitBreaker 熔断中止：%s",
+                    decision.reason,
+                )
+                break
+        return last_result
 
     def run_cycle(self) -> Any:
         return self._sm.run_evolution_cycle()

@@ -1,0 +1,34 @@
+name: absorb
+
+# P2.2 持续吸收 CI：任何 PR 到 master 时跑测试 + 写保护反向校验。
+# 人类审批门由仓库分支保护规则（required_pull_request_reviews）强制，
+# 本工作流不负责合入，只负责「无人能绕过 GitWriteChannel 直推受保护分支」。
+
+on:
+  pull_request:
+    branches: [master, main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: pip install -e . || pip install pytest
+
+      - name: Run tests
+        run: pytest -q
+
+      - name: Write-protect reverse check
+        # 反向校验：除 jarvis/vcs/git_channel.py 外，任何文件出现
+        # git push master/main、gh api PUT/POST 命中受保护分支即判红。
+        run: python scripts/check_write_protect.py
