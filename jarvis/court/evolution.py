@@ -366,6 +366,7 @@ class SurvivalMechanism:
         genome_path: Optional[str] = None,
         history: Optional["EvolutionHistory"] = None,
         enabled: bool = True,
+        promotion_gate: Optional[Any] = None,
     ) -> None:
         # ── Sliding merit: auto-wrap if enabled and board is plain MeritBoard ──
         if (
@@ -460,6 +461,11 @@ class SurvivalMechanism:
         # (``jarvis.court.court.Court``) freezes it — see
         # ``CourtConfig.enable_auto_elimination``.
         self._enabled = bool(enabled)
+        # P1.4: optional promotion gate. When set, shadow→active promotion
+        # requires ``required_consecutive_gains`` consecutive merit increases
+        # (see jarvis.court.circuit_breaker.PromotionGate) instead of a single
+        # ``merit > 50`` spike — this defeats reward-hacking on noisy signals.
+        self._promotion_gate = promotion_gate
         # Ministers already reported as "would be eliminated" — prevents the
         # same dry-run event from being re-emitted on every subsequent cycle.
         self._dry_run_eliminated: set[str] = set()
@@ -1221,7 +1227,12 @@ class SurvivalMechanism:
         return actions
 
     def _promote_shadows(self) -> list[EvolutionEvent]:
-        """Promote shadow ministers who have proven themselves."""
+        """Promote shadow ministers who have proven themselves.
+
+        P1.4: if a :class:`PromotionGate` is installed, promotion requires
+        ``required_consecutive_gains`` consecutive merit increases rather than
+        a single ``merit > 50`` spike — guards against noise-driven promotion.
+        """
         actions: list[EvolutionEvent] = []
         for minister, status in list(self._statuses.items()):
             if status != MinisterStatus.SHADOW:
@@ -1230,7 +1241,11 @@ class SurvivalMechanism:
                 self._merit_board.compute_merit(minister)
                 if self._merit_board else 0
             )
-            if merit > 50:
+            if self._promotion_gate is not None:
+                should_promote = self._promotion_gate.record(minister, merit)
+            else:
+                should_promote = merit > 50
+            if should_promote:
                 self._statuses[minister] = MinisterStatus.ACTIVE
                 event = EvolutionEvent(
                     timestamp=datetime.now(timezone.utc).isoformat(),
