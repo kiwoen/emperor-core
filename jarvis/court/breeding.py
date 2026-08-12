@@ -879,7 +879,10 @@ class AutoBreeder:
             try:
                 return self._expertise_provider()
             except Exception:
-                pass
+                logger.debug(
+                    "[Breeding] expertise_provider 回调失败，改用 namesake 兜底（已转为可观测）",
+                    exc_info=True,
+                )
         # Fallback: each minister covers their namesake domain
         return {
             m: {m: 1.0, "general": 0.3} for m in ministers
@@ -893,7 +896,10 @@ class AutoBreeder:
             try:
                 return {m: self._merit_provider(m) for m in ministers}
             except Exception:
-                pass
+                logger.debug(
+                    "[Breeding] merit_provider 回调失败，改用默认 50.0（已转为可观测）",
+                    exc_info=True,
+                )
         return {m: 50.0 for m in ministers}
 
     def _gather_diversity(self) -> float:
@@ -904,7 +910,10 @@ class AutoBreeder:
                 if isinstance(score, (int, float)):
                     return float(score)
             except Exception:
-                pass
+                logger.debug(
+                    "[Breeding] diversity_provider 回调失败，改用默认 0.5（已转为可观测）",
+                    exc_info=True,
+                )
         return 0.5
 
     @staticmethod

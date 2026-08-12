@@ -33,6 +33,8 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any, Callable, List, Optional, Tuple
 
+from jarvis.vcs.writeback_gate import WritebackGate
+
 logger = logging.getLogger("jarvis.vcs.git_channel")
 
 # 受保护分支：写回通道永不向这些分支直接 push。
@@ -99,6 +101,9 @@ class GitWriteChannel:
         base: str = "master",
         branch: Optional[str] = None,
         date_tag: Optional[str] = None,
+        eval_report: Optional[Any] = None,
+        eval_gate: Optional[WritebackGate] = None,
+        baseline_report: Optional[Any] = None,
     ) -> ProposeResult:
         """把补丁作为 PR 提案到 *repo*（PR 目标为受保护分支 *base*）。
 
@@ -112,13 +117,24 @@ class GitWriteChannel:
             base: PR 目标分支（应为受保护分支 master/main）。
             branch: 自定义吸收分支名；省略则自动生成。
             date_tag: 吸收分支日期标签；省略则用当天。
+            eval_report: 可选的 :class:`EvalReport`。一旦提供，写回前先过
+                :class:`WritebackGate` 评测闸；不达标即在**任何 git 操作之前**
+                抛 :class:`WritebackBlocked`（DGM 闭环：基准不过就绝不写回）。
+            eval_gate: 自定义闸；省略则用默认严格闸（min_pass_rate=1.0）。
+            baseline_report: 可选基线报告，用于回归对照。
 
         Returns:
             :class:`ProposeResult`。
 
         Raises:
             ValueError: 当 *base* 或 *branch* 命中受保护分支时（绝不写回）。
+            WritebackBlocked: 提供 *eval_report* 但评测不达标 / 回归时。
         """
+        # ── DGM 评测闸：基准不过，直接拒绝，绝不动 git ──
+        if eval_report is not None:
+            gate = eval_gate or WritebackGate()
+            gate.assert_allowed(eval_report, baseline=baseline_report)
+
         # ── 安全校验：受保护分支绝不允许作为写回目标 ──
         if base in PROTECTED_BRANCHES:
             # base 是 PR 目标（受保护）——这本身合法（PR 合入需人类审批）。

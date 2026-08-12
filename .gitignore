@@ -80,3 +80,6 @@ versions/
 # Runtime artifacts
 cost_records.json
 jarvis/plugins/demo_plugin.py
+
+# 自进化可观测性运行产物（emit_telemetry.py 生成）
+telemetry/

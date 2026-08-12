@@ -143,7 +143,10 @@ class Scheduler:
                     "ministers_count": len(self._emperor._court.ministers),
                 }))
             except Exception:
-                pass
+                logger.debug(
+                    "[Scheduler] evolution 事件发布失败（已转为可观测，非致命）",
+                    exc_info=True,
+                )
             return result
 
         self.add_job(name, run_evo, interval, tags=["evolution"])
@@ -195,7 +198,10 @@ class Scheduler:
                         "result_preview": (report.get("result", "") or "")[:100],
                     }))
             except Exception:
-                pass
+                logger.debug(
+                    "[Scheduler] task_completed 事件发布失败（已转为可观测，非致命）",
+                    exc_info=True,
+                )
             return reports
 
         self.add_job(name, run_tasks, interval, tags=["tasks"])
