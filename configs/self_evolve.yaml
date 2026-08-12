@@ -43,11 +43,15 @@ promotion_gate:
 
 enable_auto_elimination: false  # 安全默认：淘汰仍冻结（dry-run）
 
-# ── Phase 9：生产级安全护栏（fail-closed，写回前最后一道闸门）──
+# ── Phase 9/10：生产级安全护栏（fail-closed，写回前最后一道闸门）──
 use_safety_gate: true            # 金标准安全闸：schema/唯一性/质量地板/核心大臣在位/受保护路径/无回归
 quality_floor: 0.05              # 任一基因质量不得低于此地板
 core_ministers: ["math_alpha", "reason_gamma"]  # 核心大臣一个都不能少
 max_regression: 0.10             # 金标准大臣平均质量允许的最大回退
+# 行为级金标准地板（DGM「金标准安全数据集」落地）：最优大臣在基准上的真实答对率
+# 不得低于此值，否则 fail-closed 拒绝写回——防 reward-hacking（质量刷高但真实表现崩）。
+# 与上面的结构检查互补：结构全过 ≠ 行为没崩。生产可调高（如 0.7）。
+golden_pass_rate_min: 0.6
 
 # 资源预算护栏：单轮越限即熔断，防止自进化跑飞（墙钟 / 操作数）
 resource_seconds: 120.0

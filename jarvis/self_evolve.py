@@ -72,9 +72,6 @@ def _uniform01(*parts: Any) -> float:
     return int(digest[:16], 16) / float(0xFFFFFFFFFFFFFFFF)
 
 
-# 注：true_quality 现由 jarvis.court.genome_quality 提供（上方已导入并 re-export）。
-
-
 # ── 任务与执行器 ──────────────────────────────────────────────
 
 
@@ -125,13 +122,15 @@ class GenomeDrivenExecutor:
             domain=task.domain,
         )
 
-    def answer_eval_case(self, minister: str, genome: Any, case: Any, cycle: int) -> str:
+    def answer_eval_case(self, minister: str, genome: Any, case: Any) -> str:
         """让当前最优大臣「回答」一个基准用例：质量越高越可能答对。
 
         用于把进化效果映射到基准评测通过率——基因越优，候选输出越接近黄金答案。
+        采样只依赖 (minister, case)，与运行轮次(cycle)无关：评测纯粹反映基因质量，
+        而非「跑了第几轮」，从而可对稳定基因安全复用评测结果（见引擎内评测缓存）。
         """
         q = true_quality(genome)
-        roll = _uniform01(self.seed, "eval", minister, case.id, cycle)
+        roll = _uniform01(self.seed, "eval", minister, case.id)
         if roll < q:
             return case.expected
         return "（未命中黄金答案）"
@@ -289,6 +288,7 @@ class SelfEvolutionEngine:
         rollback_manager: Any = None,
         enable_snapshots: bool = True,
         snapshot_dir: str = "jarvis/court/snapshots",
+        golden_pass_rate_min: float = 0.5,
     ) -> None:
         self.court = court
         self.executor = executor or GenomeDrivenExecutor()
@@ -308,8 +308,13 @@ class SelfEvolutionEngine:
         self._resume = bool(resume)
         self._baseline_genomes: Dict[str, Any] = {}
         self._run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        # ── 落地增强（Phase 9）：金标准安全闸 / 资源预算 / 回滚 ──
-        self._safety_gate = safety_gate or (default_safety_gate() if use_safety_gate else None)
+        # 评测结果缓存：当最优大臣基因未变时行为正确率必然相同，跳过重复评测（优化）。
+        self._eval_cache: Dict[str, Any] = {}
+        # ── 落地增强（Phase 9/10）：金标准安全闸 / 资源预算 / 回滚 ──
+        self._golden_pass_rate_min = float(golden_pass_rate_min)
+        self._safety_gate = safety_gate or (
+            default_safety_gate(golden_pass_rate_min=self._golden_pass_rate_min)
+            if use_safety_gate else None)
         self._resource_seconds = float(resource_seconds)
         self._resource_max_ops = resource_max_ops
         self._rollback = rollback_manager or (
@@ -511,17 +516,30 @@ class SelfEvolutionEngine:
                 self.court.record_feedback(minister, f"{task.id}-c{cycle}", score * 100.0)
 
     def _evaluate(self, cycle: int) -> Optional[EvalReport]:
-        """用当前最优大臣回答基准，得到反映进化效果的通过率。"""
+        """用当前最优大臣回答基准，得到反映进化效果的通过率。
+
+        评测结果按「最优大臣 + 其基因」签名缓存：基因未变则行为正确率必然相同，
+        直接复用上次报告，避免对稳定基因做无意义的重复评测（长程运行的性能优化）。
+        """
         try:
             best = self._best_minister()
             if best is None:
-                return run_suite(self.eval_suite)
-            name, genome = best
-            outputs = {
-                case.id: self.executor.answer_eval_case(name, genome, case, cycle)
-                for case in getattr(self.eval_suite, "cases", [])
-            }
-            report = run_suite(self.eval_suite, outputs=outputs)
+                report = run_suite(self.eval_suite)
+            else:
+                name, genome = best
+                sig = (f"{name}|"
+                       f"{getattr(genome, 'temperature', 0)}|"
+                       f"{getattr(genome, 'confidence_baseline', 0)}")
+                cached = self._eval_cache.get(sig)
+                if cached is not None:
+                    report = cached
+                else:
+                    outputs = {
+                        case.id: self.executor.answer_eval_case(name, genome, case)
+                        for case in getattr(self.eval_suite, "cases", [])
+                    }
+                    report = run_suite(self.eval_suite, outputs=outputs)
+                    self._eval_cache[sig] = report
             if self._baseline_report is None:
                 self._baseline_report = report
             return report
@@ -553,6 +571,7 @@ class SelfEvolutionEngine:
             ctx = SafetyContext(
                 before=self._baseline_genomes, after=after, diff=diff,
                 changed_paths=(),  # 离线写回只改 genome_state，live 模式应填充真实改动路径
+                behavioral_pass_rate=(report.pass_rate if report is not None else None),
             )
             safety = self._safety_gate.run(ctx)
             if not safety.passed:

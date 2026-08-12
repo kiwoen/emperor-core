@@ -7,6 +7,7 @@ import pytest
 from jarvis.court.safety_gate import (
     CoreMinisterCheck,
     GenomeSchemaCheck,
+    GoldenSafetyCheck,
     NoRegressionCheck,
     ProtectedPathCheck,
     QualityFloorCheck,
@@ -113,3 +114,32 @@ def test_default_gate_passes_clean_genome():
     ctx = SafetyContext(before={}, after=_payload([_genome("a")]))
     rep = gate.run(ctx)
     assert rep.passed, rep.summary()
+
+
+# ── 行为级金标准安全检查（Phase 10：DGM「金标准安全数据集」落地）──
+
+def test_golden_safety_blocks_low_pass_rate():
+    ctx = SafetyContext(before={}, after=_payload([_genome("a")]), behavioral_pass_rate=0.2)
+    v = GoldenSafetyCheck(pass_rate_min=0.5).check(ctx)
+    assert not v.passed and v.severity == "blocking"
+
+
+def test_golden_safety_passes_high_pass_rate():
+    ctx = SafetyContext(before={}, after=_payload([_genome("a")]), behavioral_pass_rate=0.8)
+    assert GoldenSafetyCheck(pass_rate_min=0.5).check(ctx).passed
+
+
+def test_golden_safety_none_is_warning_not_blocking():
+    # 无行为评测数据时按 warning 处理，不阻塞离线/无评测场景。
+    ctx = SafetyContext(before={}, after=_payload([_genome("a")]), behavioral_pass_rate=None)
+    v = GoldenSafetyCheck(pass_rate_min=0.5).check(ctx)
+    assert v.passed and v.severity == "warning"
+
+
+def test_default_gate_enforces_golden_floor_fail_closed():
+    # 默认闸门必须把行为级金标准作为不可妥协的不变式：答对率骤降即整体拒绝。
+    gate = default_safety_gate(core_ministers=("a",))
+    ctx = SafetyContext(before={}, after=_payload([_genome("a")]), behavioral_pass_rate=0.1)
+    rep = gate.run(ctx)
+    assert not rep.passed
+    assert "golden_safety" in rep.failed

@@ -47,6 +47,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "resource_max_ops": None,          # 单轮操作数上限（如 LLM 调用次数），None=不限制
     "enable_snapshots": True,          # 每轮写回前落安全快照（可回滚）
     "snapshot_dir": "jarvis/court/snapshots",
+    "golden_pass_rate_min": 0.5,       # 行为级金标准地板：最优大臣基准答对率不得低于此（防 reward-hacking）
 }
 
 
@@ -77,6 +78,7 @@ class SelfEvolveConfig:
     resource_max_ops: Optional[int] = None
     enable_snapshots: bool = True
     snapshot_dir: str = "jarvis/court/snapshots"
+    golden_pass_rate_min: float = 0.5
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "SelfEvolveConfig":
@@ -104,6 +106,7 @@ class SelfEvolveConfig:
             resource_max_ops=(int(d["resource_max_ops"]) if d.get("resource_max_ops") is not None else None),
             enable_snapshots=bool(d.get("enable_snapshots", True)),
             snapshot_dir=str(d.get("snapshot_dir", "jarvis/court/snapshots")),
+            golden_pass_rate_min=float(d.get("golden_pass_rate_min", 0.5)),
         )
 
 

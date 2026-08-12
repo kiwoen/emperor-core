@@ -162,9 +162,10 @@ def run_orchestrator(cfg: SelfEvolveConfig, out_dir: str = "telemetry",
             quality_floor=cfg.quality_floor,
             core_ministers=core,
             max_regression=cfg.max_regression,
+            golden_pass_rate_min=cfg.golden_pass_rate_min,
         )
         print(f"🛡️  已启用金标准安全闸（core={list(core)} 质量地板={cfg.quality_floor} "
-              f"最大回退={cfg.max_regression}）")
+              f"最大回退={cfg.max_regression} 行为地板={cfg.golden_pass_rate_min}）")
 
     engine = SelfEvolutionEngine(
         court=court,
@@ -185,6 +186,7 @@ def run_orchestrator(cfg: SelfEvolveConfig, out_dir: str = "telemetry",
         resource_max_ops=cfg.resource_max_ops,
         enable_snapshots=cfg.enable_snapshots,
         snapshot_dir=cfg.snapshot_dir,
+        golden_pass_rate_min=cfg.golden_pass_rate_min,
     )
 
     report = engine.run(n_cycles=cfg.cycles, tasks_per_minister=cfg.tasks_per_minister)

@@ -33,6 +33,8 @@
 | **Phase 9 资源预算护栏** | ✅ | ResourceBudget：单轮墙钟/操作数越限即熔断，自进化不会跑飞 |
 | **Phase 9 可回滚安全快照** | ✅ | RollbackManager：`safe/<id>` 标记的安全点，一键回滚到进化前 / 任意轮 |
 | **Phase 9 闭环端到端验证** | ✅ | 生产配置真实跑通：评测闸拒写回 + 人类审批门 + 审计 + 安全闸 + 快照 + 预算，全绿并可回滚 |
+| **Phase 10 行为级金标准安全闸** | ✅ | GoldenSafetyCheck：用最优大臣在基准上的真实答对率兜底（DGM「金标准安全数据集」真正落地），防 reward-hacking |
+| **Phase 10 评测与运行优化** | ✅ | 评测与 cycle 解耦（纯反映基因质量）+ 按基因签名缓存复用，长程运行免重复评测 |
 
 **核心完成定义（DoD）达成情况**：
 - 全部 P0 项已绿，且对应单测覆盖（PromptGuard 真阻断、护栏接线、适应度非长度、SmartRouter 存在、选臣 domain 匹配、评测基准相关 ≥0.8）。
@@ -263,4 +265,48 @@ GA 算子的 RNG），无需 LLM key、不连网、不碰真实 git；`--live` �
 **完成度**：至此 emperor-core 自进化闭环已具备 DGM 三约束（沙箱 + 编码基准评测 + 人工审批门）+
 研究 P0 落地清单（金标准安全闸 / 资源预算 / 可测试回滚）的全部要素，且**离线、确定性、可复现、
 可审计、可回滚**地真正跑通——满足「完全落地执行」目标。
+
+## 10. 本轮增量（Phase 10：优化与加固——把安全闸从「结构」补到「行为」）
+
+> 驱动：Phase 9 的金标准安全闸是**结构级**的（schema/名字/质量地板/核心大臣/受保护路径/无回归），
+> 但对照 DGM 论文，真正的核心是「**金标准安全数据集**」——用一组固定的 held-out 任务衡量当前最优模型的
+> **真实行为正确率**，作为不可妥协的不变式。结构检查全过 ≠ 行为没崩：一个突变可能把 `true_quality`
+> 刷高、却让真实任务表现骤降（典型 reward-hacking）。本轮回填这道**行为级**闸，并对评测本身做正确性与性能优化。
+
+**Phase 10 交付**：
+
+1. **行为级金标准安全检查（jarvis/court/safety_gate.py：新增 `GoldenSafetyCheck`）**：DGM「golden safety dataset」
+   的真正落地——把当前最优大臣在固定基准（canonical suite）上的**真实答对率**作为写回前的 fail-closed 不变式。
+   编排引擎在 `_evaluate` 算出的 `eval_pass_rate` 注入 `SafetyContext.behavioral_pass_rate`，任一 blocking 闸
+   不过即拒。**与结构检查互补**：结构全过、评测闸也放过，只要真实行为正确率跌破 `golden_pass_rate_min`
+   （默认 0.5，生产可调高）就拒绝写回。无行为评测数据时按 *warning* 处理，不阻塞离线/无评测场景。
+   `default_safety_gate` 默认包含该检查。
+
+2. **评测与运行轮次解耦（jarvis/self_evolve.py：修正 `answer_eval_case`）**：原本评测采样依赖 `cycle`，
+   使「跑了第几轮」混入行为正确率、且无法对不同轮复用评测。现改为仅依赖 `(minister, case)`，**评测纯粹
+   反映基因质量**，从而为下一步缓存扫清语义障碍（也更正确：进化效果应由基因决定，而非轮次计数）。
+
+3. **评测结果缓存（jarvis/self_evolve.py：新增 `_eval_cache`）**：按「最优大臣 + 其基因」签名缓存评测报告，
+   基因未变即复用上次结果，跳过对稳定基因的重复评测（长程运行 / 高频轮询场景下的性能优化，且完全正确——
+   评测已与 cycle 解耦，同基因必得同结果）。
+
+4. **配置与入口贯通**：`SelfEvolveConfig.golden_pass_rate_min`（默认 0.5）、`configs/self_evolve.yaml`
+   （生产设 0.6）、`scripts/run_self_evolve.py`（透传）、CLI `--golden-pass-rate-min` 全部打通；移除
+   `self_evolve.py` 内一处冗余注释，保持代码整洁。
+
+**实测（端到端）**：
+- 普通姿态（`--cycles 3 --seed 7`，行为地板 0.5）：eval 67% ≥ 0.5 → 每轮 `proposed:absorb-offline-N`，EXIT=0。
+- 激进姿态（`--golden-pass-rate-min 0.99`）：eval 67% < 99% → 全部 `blocked-safety:golden_safety`
+  （fail-closed 真实生效），EXIT=0——证明行为级闸确实兜底、可拦截「结构全过但行为崩」的突变。
+- `safety-check`：金标准安全闸 7 项（含 golden_safety，无评测数据时按 warning 跳过）通过。
+- CI 双闸（check_write_protect / check_silent_except）对新增代码零告警。
+- 可复现性复测：同 seed 两次 15 轮运行结果逐字节一致；15 轮约 0.25s，性能无回退。
+
+**本轮测试**：新增 7 个（safety_gate 4：golden 拦截/放行/无数据 warning/默认闸 fail-closed；eval_cache 3：
+缓存复用/cycle 解耦/行为信号注入），累计 Phase 8–10 共 **30 个新增测试**；受触模块定向回归
+（court/cli/eval/safety/landing 等 21 文件）全绿（合计本轮 446 项通过），CI 双闸零告警。
+
+**完成度**：emperor-core 自进化闭环现已具备 DGM 三约束（沙箱 + **结构级 + 行为级**编码基准评测 + 人工审批门）+
+研究 P0 落地清单（金标准安全闸 / 资源预算 / 可测试回滚）的全部要素，且离线、确定性、可复现、可审计、可回滚、
+行为级 fail-closed 地真正跑通。
 

@@ -275,6 +275,8 @@ def cmd_self_evolve(args: argparse.Namespace) -> None:
         cfg.resource_seconds = args.resource_seconds
     if getattr(args, "resource_max_ops", None) is not None:
         cfg.resource_max_ops = args.resource_max_ops
+    if getattr(args, "golden_pass_rate_min", None) is not None:
+        cfg.golden_pass_rate_min = args.golden_pass_rate_min
 
     se_cmd = getattr(args, "se_command", None)
     if se_cmd == "safety-check":
@@ -401,6 +403,8 @@ def main() -> None:
                            help="单轮墙钟预算（秒，越限即熔断）")
     se_parser.add_argument("--resource-max-ops", type=int, default=None,
                            help="单轮操作数上限（如 LLM 调用次数）")
+    se_parser.add_argument("--golden-pass-rate-min", type=float, default=None,
+                           help="行为级金标准地板：最优大臣基准答对率下限（防 reward-hacking）")
     # ── 嵌套子命令：安全校验 / 回滚 ──
     se_sub = se_parser.add_subparsers(dest="se_command")
     se_sc = se_sub.add_parser("safety-check", help="对当前基因快照跑金标准安全闸")

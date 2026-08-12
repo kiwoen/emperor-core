@@ -18,6 +18,9 @@ emperor-core 已有沙箱(GitWriteChannel 只开 PR) 与人类审批门(approval
                              （live 模式下生效；离线写回 genome_state 不触发）。
   6. NoRegressionCheck   —— 金标准大臣集合的平均质量相对上轮不得回退超过阈值
                              （这就是 DGM 的「编码基准」在一组固定 golden 用例上的体现）。
+  7. GoldenSafetyCheck   —— **行为级**金标准：当前最优大臣在固定基准上的真实答对率
+                             不得低于地板（DGM「金标准安全数据集」的真正落地，防
+                             reward-hacking：结构检查全过、质量被刷高，但真实任务表现崩了）。
 
 设计要点：
   * 全部纯标准库、离线可用、确定性；
@@ -55,6 +58,10 @@ DEFAULT_PROTECTED_PATHS: Sequence[str] = (
 DEFAULT_QUALITY_FLOOR = 0.05
 # 金标准大臣相对上轮平均质量的允许最大回退幅度。
 DEFAULT_MAX_REGRESSION = 0.10
+# 行为级金标准安全地板：当前最优大臣在基准上的「真实答对率」不得低于此值。
+# 这是 DGM「金标准安全数据集」的真正落地——结构检查过了也不代表行为没崩，
+# 用实际任务正确率兜底防 reward-hacking（质量被刷高但真实表现崩了）。
+GOLDEN_PASS_RATE_MIN = 0.5
 
 
 # ── 结果类型 ──────────────────────────────────────────────────
@@ -98,6 +105,9 @@ class SafetyContext:
     diff: str = ""
     changed_paths: Sequence[str] = field(default_factory=tuple)
     config: Optional[Dict[str, Any]] = None
+    # 行为级金标准信号：当前最优大臣在固定基准上的「真实答对率」（由编排引擎注入）。
+    # None 表示本轮未运行行为评测（离线/无评测场景），此时金标准行为闸按 warning 处理。
+    behavioral_pass_rate: Optional[float] = None
 
 
 class SafetyCheck(Protocol):
@@ -264,6 +274,41 @@ class NoRegressionCheck:
         return SafetyVerdict(self.name, True, f"质量未回退（Δ={drop:+.3f}≤{self.max_regression}）")
 
 
+class GoldenSafetyCheck:
+    """行为级金标准安全检查（DGM「金标准安全数据集」的真正落地形态）。
+
+    结构检查（schema/名字/质量地板/核心大臣/受保护路径/无回归）全过、评测闸也放过，
+    都**不代表系统真实行为没崩**——一个突变可能把 ``true_quality`` 刷高、却让当前最优
+    大臣在固定基准上的真实答对率骤降（典型的 reward-hacking）。本检查用当前最优大臣在
+    基准上的**真实答对率**作为不可妥协的安全不变式，跌破地板即 fail-closed 拒绝写回。
+
+    ``behavioral_pass_rate`` 由编排引擎从 :meth:`SelfEvolutionEngine._evaluate` 注入进
+    :class:`SafetyContext`。未运行行为评测（``None``）时按 *warning* 处理，不阻塞离线 /
+    无评测场景；一旦有数据就强制 fail-closed。
+    """
+
+    name = "golden_safety"
+
+    def __init__(self, pass_rate_min: float = GOLDEN_PASS_RATE_MIN,
+                 severity: str = "blocking") -> None:
+        self.pass_rate_min = float(pass_rate_min)
+        self.severity = severity
+
+    def check(self, ctx: SafetyContext) -> SafetyVerdict:
+        pr = ctx.behavioral_pass_rate
+        if pr is None:
+            return SafetyVerdict(self.name, True, "无行为评测数据，跳过（不阻塞）",
+                                 severity="warning")
+        if pr < self.pass_rate_min - 1e-9:
+            return SafetyVerdict(
+                self.name, False,
+                f"金标准行为正确率 {pr:.3f} 低于地板 {self.pass_rate_min}",
+                severity=self.severity,
+            )
+        return SafetyVerdict(self.name, True,
+                             f"金标准行为正确率 {pr:.3f} ≥ {self.pass_rate_min}")
+
+
 # ── 闸门 ──────────────────────────────────────────────────────
 
 @dataclass
@@ -322,8 +367,9 @@ def default_safety_gate(
     protected_paths: Sequence[str] = DEFAULT_PROTECTED_PATHS,
     golden: Optional[Sequence[str]] = None,
     max_regression: float = DEFAULT_MAX_REGRESSION,
+    golden_pass_rate_min: float = GOLDEN_PASS_RATE_MIN,
 ) -> SafetyGate:
-    """构造默认金标准安全闸（全部检查打开）。"""
+    """构造默认金标准安全闸（全部检查打开，含行为级金标准不变式）。"""
     return SafetyGate([
         GenomeSchemaCheck(),
         UniqueNameCheck(),
@@ -331,6 +377,7 @@ def default_safety_gate(
         CoreMinisterCheck(core=core_ministers),
         ProtectedPathCheck(protected=protected_paths),
         NoRegressionCheck(golden=golden, max_regression=max_regression),
+        GoldenSafetyCheck(pass_rate_min=golden_pass_rate_min),
     ])
 
 
@@ -347,8 +394,10 @@ __all__ = [
     "CoreMinisterCheck",
     "ProtectedPathCheck",
     "NoRegressionCheck",
+    "GoldenSafetyCheck",
     "default_safety_gate",
     "DEFAULT_PROTECTED_PATHS",
     "DEFAULT_QUALITY_FLOOR",
     "DEFAULT_MAX_REGRESSION",
+    "GOLDEN_PASS_RATE_MIN",
 ]
