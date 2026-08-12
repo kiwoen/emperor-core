@@ -32,3 +32,8 @@ jobs:
         # 反向校验：除 jarvis/vcs/git_channel.py 外，任何文件出现
         # git push master/main、gh api PUT/POST 命中受保护分支即判红。
         run: python scripts/check_write_protect.py
+
+      - name: Silent-except guard (self-evolution core)
+        # 反向校验：自进化核心路径禁止「except Exception: pass」静默吞异常，
+        # 防止系统在你不知情时持续劣化（研究头号失败模式 = silent failure）。
+        run: python scripts/check_silent_except.py

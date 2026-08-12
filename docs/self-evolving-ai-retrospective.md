@@ -1,7 +1,7 @@
 # emperor-core 自进化系统「落地完成」复盘报告
 
 > 文档性质：阶段性完工复盘（对照《实施方案》第 8 章 DoD）。
-> 时间线：2026-08-09 起，历经 P0.1–P0.6、P1.4、P2.1、P2.2。
+> 时间线：2026-08-09 起，历经 P0.1–P0.6、P1.4、P2.1、P2.2、P2.3、P3.1 与可观测性硬化。
 > 安全基调：始终遵循 DGM 论文（arXiv:2505.22954）三约束——沙箱、编码基准验证、人工审批门。
 
 ---
@@ -19,8 +19,10 @@
 | **P1.4 进化安全闸** | ✅ | CircuitBreaker（失控熔断）+ PromotionGate（连续正增长才晋升） |
 | **P2.1 GitWriteChannel** | ✅ | 唯一合法写回通道：只开 PR，绝不直推 master/main |
 | **P2.2 CI 写保护** | ✅ | check_write_protect.py + absorb.yml，反向校验无人绕过通道 |
+| **P2.3 评测闸写回** | ✅ | WritebackGate：基准不过/回归即拒，DGM「基准评测」环闭合 |
+| **可观测性硬化** | ✅ | 核心路径 18 处 `except:pass` 全转可观测；CI 静默异常闸防回归 |
 | P1.1–P1.3 真实 LLM + 解冻 | ⏸️ | 受沙箱无 LLM key 限制，留待配 key 后启用（已预留闸门） |
-| P3.1 监控看板 | ⏸️ | 可选，待 P2.2 稳定后部署 |
+| **P3.1 监控看板** | ✅ | telemetry.py + emit_telemetry.py + dashboard.html（stdlib-only，离线可看） |
 
 **核心完成定义（DoD）达成情况**：
 - 全部 P0 项已绿，且对应单测覆盖（PromptGuard 真阻断、护栏接线、适应度非长度、SmartRouter 存在、选臣 domain 匹配、评测基准相关 ≥0.8）。
@@ -89,3 +91,34 @@
 - 所有改动经 feature 分支 → 合并 master → 推送 GitHub（`kiwoen/emperor-core`）。
 - 分支命名已从「含斜杠」改为**扁平连字符**（沙箱 git 嵌套 ref 写入限制教训）。
 - 复盘文档、调研文档、实施方案均已作为仓库交付物纳入 `docs/`。
+
+---
+
+## 6. 本轮增量（P2.3 + 可观测性硬化 + P3.1）
+
+**P2.3 评测闸写回（DGM 闭环补全）**：此前 `GitWriteChannel.propose_change` 会**无条件**开 PR——
+一个让基准回归的突变也会被照样提交。本轮新增 `jarvis/vcs/writeback_gate.py`
+（`WritebackGate` / `WritebackBlocked`），把「基准评测」这一环接进写回通道：
+提供 `eval_report` 时，评测不达标 / 相对基线回归 / 某域跌破下限 / 空套件，
+即在任何 git 操作**之前**抛 `WritebackBlocked`（fail fast、零副作用、绝不静默放行）。
+至此 DGM 三段式——**沙箱（隔离克隆）+ 基准评测（WritebackGate）+ 人类审批门（只开 PR）**——完全闭合。
+
+**可观测性硬化（研究头号失败模式 = silent failure）**：AST 扫描发现自进化核心路径
+残留 18 处宽泛 `except Exception: pass`（其中 `court/task_engine.py` 的功勋/反馈写入
+8 处最危险——进化信号会无声丢失）。全部转为 `logger.debug/warning(..., exc_info=True)`，
+保持非致命但**可观测**；仅保留 `evolution.py` 一处 `(ValueError, IndexError)` 解析跳过
+（窄类型、有意为之）。新增 `scripts/check_silent_except.py` 并接入 `absorb.yml`，
+反向校验核心路径不得再引入静默吞异常（防回归）。
+
+**P3.1 监控看板**：`jarvis/telemetry.py`（stdlib-only）把熔断器状态、基准评测、大臣功勋、
+进化事件、成本聚合成 `TelemetrySnapshot`；`scripts/emit_telemetry.py` 跑真实 canonical
+基准（离线、确定性）生成 `telemetry.json` + `telemetry.js`，并复制出自包含
+`dashboard.html`（浏览器直接打开，file:// 可用，无需起服务）。
+实测：canonical 黄金基准 12/12（100%），health=healthy。
+
+**集成验证**：`tests/test_self_evolve_integration.py` 把「熔断器 + 评测闸 + 写回通道」
+串成完整进化循环，断言：功勋崩塌→熔断即停、回归突变被拒且零 git 副作用、
+健康循环写回绝不直推 master、基准黄金答案 100% 可信。
+
+**本轮测试**：新增 25 个（writeback_gate 11 + silent_except_guard 8 + telemetry 7 +
+integration 4，去重后计入套件），受触模块定向回归 **317 passed**，零回归。

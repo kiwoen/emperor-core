@@ -243,7 +243,10 @@ class TaskEngine:
                     if genome:
                         exec_domain = genome.domain
                 except Exception:
-                    pass
+                    logger.debug(
+                        "[TaskEngine] 读取 genome 域失败，沿用 request.domain (task=%s，已转为可观测)",
+                        request.id, exc_info=True,
+                    )
 
                 best_cap = self._capability_registry.find_best(request.prompt, exec_domain)
                 if best_cap is not None:
@@ -315,10 +318,16 @@ class TaskEngine:
                     if best_cap is not None:
                         capability_name = best_cap.name
                 except Exception:
-                    pass
+                    logger.debug(
+                        "[TaskEngine] 能力匹配失败，回退默认能力 (task=%s，已转为可观测)",
+                        request.id, exc_info=True,
+                    )
             self._apply_task_feedback(minister, capability_name)
         except Exception:
-            pass
+            logger.debug(
+                "[TaskEngine] 应用任务反馈失败 (task=%s，已转为可观测)",
+                request.id, exc_info=True,
+            )
 
         # 5b. Publish task_completed event for SSE dashboard
         try:
@@ -353,7 +362,10 @@ class TaskEngine:
                 execution_time_ms=elapsed_ms,
             )
         except Exception:
-            pass
+            logger.warning(
+                "[TaskEngine] 记录 dispatch 到功勋板失败 (task=%s)——进化信号可能丢失",
+                request.id, exc_info=True,
+            )
 
         # 6. Record feedback score
         try:
@@ -363,7 +375,10 @@ class TaskEngine:
                 score=merit,
             )
         except Exception:
-            pass
+            logger.warning(
+                "[TaskEngine] 记录 feedback 到功勋板失败 (task=%s)——进化信号可能丢失",
+                request.id, exc_info=True,
+            )
 
         logger.info(
             "[TaskEngine] '%s' → %s (%.0fms, merit=%.1f)",
@@ -646,7 +661,10 @@ class TaskEngine:
                     "frequency_penalty": genome.conservatism,
                 }
         except Exception:
-            pass
+            logger.debug(
+                "[TaskEngine] 提取 genome LLM 参数失败，回退默认 temperature (minister=%s，已转为可观测)",
+                minister, exc_info=True,
+            )
         return {"temperature": 0.7}
 
     def _apply_task_feedback(
@@ -689,7 +707,10 @@ class TaskEngine:
                         score=new_merit,
                     )
                 except Exception:
-                    pass
+                    logger.warning(
+                        "[TaskEngine] 功勋正向反馈写入失败 (minister=%s)——进化信号可能丢失",
+                        minister, exc_info=True,
+                    )
 
             # stability micro-increase
             genome.confidence_baseline = min(
@@ -723,7 +744,10 @@ class TaskEngine:
                         score=new_merit,
                     )
                 except Exception:
-                    pass
+                    logger.warning(
+                        "[TaskEngine] 功勋惩罚写入失败 (minister=%s)——进化信号可能丢失",
+                        minister, exc_info=True,
+                    )
 
 
 # ══════════════════════════════════════════════════════════════════

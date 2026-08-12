@@ -642,7 +642,10 @@ class SurvivalMechanism:
                     return self._merit_board.compute_merit(minister)
                 return self._merit_board.get_score(minister)
         except Exception:
-            pass
+            logger.debug(
+                "[Evolution] 读取大臣功勋失败，回退为 0.0（minister=%s，已转为可观测）",
+                minister, exc_info=True,
+            )
 
         return 0.0
 
@@ -816,7 +819,10 @@ class SurvivalMechanism:
                     if history:
                         merit_history[name] = history
                 except Exception:
-                    pass
+                    logger.debug(
+                        "[Evolution] 读取功勋历史失败（minister=%s，已转为可观测）",
+                        name, exc_info=True,
+                    )
 
         outcomes = self._auto_breeder.check_outcomes(
             current_cycle=self._cycle_count,

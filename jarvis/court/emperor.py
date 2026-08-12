@@ -246,7 +246,10 @@ class ImperialCourt:
                 try:
                     on_progress(phase, detail)
                 except Exception:
-                    pass
+                    logger.debug(
+                        "[Emperor] on_progress 回调失败（已转为可观测，非致命）",
+                        exc_info=True,
+                    )
 
         logger.info(
             "[Emperor] Receiving petition: decree=%s intent='%s'",

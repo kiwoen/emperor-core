@@ -21,11 +21,14 @@ The result: the best ministers for each task, with controlled exploration.
 
 from __future__ import annotations
 
+import logging
 import random
 from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any, Callable, Optional
+
+logger = logging.getLogger("jarvis.court.routing")
 
 
 class RoutingStrategy(Enum):
@@ -281,7 +284,10 @@ class IntelligentRouter:
             try:
                 diversity_score = self._diversity_provider()
             except Exception:
-                pass
+                logger.debug(
+                    "[Routing] diversity_provider 回调失败（已转为可观测，非致命）",
+                    exc_info=True,
+                )
 
         for minister in ministers:
             # 1. Domain match

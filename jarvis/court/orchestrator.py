@@ -259,7 +259,10 @@ class CourtOrchestrator(ImperialCourt):
                     ) / len(results)
                     hit_rate = min(len(results) / 5.0, 1.0) * success_rate
             except Exception:
-                pass
+                logger.debug(
+                    "[Orchestrator] 记忆查询失败，hit_rate 保持默认（已转为可观测）",
+                    exc_info=True,
+                )
 
         # Complex intent keywords → HARD
         complex_keywords = [
