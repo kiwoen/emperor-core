@@ -23,6 +23,8 @@
 | **可观测性硬化** | ✅ | 核心路径 18 处 `except:pass` 全转可观测；CI 静默异常闸防回归 |
 | P1.1–P1.3 真实 LLM + 解冻 | ⏸️ | 受沙箱无 LLM key 限制，留待配 key 后启用（已预留闸门） |
 | **P3.1 监控看板** | ✅ | telemetry.py + emit_telemetry.py + dashboard.html（stdlib-only，离线可看） |
+| **落地编排器** | ✅ | self_evolve.py + run_self_evolve.py：一键跑通完整闭环（离线、确定性、可复现） |
+| **落地回归修复** | ✅ | 修 3 个只在真实运行才暴露的 Court bug（熔断即崩 / avg_merit / success_rate） |
 
 **核心完成定义（DoD）达成情况**：
 - 全部 P0 项已绿，且对应单测覆盖（PromptGuard 真阻断、护栏接线、适应度非长度、SmartRouter 存在、选臣 domain 匹配、评测基准相关 ≥0.8）。
@@ -122,3 +124,35 @@
 
 **本轮测试**：新增 25 个（writeback_gate 11 + silent_except_guard 8 + telemetry 7 +
 integration 4，去重后计入套件），受触模块定向回归 **317 passed**，零回归。
+
+---
+
+## 7. 本轮增量（落地编排器——「完全落地执行」）
+
+**目标**：此前所有安全组件都是「带单测的独立件」，缺一个能**一键真正跑起来**的完整
+自进化循环。本轮补齐编排层，并借「真实跑一遍」逼出并修掉了 3 个潜伏 bug。
+
+**落地编排器**：新建 `jarvis/self_evolve.py`（`SelfEvolutionEngine`）+
+`scripts/run_self_evolve.py`（CLI）。把全链路串成闭环：
+护栏(GuardrailChain) → 路由(SmartRouter) → 执行(Executor) → 适应度(RealTaskFitness)
+→ 功勋(MeritBoard) → 进化(Court.evolve，受 CircuitBreaker+PromotionGate 约束)
+→ 基准评测(eval_bench) → 评测闸(WritebackGate) → 写回(GitWriteChannel/离线 RecordingWriteChannel)
+→ 可观测(telemetry)。默认**完全离线、确定性、可复现**（`--seed` 同时锚定执行器与
+GA 算子的 RNG），无需 LLM key、不连网、不碰真实 git；`--live` 才切真实 PR。
+
+**真实运行逼出并修复的 3 个 Court 潜伏 bug**（此前单测全用 mock，没暴露）：
+1. `_evolve_with_breaker` 对 `EvolutionReport` dataclass 直接 `["halted"]=True` ——
+   **熔断一触发就 TypeError**，安全闸会在最不该崩的时刻崩掉整个循环。已改为先
+   归一化成 dict 再挂 halted/trip_reason。
+2. `Court.avg_merit` 读不存在的 `.merit` —— 滑动功勋（默认开启）下 ranking 元素是
+   `SlidingMeritReport`（字段为 `windowed_merit`/`merit_score`），一调就 AttributeError。
+   已加 `_report_merit` 兼容取值。
+3. `Court.success_rate` 调用 `SlidingMeritBoard` 未委托的 `.success_rate()` —— 已加
+   穿透到底层 `.board` 的兜底。
+
+**实测**（`--cycles 6 --seed 7`，离线）：6 轮完整跑通，护栏/路由/适应度/功勋/进化全部
+真实触发；评测闸每轮正确拦截写回（基准 67–75% < 100% 门槛）；熔断器全程监控（closed）；
+产出 run_report.json + telemetry.json/js + dashboard.html。
+
+**本轮测试**：新增 8 个（Court 落地回归 3 + 引擎闭环 4 + CLI 端到端 1），
+受触模块定向回归 **325 passed**，零回归。

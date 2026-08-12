@@ -195,6 +195,14 @@ class Court:
         Returns the underlying SurvivalMechanism result of the *last* executed
         cycle, augmented with ``halted`` / ``trip_reason`` so callers can see
         that evolution was cut short by the safety gate.
+
+        Note: ``run_cycle`` returns an :class:`EvolutionReport` dataclass, but
+        this method must attach ``halted``/``trip_reason`` keys — so the cycle
+        result is normalised to a plain dict first.  (Previously the code did
+        ``last_result["halted"] = True`` directly on the dataclass, which raised
+        ``TypeError`` *precisely when the breaker tripped* — i.e. the safety gate
+        would itself crash the loop.  Regression-covered by
+        ``test_court_evolve_real_breaker_trip_returns_dict``.)
         """
         breaker = self._circuit_breaker
         last_result: dict = {}
@@ -207,7 +215,7 @@ class Court:
                 last_result.setdefault("halted", True)
                 last_result.setdefault("trip_reason", breaker._last_reason)
                 break
-            last_result = self.run_cycle()
+            last_result = self._cycle_result_as_dict(self.run_cycle())
             decision = breaker.record(
                 self.cycle, self.avg_merit,
             )
@@ -220,6 +228,30 @@ class Court:
                 )
                 break
         return last_result
+
+    @staticmethod
+    def _cycle_result_as_dict(result: Any) -> dict:
+        """Normalise one cycle's result to a plain dict.
+
+        ``run_cycle`` may return an :class:`EvolutionReport` dataclass (real
+        path) or a dict (tests / alternative backends).  Always return a dict
+        so callers can attach ``halted`` / ``trip_reason`` uniformly.
+        """
+        if isinstance(result, dict):
+            return dict(result)
+        return {
+            "cycle": getattr(result, "cycle", None),
+            "active_count": getattr(result, "active_count", None),
+            "shadow_count": getattr(result, "shadow_count", None),
+            "eliminated_count": getattr(result, "eliminated_count", None),
+            "new_spawns": getattr(result, "new_spawns", None),
+            "actions_taken": [
+                getattr(a, "action", str(a))
+                for a in getattr(result, "actions_taken", []) or []
+            ],
+            "systemic_issues": list(getattr(result, "systemic_issues", []) or []),
+            "recommendations": list(getattr(result, "recommendations", []) or []),
+        }
 
     def run_cycle(self) -> Any:
         return self._sm.run_evolution_cycle()
@@ -271,7 +303,15 @@ class Court:
     @property
     def success_rate(self) -> float:
         """Aggregate success rate across all dispatch records (0.0-1.0)."""
-        return float(self._merit_board.success_rate())
+        board = self._merit_board
+        fn = getattr(board, "success_rate", None)
+        # SlidingMeritBoard wraps the real MeritBoard as `.board` but does not
+        # delegate every aggregate helper — fall through to the wrapped board.
+        if fn is None:
+            fn = getattr(getattr(board, "board", None), "success_rate", None)
+        if fn is None:
+            return 0.0
+        return float(fn())
 
     @property
     def avg_merit(self) -> float:
@@ -279,7 +319,23 @@ class Court:
         ranking = self.merit_ranking
         if not ranking:
             return 0.0
-        return sum(float(m.merit) for m in ranking) / len(ranking)
+        return sum(self._report_merit(m) for m in ranking) / len(ranking)
+
+    @staticmethod
+    def _report_merit(report: Any) -> float:
+        """Effective merit from a MeritReport / SlidingMeritReport.
+
+        ``MeritReport`` exposes ``merit_score``; ``SlidingMeritReport`` adds
+        ``windowed_merit`` (the effective score under sliding-window merit).
+        Prefer the windowed value when present.  (Previously this read a
+        non-existent ``.merit`` attribute, crashing ``avg_merit`` — and thus the
+        CircuitBreaker path — on any real court with registered ministers.)
+        """
+        for attr in ("windowed_merit", "merit_score", "merit"):
+            val = getattr(report, attr, None)
+            if val is not None:
+                return float(val)
+        return 0.0
 
     @property
     def min_ministers(self) -> int:
