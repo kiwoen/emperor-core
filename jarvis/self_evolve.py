@@ -62,7 +62,11 @@ from jarvis.vcs.writeback_gate import WritebackGate
 logger = logging.getLogger("jarvis.self_evolve")
 
 # 基因「真实质量」统一来源（见 jarvis/court/genome_quality，安全闸与引擎共用）。
-from jarvis.court.genome_quality import true_quality  # re-exported via __all__
+from jarvis.court.genome_quality import (  # true_quality re-exported via __all__
+    OPT_CONFIDENCE,
+    OPT_TEMPERATURE,
+    true_quality,
+)
 
 
 def _uniform01(*parts: Any) -> float:
@@ -154,6 +158,24 @@ def default_tasks(n: int = 6) -> List[SimulatedTask]:
         SimulatedTask(id=f"task-{i:02d}", prompt=f"离线任务 {i}",
                       domain=domains[i % len(domains)])
         for i in range(n)
+    ]
+
+
+def real_default_tasks() -> List[SimulatedTask]:
+    """一组**真正可解**的离线任务（带黄金答案），供 :class:`RealTaskExecutor` 真实执行。
+
+    与 :func:`default_tasks`（仅占位 prompt）不同，这里每个任务都能被
+    :class:`~jarvis.court.offline_solver.OfflineSolver` 真正算出答案，从而
+    让「执行任务」是真实计算而非模拟，适应度梯度来自真实对错。
+    """
+    return [
+        SimulatedTask("real-math-add", "计算 1234 + 5678", "math", expected="6912"),
+        SimulatedTask("real-math-mul", "计算 12 * 12", "math", expected="144"),
+        SimulatedTask("real-fact-france", "法国的首都是哪里？", "factual", expected="巴黎"),
+        SimulatedTask("real-fact-one", "1 加 1 等于几？", "factual", expected="2"),
+        SimulatedTask("real-code-quicksort", "用 Python 写一个快速排序函数", "code", expected="def quicksort"),
+        SimulatedTask("real-code-fib", "写一个函数计算斐波那契数列的第 n 项", "code", expected="def fib"),
+        SimulatedTask("real-retr-pep", "查 Python 3.12 的新特性", "retrieval", expected="PEP 701"),
     ]
 
 
@@ -289,9 +311,13 @@ class SelfEvolutionEngine:
         enable_snapshots: bool = True,
         snapshot_dir: str = "jarvis/court/snapshots",
         golden_pass_rate_min: float = 0.5,
+        self_learn: bool = False,
     ) -> None:
         self.court = court
         self.executor = executor or GenomeDrivenExecutor()
+        # 自我学习开关：开启后，每个任务的真实成败会即时微调大臣基因（向最优区靠拢），
+        # 让「自我学习进化」在单轮内就发生（确定性小步长，默认关闭以保持既有行为）。
+        self._self_learn = bool(self_learn)
         self.fitness = fitness or RealTaskFitness()
         self.router = router
         self.guardrail = guardrail
@@ -514,6 +540,37 @@ class SelfEvolutionEngine:
                     sig.execution_success, score, execution_time_ms=1.0,
                 )
                 self.court.record_feedback(minister, f"{task.id}-c{cycle}", score * 100.0)
+                # 4) 自我学习：真实成败即时微调基因（向最优区靠拢），确定性小步长。
+                if self._self_learn:
+                    self._reinforce(genome, bool(sig.execution_success))
+
+    def _reinforce(self, genome: Any, success: bool) -> None:
+        """自我学习：按真实任务成败微调基因，向最优区（温度≈0.4/置信≈0.9）靠拢。
+
+        只对真实执行路径有意义（RealTaskExecutor 的真实对错驱动）；步长小且确定，
+        保证可复现。改动反映在 ``genome_state_payload``，故会被写回 diff 真实捕获。
+        """
+        if genome is None:
+            return
+        try:
+            get = (lambda k, d: genome.get(k, d)) if isinstance(genome, dict) \
+                else (lambda k, d: getattr(genome, k, d))
+            temp = float(get("temperature", 0.7))
+            conf = float(get("confidence_baseline", 0.75))
+            if success:
+                conf += (OPT_CONFIDENCE - conf) * 0.08
+                temp += (OPT_TEMPERATURE - temp) * 0.08
+            else:
+                conf = max(0.0, conf - 0.01)   # 失败微降置信（真实负反馈）
+                temp += (0.7 - temp) * 0.04    # 向中性回摆
+            conf = max(0.0, min(1.0, conf))
+            temp = max(0.0, min(1.0, temp))
+            if isinstance(genome, dict):
+                genome["confidence_baseline"], genome["temperature"] = conf, temp
+            else:
+                genome.confidence_baseline, genome.temperature = conf, temp
+        except Exception:
+            logger.debug("[SelfEvolve] 基因自我学习微调失败（已转为可观测）", exc_info=True)
 
     def _evaluate(self, cycle: int) -> Optional[EvalReport]:
         """用当前最优大臣回答基准，得到反映进化效果的通过率。
@@ -634,5 +691,6 @@ __all__ = [
     "SelfEvolutionEngine",
     "default_ministers",
     "default_tasks",
+    "real_default_tasks",
     "true_quality",
 ]

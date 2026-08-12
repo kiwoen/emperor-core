@@ -48,6 +48,11 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "enable_snapshots": True,          # 每轮写回前落安全快照（可回滚）
     "snapshot_dir": "jarvis/court/snapshots",
     "golden_pass_rate_min": 0.5,       # 行为级金标准地板：最优大臣基准答对率不得低于此（防 reward-hacking）
+    # ── Phase 11：真实任务执行 + 自我学习 ──
+    "executor": "auto",                # sim(基因模拟) | real(真实离线求解/真实 LLM) | auto(默认 real)
+    "self_learn": True,                # 真实成败即时微调基因（向最优区靠拢），真实自我学习
+    "task_file": "",                   # 自定义真实任务文件（YAML/JSON：[{id,prompt,domain,expected}]）
+    "tasks": [],                       # 内联任务（优先级最高）
 }
 
 
@@ -79,6 +84,11 @@ class SelfEvolveConfig:
     enable_snapshots: bool = True
     snapshot_dir: str = "jarvis/court/snapshots"
     golden_pass_rate_min: float = 0.5
+    # Phase 11：真实任务执行 + 自我学习
+    executor: str = "auto"
+    self_learn: bool = True
+    task_file: str = ""
+    tasks: List[Dict[str, Any]] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "SelfEvolveConfig":
@@ -107,6 +117,10 @@ class SelfEvolveConfig:
             enable_snapshots=bool(d.get("enable_snapshots", True)),
             snapshot_dir=str(d.get("snapshot_dir", "jarvis/court/snapshots")),
             golden_pass_rate_min=float(d.get("golden_pass_rate_min", 0.5)),
+            executor=str(d.get("executor", "auto")),
+            self_learn=bool(d.get("self_learn", True)),
+            task_file=str(d.get("task_file", "") or ""),
+            tasks=list(d.get("tasks", []) or []),
         )
 
 

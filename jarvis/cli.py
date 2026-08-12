@@ -277,6 +277,19 @@ def cmd_self_evolve(args: argparse.Namespace) -> None:
         cfg.resource_max_ops = args.resource_max_ops
     if getattr(args, "golden_pass_rate_min", None) is not None:
         cfg.golden_pass_rate_min = args.golden_pass_rate_min
+    if getattr(args, "executor", None):
+        cfg.executor = args.executor
+    if getattr(args, "self_learn", False):
+        cfg.self_learn = True
+    if getattr(args, "no_self_learn", False):
+        cfg.self_learn = False
+    if getattr(args, "task_file", None):
+        cfg.task_file = args.task_file
+    if getattr(args, "task", None):  # 内联真实任务（可重复）
+        cfg.tasks = [
+            {"id": f"cli-{i:02d}", "prompt": p, "domain": "general"}
+            for i, p in enumerate(args.task)
+        ]
 
     se_cmd = getattr(args, "se_command", None)
     if se_cmd == "safety-check":
@@ -405,6 +418,15 @@ def main() -> None:
                            help="单轮操作数上限（如 LLM 调用次数）")
     se_parser.add_argument("--golden-pass-rate-min", type=float, default=None,
                            help="行为级金标准地板：最优大臣基准答对率下限（防 reward-hacking）")
+    se_parser.add_argument("--executor", choices=["sim", "real", "auto"], default=None,
+                           help="执行器：real=真实离线求解/真实LLM（默认） sim=基因模拟")
+    se_parser.add_argument("--self-learn", action="store_true",
+                           help="开启自我学习：真实成败即时微调基因（向最优区靠拢）")
+    se_parser.add_argument("--no-self-learn", action="store_true", help="关闭自我学习")
+    se_parser.add_argument("--task-file", default=None,
+                           help="自定义真实任务文件（YAML/JSON: [{id,prompt,domain,expected}]）")
+    se_parser.add_argument("--task", action="append", default=None,
+                           help="内联真实任务 prompt（可重复），系统真实执行并从中学习")
     # ── 嵌套子命令：安全校验 / 回滚 ──
     se_sub = se_parser.add_subparsers(dest="se_command")
     se_sc = se_sub.add_parser("safety-check", help="对当前基因快照跑金标准安全闸")

@@ -35,7 +35,7 @@ from jarvis.court.circuit_breaker import (  # noqa: E402
 from jarvis.court.court import Court, CourtConfig  # noqa: E402
 from jarvis.self_evolve import (  # noqa: E402
     GenomeDrivenExecutor, RecordingWriteChannel, SelfEvolutionEngine,
-    default_ministers,
+    SimulatedTask, default_ministers, default_tasks, real_default_tasks,
 )
 from jarvis.self_evolve_config import SelfEvolveConfig, load_config  # noqa: E402
 from jarvis.telemetry import MinisterTelemetry, collect, write_js, write_json  # noqa: E402
@@ -117,12 +117,61 @@ def _build_write_channel(mode: str, live: bool, repo: str):
     return RecordingWriteChannel()
 
 
+def _build_executor(cfg: SelfEvolveConfig):
+    """按配置选执行器。返回 (executor, is_real)。
+
+    sim  → GenomeDrivenExecutor（基因质量直接伪造信号，旧演示路径）；
+    real → RealTaskExecutor（真实离线求解 / 真实 LLM，基因门控真实对错）——默认；
+    auto → 同 real（「执行任务」为本项目目标，默认走真实执行）。
+    """
+    mode = (cfg.executor or "auto").strip().lower()
+    if mode == "sim":
+        return GenomeDrivenExecutor(seed=cfg.seed), False
+    from jarvis.court.real_executor import RealTaskExecutor
+    return RealTaskExecutor(seed=cfg.seed), True
+
+
+def _load_tasks(cfg: SelfEvolveConfig, is_real: bool) -> list:
+    """加载任务：内联 tasks > task_file(YAML/JSON) > 真实默认任务(real) / 占位任务(sim)。"""
+    raw: list = list(cfg.tasks or [])
+    if not raw and cfg.task_file and os.path.exists(cfg.task_file):
+        try:
+            with open(cfg.task_file, "r", encoding="utf-8") as fh:
+                text = fh.read()
+            if cfg.task_file.endswith((".yaml", ".yml")):
+                import yaml  # type: ignore
+                raw = yaml.safe_load(text) or []
+            else:
+                raw = json.loads(text or "[]")
+        except Exception as exc:
+            print(f"⚠️  任务文件 {cfg.task_file} 解析失败（{exc}），退回默认任务")
+            raw = []
+    if raw:
+        out = []
+        for i, t in enumerate(raw):
+            out.append(SimulatedTask(
+                id=str(t.get("id", f"task-{i:02d}")),
+                prompt=str(t.get("prompt", "")),
+                domain=str(t.get("domain", "general")),
+                expected=(t.get("expected") if t.get("expected") is not None else None),
+            ))
+        return out
+    return real_default_tasks() if is_real else default_tasks()
+
+
 def run_orchestrator(cfg: SelfEvolveConfig, out_dir: str = "telemetry",
                      live: bool = False, no_writeback: bool = False) -> int:
     """按配置构建并运行自进化闭环，产出报告 + 看板。"""
     court = _build_court(cfg)
     court.register_many(default_ministers())
     router, guardrail = _wire_optional_guards()
+
+    # 真实任务执行器 + 任务集（Phase 11：真实执行 + 自我学习）
+    executor, is_real = _build_executor(cfg)
+    tasks = _load_tasks(cfg, is_real)
+    self_learn = bool(cfg.self_learn and is_real)
+    mode_name = "real" if is_real else "sim"
+    print(f"🧠 执行器={mode_name} 自我学习={'开' if self_learn else '关'} 任务数={len(tasks)}")
 
     # 写回通道
     if no_writeback:
@@ -169,7 +218,8 @@ def run_orchestrator(cfg: SelfEvolveConfig, out_dir: str = "telemetry",
 
     engine = SelfEvolutionEngine(
         court=court,
-        executor=GenomeDrivenExecutor(seed=cfg.seed),
+        executor=executor,
+        tasks=tasks,
         router=router,
         guardrail=guardrail,
         write_channel=write_channel,
@@ -187,6 +237,7 @@ def run_orchestrator(cfg: SelfEvolveConfig, out_dir: str = "telemetry",
         enable_snapshots=cfg.enable_snapshots,
         snapshot_dir=cfg.snapshot_dir,
         golden_pass_rate_min=cfg.golden_pass_rate_min,
+        self_learn=self_learn,
     )
 
     report = engine.run(n_cycles=cfg.cycles, tasks_per_minister=cfg.tasks_per_minister)
