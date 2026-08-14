@@ -335,6 +335,8 @@ class SelfEvolutionEngine:
         memory: Any = None,
         memory_path: str = "jarvis/court/memory.json",
         use_memory: bool = True,
+        # ── Phase 12 续：记忆驱动基因 warm-start（默认关，零回归）──
+        warm_start_from_memory: bool = False,
     ) -> None:
         self.court = court
         self.executor = executor or GenomeDrivenExecutor()
@@ -377,6 +379,9 @@ class SelfEvolutionEngine:
         self._memory: Optional[CourtMemory] = (
             memory if memory is not None else (CourtMemory() if self._use_memory else None)
         )
+        # 记忆驱动基因 warm-start：开启后，run() 启动时用已累积经验把冷启动基因
+        # 朝「该域历史最优方向」轻推（opt-in，默认关 → 不改变既有行为）。
+        self._warm_start_from_memory = bool(warm_start_from_memory)
 
     # ── 主循环 ────────────────────────────────────────────────
 
@@ -398,6 +403,11 @@ class SelfEvolutionEngine:
         # 续跑：同时恢复持久化经验记忆（基因 + 经验一起回放，才是完整的「学到的东西」）。
         if self._resume:
             self._load_memory()
+
+        # 记忆驱动基因 warm-start（opt-in）：用已累积经验轻推冷启动基因，
+        # 让新实例/新部署能直接站在历史经验肩上（不覆盖已恢复的基因检查点）。
+        if self._warm_start_from_memory:
+            self._warm_start_genes_from_memory()
 
         report = RunReport(started_at=datetime.now(timezone.utc).isoformat())
         # 基线安全快照（标记为 safe 已知点），便于一键回滚到「进化前」。
@@ -527,6 +537,75 @@ class SelfEvolutionEngine:
                 "recent_successes": s.recent_successes,
             })
         return out
+
+    # ── Phase 12 续：记忆驱动基因 warm-start ──────────────────────
+
+    def _min_domain_of(self, minister: str) -> str:
+        """取某大臣基因的领域（兼容 dict 与 MinisterGenome 两种形态）。"""
+        genomes = getattr(self.court._sm, "_genomes", {})
+        g = genomes.get(minister)
+        if g is None:
+            return ""
+        return str((g.get("domain") if isinstance(g, dict)
+                    else getattr(g, "domain", "")) or "")
+
+    def _warm_start_genes_from_memory(self) -> None:
+        """用已累积经验轻推冷启动基因，让新实例/部署直接站在历史经验肩上。
+
+        仅对「记忆中有该域历史」的大臣生效；无历史则保持原始冷启动基因（不臆造）。
+        朝两个方向校准（小步长，绝不突兀覆盖）：
+          * ``confidence_baseline`` → 朝该域历史成功率靠拢（让自信度贴近真实胜任度）；
+          * ``temperature``        → 若历史成功率高，朝最优探索温度（OPT）靠拢（更稳）。
+        默认不开启（opt-in），故不改变既有默认行为；与基因检查点共存时通常配合
+        ``resume=False`` 使用（即「用经验播种基因、但仍从初始基因重新进化」）。
+        """
+        if self._memory is None or not self._use_memory:
+            return
+        if not self._memory.entry_count:
+            return
+        # 按 (大臣,领域) 聚合历史成功率与最佳置信，作为校准先验。
+        agg: dict = {}
+        for e in self._memory._entries:
+            k = (e.minister_name, e.domain)
+            s, t, best_conf = agg.get(k, (0, 0, 0.0))
+            agg[k] = (s + (1 if e.success else 0), t + 1, max(best_conf, e.confidence))
+
+        genomes = getattr(self.court._sm, "_genomes", {})
+        for minister in self.court.active_ministers:
+            genome = genomes.get(minister)
+            if genome is None:
+                continue
+            domain = self._min_domain_of(minister)
+            if not domain:
+                continue
+            prior = agg.get((minister, domain))
+            if prior is None:
+                # 该大臣在自己领域没有历史 → 不动（避免用他人/他域经验误导）。
+                continue
+            s, t, _ = prior
+            rate = (s / t) if t else 0.5
+            get = (lambda kk, d: genome.get(kk, d)) if isinstance(genome, dict) \
+                else (lambda kk, d: getattr(genome, kk, d))
+            conf = float(get("confidence_baseline", 0.75))
+            temp = float(get("temperature", 0.7))
+            # 小步长校准：0.25 权重把冷启动基因拉向历史经验，保留 0.75 进化空间。
+            new_conf = conf + (rate - conf) * 0.25
+            if rate >= 0.6:
+                new_temp = temp + (OPT_TEMPERATURE - temp) * 0.25
+            else:
+                new_temp = temp  # 历史差 → 维持/略高探索，交给进化去调
+            new_conf = max(0.0, min(1.0, new_conf))
+            new_temp = max(0.0, min(1.0, new_temp))
+            try:
+                if isinstance(genome, dict):
+                    genome["confidence_baseline"], genome["temperature"] = new_conf, new_temp
+                else:
+                    genome.confidence_baseline, genome.temperature = new_conf, new_temp
+                logger.info(
+                    "[SelfEvolve] 记忆 warm-start 大臣 %s（域=%s）：conf %.2f→%.2f, temp %.2f→%.2f",
+                    minister, domain, conf, new_conf, temp, new_temp)
+            except Exception:
+                logger.debug("[SelfEvolve] 记忆 warm-start 写入失败（已忽略）", exc_info=True)
 
     def _audit_evolve(self, cycle: int, evo: Any, halted: bool) -> None:
         if self._audit is None:

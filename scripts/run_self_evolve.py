@@ -248,6 +248,7 @@ def run_orchestrator(cfg: SelfEvolveConfig, out_dir: str = "telemetry",
         memory=memory,
         use_memory=cfg.use_memory,
         memory_path=cfg.memory_path,
+        warm_start_from_memory=cfg.warm_start_from_memory,
     )
 
     report = engine.run(n_cycles=cfg.cycles, tasks_per_minister=cfg.tasks_per_minister)

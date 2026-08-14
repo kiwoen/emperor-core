@@ -56,6 +56,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # ── Phase 12：持久化经验记忆（自我学习跨重启累积）──
     "use_memory": True,                # 记录每次任务真实成败到经验库
     "memory_path": "jarvis/court/memory.json",  # 经验记忆持久化路径
+    "warm_start_from_memory": False,   # 启动时用经验轻推冷启动基因（opt-in，默认关→零回归）
 }
 
 
@@ -95,6 +96,7 @@ class SelfEvolveConfig:
     # Phase 12：持久化经验记忆
     use_memory: bool = True
     memory_path: str = "jarvis/court/memory.json"
+    warm_start_from_memory: bool = False
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "SelfEvolveConfig":
@@ -129,6 +131,7 @@ class SelfEvolveConfig:
             tasks=list(d.get("tasks", []) or []),
             use_memory=bool(d.get("use_memory", True)),
             memory_path=str(d.get("memory_path", "jarvis/court/memory.json")),
+            warm_start_from_memory=bool(d.get("warm_start_from_memory", False)),
         )
 
 

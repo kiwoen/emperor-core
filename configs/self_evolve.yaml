@@ -68,3 +68,9 @@ snapshot_dir: jarvis/court/snapshots
 use_memory: true
 memory_path: jarvis/court/memory.json
 # CLI 可临时覆盖：jarvis self-evolve --no-memory  关闭记忆；--memory-path <path> 换落盘位置
+
+# ── Phase 12 续：记忆驱动基因 warm-start（opt-in，默认关）──
+# 开启后，run() 启动时用已落盘经验把冷启动基因朝「该域历史最优方向」轻推，
+# 让新实例/新部署直接站在历史经验肩上（不覆盖已恢复的基因检查点）。
+# 通常配合 resume=False 使用（用经验播种基因、但仍从初始基因重新进化）。
+warm_start_from_memory: false

@@ -435,3 +435,23 @@ court_api、eval、cli 等）全绿（本轮 310 项通过），CI 双闸零告�
 
 **验证**：Phase 12 + 路由 + 定向回归（memory / self_evolve / real_executor / safety_gate / evolution /
 landing / integration）合计 **81 passed**，仅 `datetime.utcnow` 既有弃用告警（非本次引入）。
+
+### Phase 12 续²：记忆驱动基因 warm-start（记忆 ↔ 基因 闭环统一）
+
+> 派发已用记忆驱动（续¹），但「记忆」与「基因」仍是两条平行通道——经验只影响路由，不直接塑造基因。
+> 本 refinement 把二者统一：让已累积经验在冷启动/新部署时**轻推基因**，使新实例直接站在历史经验肩上。
+
+**改动（jarvis/self_evolve.py + self_evolve_config.py + scripts/run_self_evolve.py + jarvis/cli.py）**：
+- `SelfEvolutionEngine` 新增 `warm_start_from_memory`（opt-in，默认关 → 零回归）；`run()` 启动期调用
+  `_warm_start_genes_from_memory()`：按 (大臣,领域) 聚合历史成功率，以 0.25 小步长把
+  `confidence_baseline` 朝历史成功率、`temperature` 朝最优区轻推（仅对记忆中有该域历史的大臣生效，无历史不动）。
+- 配置贯通：`SelfEvolveConfig.warm_start_from_memory` + `DEFAULT_CONFIG` + `from_dict`；`run_orchestrator`
+  透传；CLI 新增 `--warm-start-memory` 开关；`configs/self_evolve.yaml` 加 `warm_start_from_memory: false`。
+
+**测试（tests/test_memory_warm_start.py，3 项）**：
+- 开启且有该域历史 → 基因朝经验方向移动（conf 升、temp 降）。
+- 记忆中无该大臣该域历史 → 基因保持不变（不臆造、不串域）。
+- 开关门控：spy 验证 `run()` 仅在 `warm_start_from_memory=True` 时调用 warm-start（默认关闭零回归）。
+
+**验证**：Phase 12 三连（记忆/路由/warm-start）+ self_evolve / safety / evolution / landing 定向回归合计 **171 passed**，
+仅 `datetime.utcnow` 既有弃用告警（非本次引入）。

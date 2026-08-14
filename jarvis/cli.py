@@ -287,6 +287,8 @@ def cmd_self_evolve(args: argparse.Namespace) -> None:
         cfg.use_memory = False
     if getattr(args, "memory_path", None):
         cfg.memory_path = args.memory_path
+    if getattr(args, "warm_start_memory", False):
+        cfg.warm_start_from_memory = True
     if getattr(args, "task_file", None):
         cfg.task_file = args.task_file
     if getattr(args, "task", None):  # 内联真实任务（可重复）
@@ -435,6 +437,8 @@ def main() -> None:
                            help="关闭经验记忆（默认开：真实成败落盘，跨重启累积学习）")
     se_parser.add_argument("--memory-path", default=None,
                            help="经验记忆持久化路径（默认 jarvis/court/memory.json）")
+    se_parser.add_argument("--warm-start-memory", action="store_true",
+                           help="启动时用已落盘经验轻推冷启动基因（opt-in；不覆盖已恢复的基因检查点）")
     # ── 嵌套子命令：安全校验 / 回滚 ──
     se_sub = se_parser.add_subparsers(dest="se_command")
     se_sc = se_sub.add_parser("safety-check", help="对当前基因快照跑金标准安全闸")
