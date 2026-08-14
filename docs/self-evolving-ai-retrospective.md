@@ -455,3 +455,20 @@ landing / integration）合计 **81 passed**，仅 `datetime.utcnow` 既有弃�
 
 **验证**：Phase 12 三连（记忆/路由/warm-start）+ self_evolve / safety / evolution / landing 定向回归合计 **171 passed**，
 仅 `datetime.utcnow` 既有弃用告警（非本次引入）。
+
+### Phase 12 续³：warm-start 步长随经验样本量自适应
+
+> 续² 用固定 0.25 步长把冷启动基因朝历史经验推。但「历史成功率」本身有噪声：1 次全胜与 20 次全胜，
+> 可信度截然不同。固定步长要么样本少时过度信任偶然，要么样本多时推进太慢。本 refinement 让步长**自适应**。
+
+**改动（jarvis/self_evolve.py `_warm_start_genes_from_memory`）**：
+- 步长公式 `step = min(0.5, 0.12 + 0.038 * t)`（`t` = 该 (大臣,领域) 历史样本数）：
+  1 样本→0.158（保守）、5→0.31、10+→0.5（封顶，充分信任）。
+- confidence 与 temperature 校准**共用同一自适应步长**，使「经验越充分，基因越贴近历史最优」。
+
+**测试（tests/test_memory_warm_start.py，+1 共 4）**：
+- 同成功率（全胜）下，`n=10` 的基因移动量 **严格大于** `n=1`（更信任经验）；且 `n=1` 移动幅度<0.10
+  （避免单次偶然误导基因）——直接验证「样本越多、步长越大」的自适应性质。
+
+**验证**：Phase 12 三连 + 续¹续²续³ + 定向回归（memory / self_evolve / safety / evolution / landing /
+real_executor）合计 **172 passed**，仅 `datetime.utcnow` 既有弃用告警（非本次引入）。

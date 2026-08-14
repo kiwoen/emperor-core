@@ -556,6 +556,8 @@ class SelfEvolutionEngine:
         朝两个方向校准（小步长，绝不突兀覆盖）：
           * ``confidence_baseline`` → 朝该域历史成功率靠拢（让自信度贴近真实胜任度）；
           * ``temperature``        → 若历史成功率高，朝最优探索温度（OPT）靠拢（更稳）。
+        步长随该 (大臣,领域) 的历史样本量自适应：样本越多越信任、步长越大（封顶 0.5），
+        样本越少越保守，避免单次偶然误导基因。
         默认不开启（opt-in），故不改变既有默认行为；与基因检查点共存时通常配合
         ``resume=False`` 使用（即「用经验播种基因、但仍从初始基因重新进化」）。
         """
@@ -563,7 +565,7 @@ class SelfEvolutionEngine:
             return
         if not self._memory.entry_count:
             return
-        # 按 (大臣,领域) 聚合历史成功率与最佳置信，作为校准先验。
+        # 按 (大臣,领域) 聚合历史成功率与样本量，作为校准先验（样本量同时决定步长）。
         agg: dict = {}
         for e in self._memory._entries:
             k = (e.minister_name, e.domain)
@@ -588,10 +590,12 @@ class SelfEvolutionEngine:
                 else (lambda kk, d: getattr(genome, kk, d))
             conf = float(get("confidence_baseline", 0.75))
             temp = float(get("temperature", 0.7))
-            # 小步长校准：0.25 权重把冷启动基因拉向历史经验，保留 0.75 进化空间。
-            new_conf = conf + (rate - conf) * 0.25
+            # 自适应步长：样本越多，历史成功率越可信 → 步长越大（封顶 0.5）；
+            # 样本越少越保守（绝不用单次偶然误导基因）。保留剩余进化空间。
+            step = min(0.5, 0.12 + 0.038 * t)
+            new_conf = conf + (rate - conf) * step
             if rate >= 0.6:
-                new_temp = temp + (OPT_TEMPERATURE - temp) * 0.25
+                new_temp = temp + (OPT_TEMPERATURE - temp) * step
             else:
                 new_temp = temp  # 历史差 → 维持/略高探索，交给进化去调
             new_conf = max(0.0, min(1.0, new_conf))

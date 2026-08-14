@@ -111,3 +111,28 @@ def test_warm_start_flag_gates_call_in_run(tmp_path):
     eng_on._warm_start_genes_from_memory = lambda: called_on.append(1) or orig2()
     eng_on.run(n_cycles=1)
     assert called_on == [1], "开启时 run() 应调用 warm-start"
+
+
+def _conf_move_with_n_samples(tmp_path, n: int) -> float:
+    """构造 math_alpha 在 math 域 n 次全胜的记忆，返回冷启动→warm-start 的 confidence 移动量。"""
+    mem = CourtMemory()
+    for i in range(n):
+        mem.record(memory_from_memorial(
+            "math_alpha", f"m{i}", "math", f"math {i}", True, 1.0, 1.0, 95.0))
+    engine = _build(tmp_path, mem, warm_start=True)
+    conf0, _ = _genes(engine, "math_alpha")
+    engine._warm_start_genes_from_memory()
+    conf1, _ = _genes(engine, "math_alpha")
+    return abs(conf1 - conf0)
+
+
+def test_warm_start_step_grows_with_sample_count(tmp_path):
+    """自适应步长：同成功率(全胜)下，历史样本越多，基因移动越大（更信任经验），样本少则保守。"""
+    move_1 = _conf_move_with_n_samples(tmp_path, 1)
+    move_10 = _conf_move_with_n_samples(tmp_path, 10)
+    # 1 样本：step≈0.158 → 移动≈0.063；10 样本：step=0.5 → 移动≈0.200。
+    assert move_1 > 0.0, "即便 1 样本也应发生（保守）移动"
+    assert move_10 > move_1, (
+        f"样本多应更信任经验、移动更大：n=1→{move_1:.4f}, n=10→{move_10:.4f}")
+    # 单样本移动幅度不应过大（避免单次偶然误导基因）。
+    assert move_1 < 0.10, f"1 样本移动过大（易被偶然误导）：{move_1:.4f}"
