@@ -472,3 +472,25 @@ landing / integration）合计 **81 passed**，仅 `datetime.utcnow` 既有弃�
 
 **验证**：Phase 12 三连 + 续¹续²续³ + 定向回归（memory / self_evolve / safety / evolution / landing /
 real_executor）合计 **172 passed**，仅 `datetime.utcnow` 既有弃用告警（非本次引入）。
+
+### Phase 12 续⁴：落地缺口清单 + 入口修复（本轮回退）
+
+> 本轮在继续之前，先对仓库做了一次诚实的"能否真正落地"摸排（而非继续小修小补）。结论：
+> 自进化 + 经验记忆**闭环本身已完整且可测**（Phase 8–12 + 续¹/²/³），但**围绕它的落地链路**仍有若干缺口。
+
+**本轮回退（具体修复）**：
+- `main.py --mode server` 原本 `from jarvis.server import create_app` —— `jarvis/server.py` 根本不存在，文档写的启动方式直接 `ImportError`。已改为复用真实的 `Emperor.serve()`（与 `jarvis cli serve` 同一实现），并显式构造 `EmperorConfig()`（旧代码把裸 dict 传给 `Emperor`，会在 `serve` 内 `self.config.api_port` 处 `AttributeError`）。语法/导入已验证。
+- 备注：`main.py --mode chat` 仍把裸 dict 传给 `Emperor`（潜在同类坑），建议同样改为 `EmperorConfig()`。
+
+**还缺什么（按优先级）**：
+
+| 优先级 | 缺口 | 说明 / 建议 |
+|---|---|---|
+| **P0** | 离线模式"学习"回报是潜在的 | OfflineSolver 答案确定性，经验只校准基因/路由，而这些**只在接入真实 LLM 后才改变行为**。离线能证明"机制在跑、基因/路由在动"，但"答案越做越好"需 API key。建议 README 明确"离线=机制验证；接 LLM=真实收益"。 |
+| **P1** | 经验记忆无衰减/裁剪 | `CourtMemory` 只增不减，陈旧样本会主导路由/暖启动。建议加可配置 decay/留存窗口（默认关→零回归）——这是下一个自然 refinement。 |
+| **P1** | 缺"学习曲线"度量 | 有机制测试（路由动、基因动），但无"随样本累积，路由命中最优大臣比例↑ / 冷启动误差↓"的端到端度量。建议加 `--benchmark-learning-curve`。 |
+| **P1** | CI 不跑真实自进化冒烟 | `ci.yml` 跑整个 `tests/`（忽略 network/`test_core`/e2e），但**不**跑 `scripts/run_self_evolve.py`。建议在 CI 加 `run_self_evolve --cycles 2` 门禁，防编排胶水回归（正是本轮回退那类）。 |
+| **P2** | 外围模块是占位 | codex/generator 的 extract/rename 占位；`jarvis/core/llm.py` 离线分支返回硬编码工程串（真实路径走 litellm 的 `jarvis/llm/engine.py`，不受影响）；mcp SSE 传输未实现（需装 `mcp` 包）。均不在自进化关键路径。 |
+| **P2** | 环境/部署 | 本沙箱无 git 凭证，本地提交就绪但推送受阻（需 `gh auth login` 后快进推送）；真实 LLM 需 key + 已装 `litellm`（本环境已装）；`test_core.py` 被 CI 忽略。 |
+
+**本轮回退验证**：`main.py` 语法 OK；`Emperor`/`EmperorConfig` 导入正常、`serve` 存在。自进化子系统本轮未改，定向回归 172 passed 不受影响。

@@ -164,18 +164,32 @@ def run_demo_mode(config, use_mock=True):
 
 
 def run_server_mode(config, host="0.0.0.0", port=5000):
-    """启动 Web 服务"""
+    """启动 Web / Dashboard 服务（与 ``jarvis cli serve`` 同源的 Emperor.serve）。
+
+    旧实现导入不存在的 ``jarvis.server``，导致 ``--mode server`` 直接 ``ImportError``。
+    此处改用 JARVIS 真实的 ``Emperor.serve`` —— 一键式 live dashboard：自动播种大臣 +
+    启动周期进化调度器（与 cli serve 同一实现，已验证可用）。
+    """
+    from jarvis.emperor import Emperor, EmperorConfig
+
+    # main.py 的 load_config 返回裸 dict，而 Emperor 内部按 EmperorConfig 访问
+    # (self.config.api_port 等)，故必须显式构造 EmperorConfig，不能直接传 dict。
+    cfg = EmperorConfig()
+    if port:
+        cfg.api_port = port
+    if host:
+        cfg.api_host = host
+
     print(BANNER)
     print(f"  Web 服务启动中... http://{host}:{port}")
     print("-" * 60)
 
     try:
-        from jarvis.server import create_app
-        app = create_app(config)
-        app.run(host=host, port=port, debug=False)
-    except ImportError:
-        print("[ERROR] Web 服务模块未安装。请确保 Flask 已安装。")
-        print("  运行 pip install flask 后重试。")
+        emperor = Emperor(config=cfg)
+        emperor.serve(host=host, port=port)
+        return 0
+    except Exception as exc:  # noqa: BLE001 — 启动失败应给出可读错误而非栈
+        print(f"[ERROR] Web 服务启动失败：{exc}")
         return 1
 
 
