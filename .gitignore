@@ -89,3 +89,6 @@ jarvis/court/genome_state.json
 
 # 自进化安全快照（回滚点，运行时生成，不入库）
 jarvis/court/snapshots/
+
+# 经验记忆（自我学习跨重启累积的运行时产物，环境相关，不入库）
+jarvis/court/memory.json

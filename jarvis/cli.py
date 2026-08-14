@@ -283,6 +283,10 @@ def cmd_self_evolve(args: argparse.Namespace) -> None:
         cfg.self_learn = True
     if getattr(args, "no_self_learn", False):
         cfg.self_learn = False
+    if getattr(args, "no_memory", False):
+        cfg.use_memory = False
+    if getattr(args, "memory_path", None):
+        cfg.memory_path = args.memory_path
     if getattr(args, "task_file", None):
         cfg.task_file = args.task_file
     if getattr(args, "task", None):  # 内联真实任务（可重复）
@@ -427,6 +431,10 @@ def main() -> None:
                            help="自定义真实任务文件（YAML/JSON: [{id,prompt,domain,expected}]）")
     se_parser.add_argument("--task", action="append", default=None,
                            help="内联真实任务 prompt（可重复），系统真实执行并从中学习")
+    se_parser.add_argument("--no-memory", action="store_true",
+                           help="关闭经验记忆（默认开：真实成败落盘，跨重启累积学习）")
+    se_parser.add_argument("--memory-path", default=None,
+                           help="经验记忆持久化路径（默认 jarvis/court/memory.json）")
     # ── 嵌套子命令：安全校验 / 回滚 ──
     se_sub = se_parser.add_subparsers(dest="se_command")
     se_sc = se_sub.add_parser("safety-check", help="对当前基因快照跑金标准安全闸")

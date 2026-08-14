@@ -61,3 +61,10 @@ resource_max_ops: null
 enable_snapshots: true
 snapshot_dir: jarvis/court/snapshots
 
+
+# ── Phase 12：持久化经验记忆（自我学习跨重启累积）──
+# 每次任务真实成败记入 CourtMemory 并落盘，使进化学到的经验跨重启/跨进程累积，
+# 而非仅活在当次进程内存。落盘路径默认 jarvis/court/memory.json（已 .gitignore，属运行时产物）。
+use_memory: true
+memory_path: jarvis/court/memory.json
+# CLI 可临时覆盖：jarvis self-evolve --no-memory  关闭记忆；--memory-path <path> 换落盘位置

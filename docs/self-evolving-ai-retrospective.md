@@ -37,6 +37,7 @@
 | **Phase 10 评测与运行优化** | ✅ | 评测与 cycle 解耦（纯反映基因质量）+ 按基因签名缓存复用，长程运行免重复评测 |
 | **Phase 11 真实任务执行** | ✅ | RealTaskExecutor + OfflineSolver：把题真算出来（AST 数学/真实代码/知识检索/真实拒绝），梯度来自真实对错；可选真实 LLM 后端（无 key 自动退回离线） |
 | **Phase 11 自我学习闭环** | ✅ | 真实成败即时微调基因（向最优区靠拢），并随检查点持久化；`--task`/`--task-file` 注入真实任务，系统真实执行并学习 |
+| **Phase 12 持久化经验记忆（跨重启自我学习）** | ✅ | CourtMemory 落盘 + 引擎/CLI/配置贯通；**修复多领域派发 bug**（原只跑 math），自我学习覆盖全部任务类型且跨重启累积 |
 
 **核心完成定义（DoD）达成情况**：
 - 全部 P0 项已绿，且对应单测覆盖（PromptGuard 真阻断、护栏接线、适应度非长度、SmartRouter 存在、选臣 domain 匹配、评测基准相关 ≥0.8）。
@@ -356,3 +357,61 @@ court_api、eval、cli 等）全绿（本轮 310 项通过），CI 双闸零告�
 微调基因并持久化）、并在 DGM 三约束 + 行为级金标准安全闸下 fail-closed 进化——满足「完全落地
 自我学习进化执行任务」。接真实 LLM 仅需配 `OPENAI_API_KEY`/`DEEPSEEK_API_KEY`，编排与安全闸门不变。
 
+
+---
+
+## Phase 12：持久化经验记忆（自我学习跨重启累积）
+
+> Phase 11 已让系统「真实执行 + 真实自我学习」，但学到的经验只活在当次进程内存里——
+> 重启后即丢失，且 `_execute_tasks` 存在派发 bug：固定取 `self.tasks[:tasks_per_minister]`
+> （默认 2），而 `real_default_tasks()` 前 2 个恰都是 `math` 任务，导致 **factual / code /
+> retrieval 任务从未被真正执行与学习**（记忆库里只有 `math` 样本）。Phase 12 把经验落盘为可
+> 跨重启累积的 `CourtMemory`，并修复派发使自我学习覆盖全部任务领域。
+
+**Phase 12 交付**：
+
+1. **经验记忆落盘（jarvis/court/memory.py）**：`CourtMemory` 新增 `save(path)` / `load(path)`
+   原子写（tmp→replace，防半截文件）；`load` 对缺失/损坏文件安全回退空记忆，绝不阻断运行。
+   每条 `MemoryEntry` 含 `domain / minister_name / success / confidence / merit` 等，可被路由、
+   报告、真实 LLM 上下文复用。`get_all_domain_stats()` 按域汇总成功率/最强大臣，是「学到了什么」
+   的可观测证据。
+
+2. **引擎接线（jarvis/self_evolve.py + self_evolve_config.py）**：引擎持有 `CourtMemory` 实例，
+   `run()` 末调用 `_save_memory()` 落盘、`__init__`/`run()` 按 `--resume` 从盘 `_load_memory()`
+   恢复，**跨重启累积学习**；配置新增 `use_memory` / `memory_path`（默认 `jarvis/court/memory.json`，
+   已加入 `.gitignore`，属运行时产物不入库）；`memory_stats()` 对外暴露按域统计。
+
+3. **执行器与 CLI 贯通（jarvis/court/real_executor.py + scripts/run_self_evolve.py + jarvis/cli.py）**：
+   执行器共享同一 `CourtMemory` 实例（上下文增强）；`run_orchestrator` 构建时显式传入
+   `memory=memory, use_memory=..., memory_path=...`；运行结束打印按域的可观测记忆小结；
+   CLI 新增 `--no-memory` / `--memory-path` 开关，可一键关记忆或换落盘路径。
+
+4. **多领域派发修复（jarvis/self_evolve.py `_execute_tasks`）**：原 `for task in self.tasks[:per_minister]`
+   固定只跑前 2 个任务（清一色 `math`）。改为**按大臣基因 domain 亲和派发**——同领域优先、否则
+   `general` 大臣兜底、组内按已分配数轮转均摊；并对「无同领域任务的大臣」（如 `reasoning`）用任意
+   任务补一个，保证**每个大臣都执行过真实任务**以驱动基因自我学习。修复后 `memory.json` 覆盖
+   `math / factual / code / retrieval` 全部领域。
+
+**实测（端到端）**：
+- 修复前：`Counter({'math': 26})`——只有 math 被学。
+- 修复后（`--cycles 3 --seed 7`，real 执行 + 自我学习 + 经验记忆）：
+  ```
+  🧠 经验记忆已落盘 jarvis/court/memory.json（跨重启累积，--resume 继续学习）：
+     · code       样本=6    成功率=83% 最强大臣=code_beta
+     · factual    样本=6    成功率=67% 最强大臣=gen_epsilon
+     · math       样本=7    成功率=43% 最强大臣=math_alpha
+     · retrieval  样本=3    成功率=100% 最强大臣=retr_delta
+  ```
+  全部 4 个领域均被真实执行并记入经验库（数值为 3 轮内样本，随运行累积增长）。
+- `--resume` 续跑：第二轮从已落盘记忆继续累积，样本数单调不减（测试验证）。
+
+**本轮测试**：新增 `tests/test_memory_persistence.py`（6 项）——覆盖 `save/load` 往返、跨重启
+累积、缺失/损坏文件安全回退、`_execute_tasks` 多领域派发（硬证非仅 math）、`--resume` 续跑累积。
+同步修订 `test_self_evolve_run.py` 两例：其原依赖派发 bug 带来的低方差而被熔断，现改为容忍
+电路保护器**合法安全熔断**（仍校验离线跑通 + 评测闸拦截写回的核心意图）。受触模块定向回归
+（self_evolve / memory / real_executor / safety_gate / evolution / landing / integration）全绿。
+
+**完成度**：emperor-core 现已 **真实执行任务**（真实求解而非模拟）、**真实自我学习**（真实成败
+即时微调基因 + 经验落盘跨重启累积）、并在 DGM 三约束 + 行为级金标准安全闸下 fail-closed 进化——
+满足「完全落地自我学习进化执行任务」。接真实 LLM 仅需配 `OPENAI_API_KEY`/`DEEPSEEK_API_KEY`，
+编排与安全闸门不变。

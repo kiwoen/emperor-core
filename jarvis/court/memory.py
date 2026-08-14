@@ -22,9 +22,11 @@ Design:
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
+import os
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Optional
 
 logger = logging.getLogger("jarvis.court.memory")
@@ -496,6 +498,47 @@ class CourtMemory:
         count = len(self._entries)
         self._entries.clear()
         return count
+
+    # ------------------------------------------------------------------
+    # Persistence (让自我学习跨重启累积)
+    # ------------------------------------------------------------------
+
+    def save(self, path: str) -> str:
+        """把全部记忆条目持久化到 JSON（原子写 tmp→replace，防半截文件）。
+
+        这是「自我学习」能跨进程/跨重启累积的关键——没有持久化，每次运行
+        学到的经验都会丢失。
+        """
+        payload = {
+            "version": 1,
+            "saved_at": time.time(),
+            "decay_factor": self.decay_factor,
+            "max_entries": self.max_entries,
+            "entries": [asdict(e) for e in self._entries],
+        }
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh, ensure_ascii=False, indent=1)
+        os.replace(tmp, path)
+        logger.info("CourtMemory 已持久化 %d 条记忆 → %s", len(self._entries), path)
+        return path
+
+    @classmethod
+    def load(cls, path: str) -> "CourtMemory":
+        """从 JSON 恢复记忆；文件不存在或损坏时安全返回空记忆（绝不阻断运行）。"""
+        mem = cls()
+        if not os.path.exists(path):
+            return mem
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                payload = json.load(fh)
+            for d in payload.get("entries", []) or []:
+                mem._entries.append(MemoryEntry(**d))
+            logger.info("CourtMemory 已恢复 %d 条记忆 ← %s", len(mem._entries), path)
+        except Exception:
+            logger.warning("CourtMemory 恢复失败（已忽略，从空记忆开始）：%s", path, exc_info=True)
+        return mem
 
     # ------------------------------------------------------------------
     # Internal Helpers

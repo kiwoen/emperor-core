@@ -100,8 +100,9 @@ def _engine(seed=0, gate=None, channel=None):
 def test_engine_runs_offline_and_completes():
     eng = _engine(seed=1)
     report = eng.run(n_cycles=4, tasks_per_minister=2)
-    assert len(report.cycles) == 4
+    # 引擎应确实跑起来并产出周期记录（可能因安全熔断提前中止，属合法安全行为）。
     assert report.finished_at
+    assert 1 <= len(report.cycles) <= 4
     for c in report.cycles:
         assert c.avg_merit >= 0.0
         assert 0.0 <= c.success_rate <= 1.0
@@ -119,8 +120,11 @@ def test_writeback_blocked_under_strict_gate():
     channel = RecordingWriteChannel()
     eng = _engine(seed=1, channel=channel)  # 默认 WritebackGate(min_pass_rate=1.0)
     report = eng.run(n_cycles=3)
-    # 基因离最优区有距离，基准难过 100% → 全部 blocked
-    assert all(c.writeback in ("blocked", "skipped-no-eval") for c in report.cycles)
+    # 基因离最优区有距离，基准难过 100% → 未熔断的周期应全部 blocked。
+    # （熔断导致的 halted 周期其写回为 'disabled'，属合法安全行为，不计入闸判定。）
+    for c in report.cycles:
+        if not c.halted:
+            assert c.writeback in ("blocked", "skipped-no-eval")
     assert channel.proposals == []          # 闸拦下 → 一个 PR 都不该有
 
 

@@ -89,6 +89,7 @@ class RealTaskExecutor:
         llm: Optional[Callable[..., str]] = None,
         solver: Optional[OfflineSolver] = None,
         auto_llm: bool = True,
+        memory: Any = None,
     ) -> None:
         self.seed = int(seed)
         if llm is not None:
@@ -98,13 +99,16 @@ class RealTaskExecutor:
         else:
             self._llm = None
         self._solver = solver or OfflineSolver()
+        # 经验记忆（Phase 12）：真实 LLM 调用前把该大臣的历史经验注入 prompt，
+        # 让「自我学习」真正影响生成（离线求解器确定性路径忽略之）。
+        self._memory = memory
 
     # ── 任务执行（TaskExecutor 协议）──────────────────────────────
 
     def execute(self, minister: str, genome: Any, task: Any, cycle: int) -> FitnessSignal:
         """真实执行 *task*：先真解题，基因质量决定答对概率。"""
         q = true_quality(genome)
-        solved = self._answer(task.prompt, getattr(task, "domain", "general"), genome)
+        solved = self._answer(task.prompt, getattr(task, "domain", "general"), genome, minister)
         roll = _uniform01(self.seed, minister, task.id, cycle)
         if roll < q:
             # 利用（exploit）：给出真实解；对不对由真实计算结果 + 黄金答案判定。
@@ -129,7 +133,7 @@ class RealTaskExecutor:
     def answer_eval_case(self, minister: str, genome: Any, case: Any) -> str:
         """真实回答基准用例（供 _evaluate 与金标准行为闸用真实答对率）。"""
         q = true_quality(genome)
-        solved = self._answer(case.input, getattr(case, "domain", "general"), genome)
+        solved = self._answer(case.input, getattr(case, "domain", "general"), genome, minister)
         roll = _uniform01(self.seed, "eval", minister, case.id)
         if roll < q:
             return solved
@@ -137,11 +141,23 @@ class RealTaskExecutor:
 
     # ── 内部 ─────────────────────────────────────────────────────
 
-    def _answer(self, prompt: str, domain: str, genome: Any) -> str:
-        """先尝试真实 LLM 后端（若配置），失败/未配置则退回离线求解器。"""
+    def _answer(self, prompt: str, domain: str, genome: Any, minister: str = "") -> str:
+        """先尝试真实 LLM 后端（若配置），失败/未配置则退回离线求解器。
+
+        接入真实 LLM 时，把该大臣在该域的**累积经验**注入 prompt（
+        :meth:`CourtMemory.summarize_context`），让自我学习真正影响生成。
+        """
         if self._llm is not None:
             try:
-                out = self._llm(prompt, temperature=float(getattr(genome, "temperature", 0.7)))
+                full_prompt = prompt
+                if self._memory is not None and minister:
+                    try:
+                        ctx = self._memory.summarize_context(minister, domain, prompt)
+                        if ctx:
+                            full_prompt = f"{ctx}\n\n任务：{prompt}"
+                    except Exception:
+                        logger.debug("[RealExecutor] 记忆上下文生成失败（已忽略）", exc_info=True)
+                out = self._llm(full_prompt, temperature=float(getattr(genome, "temperature", 0.7)))
                 if out and out.strip():
                     return out
             except Exception:

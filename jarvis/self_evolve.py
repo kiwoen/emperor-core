@@ -50,6 +50,7 @@ from jarvis.court.genome_diff import (
     genome_state_file_content,
 )
 from jarvis.court.approval_gate import WritebackApprovalGate
+from jarvis.court.memory import CourtMemory, memory_from_memorial
 from jarvis.court.rollback import RollbackManager
 from jarvis.court.resource_guard import ResourceBudget, ResourceBudgetExceeded
 from jarvis.court.safety_gate import SafetyContext, SafetyGate, default_safety_gate
@@ -312,6 +313,10 @@ class SelfEvolutionEngine:
         snapshot_dir: str = "jarvis/court/snapshots",
         golden_pass_rate_min: float = 0.5,
         self_learn: bool = False,
+        # ── Phase 12：持久化经验记忆（自我学习跨重启累积）──
+        memory: Any = None,
+        memory_path: str = "jarvis/court/memory.json",
+        use_memory: bool = True,
     ) -> None:
         self.court = court
         self.executor = executor or GenomeDrivenExecutor()
@@ -346,6 +351,14 @@ class SelfEvolutionEngine:
         self._rollback = rollback_manager or (
             RollbackManager(snapshot_dir) if enable_snapshots else None
         )
+        # ── Phase 12：持久化经验记忆 ──
+        # 记录每次任务真实成败到 CourtMemory，使自我学习**跨重启累积**（区别于
+        # Phase 11 的临时基因微调），并可被路由/报告/真实 LLM 上下文复用。
+        self._use_memory = bool(use_memory)
+        self._memory_path = memory_path
+        self._memory: Optional[CourtMemory] = (
+            memory if memory is not None else (CourtMemory() if self._use_memory else None)
+        )
 
     # ── 主循环 ────────────────────────────────────────────────
 
@@ -364,6 +377,9 @@ class SelfEvolutionEngine:
                 logger.info("[SelfEvolve] 已从检查点恢复基因：%s", self._genome_state_path)
             except Exception:
                 logger.warning("[SelfEvolve] 检查点恢复失败，从初始基因开始", exc_info=True)
+        # 续跑：同时恢复持久化经验记忆（基因 + 经验一起回放，才是完整的「学到的东西」）。
+        if self._resume:
+            self._load_memory()
 
         report = RunReport(started_at=datetime.now(timezone.utc).isoformat())
         # 基线安全快照（标记为 safe 已知点），便于一键回滚到「进化前」。
@@ -395,6 +411,8 @@ class SelfEvolutionEngine:
 
         # 检查点：把最终基因落盘，保证可回放 / 可续跑（落地持久化）
         self._save_checkpoint()
+        # 经验记忆落盘：自我学习跨重启累积（与基因检查点一同持久化）
+        self._save_memory()
         report.finished_at = datetime.now(timezone.utc).isoformat()
         report.final_health = self._health()
         self._audit_run(report)
@@ -452,6 +470,45 @@ class SelfEvolutionEngine:
             self.court.save_genomes(self._genome_state_path)
         except Exception:
             logger.warning("[SelfEvolve] 基因检查点保存失败", exc_info=True)
+
+    # ── Phase 12：经验记忆持久化与观测 ──────────────────────────
+
+    def _load_memory(self) -> None:
+        """从持久化文件恢复经验记忆（就地填充，保持 executor 引用一致；容错）。"""
+        if self._memory is None or not self._use_memory:
+            return
+        try:
+            loaded = CourtMemory.load(self._memory_path)
+            self._memory._entries = loaded._entries
+            if loaded.entry_count:
+                logger.info("[SelfEvolve] 已恢复经验记忆 %d 条：%s",
+                            loaded.entry_count, self._memory_path)
+        except Exception:
+            logger.warning("[SelfEvolve] 经验记忆恢复失败（已忽略）", exc_info=True)
+
+    def _save_memory(self) -> None:
+        """把经验记忆落盘（原子写由 CourtMemory.save 保证；失败容错）。"""
+        if self._memory is None or not self._use_memory:
+            return
+        try:
+            self._memory.save(self._memory_path)
+        except Exception:
+            logger.warning("[SelfEvolve] 经验记忆保存失败", exc_info=True)
+
+    def memory_stats(self) -> List[Dict[str, Any]]:
+        """返回各域经验统计（自我学习的可观测输出：谁在哪个域最强）。"""
+        if self._memory is None:
+            return []
+        out: List[Dict[str, Any]] = []
+        for s in self._memory.get_all_domain_stats():
+            out.append({
+                "domain": s.domain,
+                "total": s.total_entries,
+                "success_rate": round(s.success_rate, 3),
+                "top_minister": s.top_minister,
+                "recent_successes": s.recent_successes,
+            })
+        return out
 
     def _audit_evolve(self, cycle: int, evo: Any, halted: bool) -> None:
         if self._audit is None:
@@ -513,9 +570,45 @@ class SelfEvolutionEngine:
 
     def _execute_tasks(self, cycle: int, per_minister: int) -> None:
         genomes = getattr(self.court._sm, "_genomes", {})
-        for minister in self.court.active_ministers:
+        ministers = list(self.court.active_ministers)
+        if not ministers:
+            return
+
+        # 大臣基因「领域」提取（兼容 dict 与 MinisterGenome 两种形态）。
+        def _min_domain(m: str) -> str:
+            g = genomes.get(m)
+            if g is None:
+                return ""
+            return str((g.get("domain") if isinstance(g, dict)
+                        else getattr(g, "domain", "")) or "")
+
+        # 按领域把大臣分组，general 作为无精确命中时的兜底组。
+        by_domain: dict = {}
+        for m in ministers:
+            by_domain.setdefault(_min_domain(m), []).append(m)
+
+        # 任务 → 大臣：同领域优先，否则 general 兜底；组内按已分配数轮转均摊多任务。
+        assigned: dict = {m: [] for m in ministers}
+        cursor: dict = {}
+        for task in self.tasks:
+            group = by_domain.get(task.domain) or by_domain.get("general") or ministers
+            key = id(group)
+            idx = cursor.get(key, 0) % len(group)
+            cursor[key] = cursor.get(key, 0) + 1
+            assigned[group[idx]].append(task)
+
+        # 兜底：无同领域任务的大臣（如 reasoning）用任意任务补一个，
+        # 保证每个大臣都执行过真实任务，从而驱动其基因自我学习。
+        pool = list(self.tasks)
+        pi = 0
+        for m in ministers:
+            if not assigned[m]:
+                assigned[m].append(pool[pi % len(pool)])
+                pi += 1
+
+        for minister in ministers:
             genome = genomes.get(minister)
-            for task in self.tasks[:per_minister]:
+            for task in assigned[minister][:per_minister]:
                 # 1) 护栏（pre-execution）
                 if self.guardrail is not None:
                     try:
@@ -543,6 +636,18 @@ class SelfEvolutionEngine:
                 # 4) 自我学习：真实成败即时微调基因（向最优区靠拢），确定性小步长。
                 if self._self_learn:
                     self._reinforce(genome, bool(sig.execution_success))
+                # 5) 经验记忆：把真实成败记入可持久化的经验库（跨重启累积的自我学习）。
+                if self._memory is not None:
+                    try:
+                        self._memory.record(memory_from_memorial(
+                            minister_name=minister, edict_id=f"{task.id}-c{cycle}",
+                            domain=task.domain, intent=task.prompt,
+                            success=bool(sig.execution_success), confidence=score,
+                            execution_time_ms=1.0, merit=score * 100.0,
+                        ))
+                    except Exception:
+                        logger.debug("[SelfEvolve] 经验记忆记录失败（已转为可观测）",
+                                     exc_info=True)
 
     def _reinforce(self, genome: Any, success: bool) -> None:
         """自我学习：按真实任务成败微调基因，向最优区（温度≈0.4/置信≈0.9）靠拢。

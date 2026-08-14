@@ -117,7 +117,7 @@ def _build_write_channel(mode: str, live: bool, repo: str):
     return RecordingWriteChannel()
 
 
-def _build_executor(cfg: SelfEvolveConfig):
+def _build_executor(cfg: SelfEvolveConfig, memory=None):
     """按配置选执行器。返回 (executor, is_real)。
 
     sim  → GenomeDrivenExecutor（基因质量直接伪造信号，旧演示路径）；
@@ -128,7 +128,7 @@ def _build_executor(cfg: SelfEvolveConfig):
     if mode == "sim":
         return GenomeDrivenExecutor(seed=cfg.seed), False
     from jarvis.court.real_executor import RealTaskExecutor
-    return RealTaskExecutor(seed=cfg.seed), True
+    return RealTaskExecutor(seed=cfg.seed, memory=memory), True
 
 
 def _load_tasks(cfg: SelfEvolveConfig, is_real: bool) -> list:
@@ -166,12 +166,19 @@ def run_orchestrator(cfg: SelfEvolveConfig, out_dir: str = "telemetry",
     court.register_many(default_ministers())
     router, guardrail = _wire_optional_guards()
 
+    # 经验记忆（Phase 12：自我学习跨重启累积，executor 与 engine 共享同一实例）
+    memory = None
+    if cfg.use_memory:
+        from jarvis.court.memory import CourtMemory
+        memory = CourtMemory()
+
     # 真实任务执行器 + 任务集（Phase 11：真实执行 + 自我学习）
-    executor, is_real = _build_executor(cfg)
+    executor, is_real = _build_executor(cfg, memory=memory)
     tasks = _load_tasks(cfg, is_real)
     self_learn = bool(cfg.self_learn and is_real)
     mode_name = "real" if is_real else "sim"
-    print(f"🧠 执行器={mode_name} 自我学习={'开' if self_learn else '关'} 任务数={len(tasks)}")
+    print(f"🧠 执行器={mode_name} 自我学习={'开' if self_learn else '关'} "
+          f"经验记忆={'开' if memory is not None else '关'} 任务数={len(tasks)}")
 
     # 写回通道
     if no_writeback:
@@ -238,6 +245,9 @@ def run_orchestrator(cfg: SelfEvolveConfig, out_dir: str = "telemetry",
         snapshot_dir=cfg.snapshot_dir,
         golden_pass_rate_min=cfg.golden_pass_rate_min,
         self_learn=self_learn,
+        memory=memory,
+        use_memory=cfg.use_memory,
+        memory_path=cfg.memory_path,
     )
 
     report = engine.run(n_cycles=cfg.cycles, tasks_per_minister=cfg.tasks_per_minister)
@@ -279,6 +289,14 @@ def run_orchestrator(cfg: SelfEvolveConfig, out_dir: str = "telemetry",
             print(f"📦 本轮回写携带真实基因 diff 的 PR 意图 {len(proposed)} 次（见 telemetry 与 genome_state.json）")
         if pending:
             print(f"⏳ {len(pending)} 次写回进入「待人工审批」状态（approval.db 中可查）")
+
+    # 经验记忆可观测：把「学到了什么」按域打印出来（跨重启累积的证据）
+    stats = engine.memory_stats()
+    if stats:
+        print(f"\n🧠 经验记忆已落盘 {cfg.memory_path}（跨重启累积，--resume 继续学习）：")
+        for s in stats[:8]:
+            print(f"   · {s['domain']:<10} 样本={s['total']:<4} 成功率={s['success_rate']:.0%} "
+                  f"最强大臣={s.get('top_minister') or '-'}")
     return 0
 
 

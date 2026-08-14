@@ -53,6 +53,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "self_learn": True,                # 真实成败即时微调基因（向最优区靠拢），真实自我学习
     "task_file": "",                   # 自定义真实任务文件（YAML/JSON：[{id,prompt,domain,expected}]）
     "tasks": [],                       # 内联任务（优先级最高）
+    # ── Phase 12：持久化经验记忆（自我学习跨重启累积）──
+    "use_memory": True,                # 记录每次任务真实成败到经验库
+    "memory_path": "jarvis/court/memory.json",  # 经验记忆持久化路径
 }
 
 
@@ -89,6 +92,9 @@ class SelfEvolveConfig:
     self_learn: bool = True
     task_file: str = ""
     tasks: List[Dict[str, Any]] = field(default_factory=list)
+    # Phase 12：持久化经验记忆
+    use_memory: bool = True
+    memory_path: str = "jarvis/court/memory.json"
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "SelfEvolveConfig":
@@ -121,6 +127,8 @@ class SelfEvolveConfig:
             self_learn=bool(d.get("self_learn", True)),
             task_file=str(d.get("task_file", "") or ""),
             tasks=list(d.get("tasks", []) or []),
+            use_memory=bool(d.get("use_memory", True)),
+            memory_path=str(d.get("memory_path", "jarvis/court/memory.json")),
         )
 
 
