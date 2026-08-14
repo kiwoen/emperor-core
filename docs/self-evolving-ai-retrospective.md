@@ -415,3 +415,23 @@ court_api、eval、cli 等）全绿（本轮 310 项通过），CI 双闸零告�
 即时微调基因 + 经验落盘跨重启累积）、并在 DGM 三约束 + 行为级金标准安全闸下 fail-closed 进化——
 满足「完全落地自我学习进化执行任务」。接真实 LLM 仅需配 `OPENAI_API_KEY`/`DEEPSEEK_API_KEY`，
 编排与安全闸门不变。
+
+### Phase 12 续：经验记忆**驱动**派发（闭环收口）
+
+> Phase 12 初版只做到「经验记录 + 落盘」，但派发仍按「领域亲和 + 轮转」——累积的经验**只写不读**，
+> 自我学习尚未真正改变「谁执行哪个任务」。本 refinement 收口闭环：让经验**反向驱动派发决策**。
+
+**改动（jarvis/self_evolve.py）**：
+- 新增模块级纯函数 `_rank_ministers(group, domain, mem_quality)`：按「该 (大臣,领域) 历史成功率」
+  对候选组降序排序；无记忆 / 某大臣无历史时回退 0.5，配合 Python 稳定排序退化为「原序轮转」，**零回归**。
+- `_execute_tasks` 在每轮派发前，从 `CourtMemory._entries` 一次性聚合出 `mem_quality`，再把组内排序交给
+  `_rank_ministers`——**历史最被证明的大臣优先拿到该域任务**，真实成败信号更干净。
+- 这是「记录经验 → 消费经验」的真正闭环：多大臣同域时 exploit 已被证明的能力，而非随机轮转。
+
+**测试（tests/test_memory_driven_routing.py，4 项）**：
+- 纯函数：无记忆保持原序、按历史成功率降序、单大臣退化正确。
+- 端到端：两个 math 大臣 + 预置「beta 全胜 / alpha 全败」记忆，跑 3 个 math 任务后，
+  `beta` 被派发的任务数**严格多于** `alpha`（记忆确实改变了「谁执行」）。
+
+**验证**：Phase 12 + 路由 + 定向回归（memory / self_evolve / real_executor / safety_gate / evolution /
+landing / integration）合计 **81 passed**，仅 `datetime.utcnow` 既有弃用告警（非本次引入）。

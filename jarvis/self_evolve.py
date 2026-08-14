@@ -77,6 +77,24 @@ def _uniform01(*parts: Any) -> float:
     return int(digest[:16], 16) / float(0xFFFFFFFFFFFFFFFF)
 
 
+def _rank_ministers(
+    group: list,
+    domain: str,
+    mem_quality: dict,
+) -> list:
+    """按「该域历史成功率」对候选大臣降序排序，让最被证明的大臣优先拿到任务。
+
+    闭环关键：``mem_quality`` 来自已持久化的 :class:`CourtMemory`（Phase 12 记录 +
+    本改进消费）。无记忆（或某大臣无历史）时回退为 0.5，Python ``sorted`` 稳定排序保证
+    退化为「原序轮转」，与无经验时行为一致（无回归）。
+    """
+    return sorted(
+        group,
+        key=lambda m: mem_quality.get((m, domain), 0.5),
+        reverse=True,
+    )
+
+
 # ── 任务与执行器 ──────────────────────────────────────────────
 
 
@@ -587,15 +605,29 @@ class SelfEvolutionEngine:
         for m in ministers:
             by_domain.setdefault(_min_domain(m), []).append(m)
 
-        # 任务 → 大臣：同领域优先，否则 general 兜底；组内按已分配数轮转均摊多任务。
+        # 经验记忆驱动：统计 (大臣,领域) 历史成功率，用于「把任务派给该域最被证明的大臣」。
+        # 这是 Phase 12「记录经验」之后的闭环——让累积的经验真正改善派发决策（而非只写不读）。
+        mem_quality: dict = {}
+        if self._memory is not None and self._use_memory:
+            agg: dict = {}
+            for e in self._memory._entries:
+                k = (e.minister_name, e.domain)
+                s, t = agg.get(k, (0, 0))
+                agg[k] = (s + (1 if e.success else 0), t + 1)
+            for k, (s, t) in agg.items():
+                mem_quality[k] = (s / t) if t else 0.5
+
+        # 任务 → 大臣：同领域优先，否则 general 兜底；组内按「该域历史成功率」降序派发
+        # （最被证明的大臣优先拿任务 → 真实成败信号更干净），历史缺失时退化为轮转。
         assigned: dict = {m: [] for m in ministers}
         cursor: dict = {}
         for task in self.tasks:
             group = by_domain.get(task.domain) or by_domain.get("general") or ministers
+            ordered = _rank_ministers(group, task.domain, mem_quality)
             key = id(group)
-            idx = cursor.get(key, 0) % len(group)
+            idx = cursor.get(key, 0) % len(ordered)
             cursor[key] = cursor.get(key, 0) + 1
-            assigned[group[idx]].append(task)
+            assigned[ordered[idx]].append(task)
 
         # 兜底：无同领域任务的大臣（如 reasoning）用任意任务补一个，
         # 保证每个大臣都执行过真实任务，从而驱动其基因自我学习。
