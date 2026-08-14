@@ -13,6 +13,7 @@ import asyncio
 import logging
 import os
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, Optional
 
 # litellm is an optional dependency; import lazily/guarded so the module
@@ -23,6 +24,75 @@ except Exception:  # pragma: no cover
     litellm = None
 
 logger = logging.getLogger("jarvis.llm")
+
+
+class Environment(Enum):
+    """Deployment tier that selects the OpenAI-compatible Base URL."""
+
+    DEVELOPMENT = "development"
+    TESTING = "testing"
+    PRODUCTION = "production"
+
+
+def get_base_url(env: Environment) -> str:
+    """Resolve the OpenAI-compatible Base URL for a given environment.
+
+    Each tier reads an override env var (``OPENAI_DEV_URL`` / ``OPENAI_TEST_URL``
+    / ``OPENAI_PROD_URL``) and falls back to a sensible default. This lets the
+    same JARVIS binary talk to the official OpenAI API in dev and a self-hosted
+    or company proxy in testing/production without code changes.
+    """
+    configs = {
+        Environment.DEVELOPMENT: os.getenv("OPENAI_DEV_URL", "https://api.openai.com/v1/"),
+        Environment.TESTING: os.getenv("OPENAI_TEST_URL", "https://test-openai.your-company.com/v1/"),
+        Environment.PRODUCTION: os.getenv("OPENAI_PROD_URL", "https://openai.your-company.com/v1/"),
+    }
+    return configs[env]
+
+
+# ── Curated registry of free / cheap OpenAI-compatible endpoints ─────────────
+# Each entry is selectable by name via OPENAI_FALLBACK_PROVIDERS. ``key_env`` is
+# the env var holding the provider's API key (empty => keyless / local).
+# ``free_tier`` notes are informational only and may change over time.
+FREE_PROVIDERS: dict[str, dict[str, str]] = {
+    "deepseek": {
+        "base_url": "https://api.deepseek.com/v1",
+        "default_model": "deepseek-chat",
+        "key_env": "DEEPSEEK_API_KEY",
+        "free_tier": "新账号赠送额度；deepseek-chat 极便宜",
+    },
+    "groq": {
+        "base_url": "https://api.groq.com/openai/v1",
+        "default_model": "llama-3.3-70b-versatile",
+        "key_env": "GROQ_API_KEY",
+        "free_tier": "GroqCloud 免费档（限速率，需 key）",
+    },
+    "openrouter": {
+        "base_url": "https://openrouter.ai/api/v1",
+        "default_model": "openai/gpt-4o-mini",
+        "key_env": "OPENROUTER_API_KEY",
+        "free_tier": "含多种免费模型（如 meta-llama/...-free）",
+    },
+    "together": {
+        "base_url": "https://api.together.xyz/v1",
+        "default_model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        "key_env": "TOGETHER_API_KEY",
+        "free_tier": "新用户免费额度",
+    },
+    "mistral": {
+        "base_url": "https://api.mistral.ai/v1",
+        "default_model": "mistral-small-latest",
+        "key_env": "MISTRAL_API_KEY",
+        "free_tier": "Le Chat 试用额度",
+    },
+    "ollama": {
+        "base_url": "http://localhost:11434/v1",
+        "default_model": "llama3",
+        "key_env": "",
+        "free_tier": "完全本地免费，无需 key（需先 ollama serve）",
+    },
+}
+
 
 
 @dataclass
@@ -44,12 +114,29 @@ class LLMConfig:
 
         Works with any OpenAI-compatible endpoint (ChatOpens, DeepSeek,
         local Ollama, etc.). ``overrides`` take precedence over env values.
+
+        Base URL resolution priority:
+          1. ``OPENAI_BASE_URL`` (explicit override, highest priority)
+          2. ``OPENAI_ENV`` tier -> ``OPENAI_{DEV,TEST,PROD}_URL``
+             (only when ``OPENAI_ENV`` is explicitly set)
+          3. empty -> keep mock-by-default semantics (no network call)
         """
+        base_url = os.getenv("OPENAI_BASE_URL", "")
+        if not base_url:
+            env_name = os.getenv("OPENAI_ENV", "").strip().lower()
+            if env_name:
+                try:
+                    env_enum = Environment(env_name)
+                except ValueError:
+                    logger.warning("Unknown OPENAI_ENV=%r; falling back to development", env_name)
+                    env_enum = Environment.DEVELOPMENT
+                base_url = get_base_url(env_enum)
+
         cfg = cls(
             provider=os.getenv("OPENAI_PROVIDER", "openai"),
             model=os.getenv("OPENAI_MODEL", "gpt-4o"),
             api_key=os.getenv("OPENAI_API_KEY", ""),
-            base_url=os.getenv("OPENAI_BASE_URL", ""),
+            base_url=base_url,
             temperature=float(os.getenv("OPENAI_TEMPERATURE", "0.7")),
             max_tokens=int(os.getenv("OPENAI_MAX_TOKENS", "1024")),
         )
@@ -278,35 +365,177 @@ class LLMEngine:
         return f"[CORE] 已理解您的请求：「{prompt}」。\n\n由于当前未配置 LLM API Key，我在 mock 模式下运行。如需启用真实 AI 能力，请设置环境变量 OPENAI_API_KEY 或配置 config.yaml。"
 
 
+class LLMManager:
+    """Multi-backend LLM manager with failover across OpenAI-compatible endpoints.
+
+    Lets JARVIS "同时接入各种免费模型": one primary backend plus an ordered list
+    of fallbacks (explicit URLs, preset free providers, or a curated registry).
+    A ``complete()`` call tries each backend in order and transparently fails over
+    on error (network / 401 / rate-limit), so a flaky free endpoint never breaks
+    the self-learning loop. Exposes the same ``complete`` / ``get_cost_report`` /
+    ``mock_mode`` / ``config`` / ``last_error`` surface as :class:`LLMEngine`.
+    """
+
+    def __init__(self, backends: list[LLMConfig], router_enabled: bool = True) -> None:
+        if not backends:
+            raise ValueError("LLMManager requires at least one backend")
+        self.backends = list(backends)
+        self.engines = [LLMEngine(cfg) for cfg in self.backends]
+        self.last_error: Optional[str] = None
+        self.last_used_backend: Optional[int] = None
+
+    @property
+    def config(self) -> LLMConfig:
+        return self.backends[0]
+
+    @property
+    def mock_mode(self) -> bool:
+        return all(eng.mock_mode for eng in self.engines)
+
+    async def complete(
+        self,
+        prompt: str,
+        system: str = "",
+        domain: str = "general",
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+    ) -> str:
+        self.last_error = None
+        self.last_used_backend = None
+        last_reply: Optional[str] = None
+        for idx, eng in enumerate(self.engines):
+            # Skip a mock-only backend when a live backend exists later in the
+            # chain, so a configured real endpoint is preferred over a stub.
+            if eng.mock_mode and any(not e.mock_mode for e in self.engines[idx + 1:]):
+                continue
+            try:
+                reply = await eng.complete(
+                    prompt, system=system, domain=domain,
+                    temperature=temperature, max_tokens=max_tokens,
+                )
+            except Exception as e:  # noqa: BLE001 - failover must be bullet-proof
+                self.last_error = f"backend[{idx}] {eng.config.model}: {e}"
+                logger.warning("LLMManager backend %d failed: %s", idx, e)
+                continue
+            if eng.last_error:
+                # Real call errored; record and keep reply only as last resort.
+                self.last_error = f"backend[{idx}] {eng.config.model}: {eng.last_error}"
+                logger.warning("LLMManager backend %d returned error: %s", idx, eng.last_error)
+                last_reply = reply
+                continue
+            self.last_used_backend = idx
+            return reply
+        # Every backend errored: return best-effort last reply (mock stub) if any.
+        if last_reply is not None:
+            return last_reply
+        return self.engines[-1]._mock_complete(prompt, domain, system)
+
+    def get_cost_report(self) -> dict:
+        total: dict = {
+            "total_requests": 0,
+            "requests_by_tier": {},
+            "estimated_cost_saved": 0.0,
+            "savings_percent": 0.0,
+            "router_enabled": any(e.router is not None for e in self.engines),
+            "backends": len(self.engines),
+            "last_used_backend": self.last_used_backend,
+        }
+        for eng in self.engines:
+            rep = eng.get_cost_report()
+            total["total_requests"] += rep.get("total_requests", 0)
+            total["estimated_cost_saved"] += rep.get("estimated_cost_saved", 0.0)
+            for tier, n in rep.get("requests_by_tier", {}).items():
+                total["requests_by_tier"][tier] = total["requests_by_tier"].get(tier, 0) + n
+        return total
+
+
+def build_manager_from_env() -> Any:
+    """Build an LLMManager (or a plain LLMEngine) from OPENAI_* env.
+
+    Backends, in order:
+      1. Primary, from :meth:`LLMConfig.from_env` (OPENAI_BASE_URL / OPENAI_ENV tier).
+      2. Explicit fallback URLs: OPENAI_FALLBACK_BASE_URLS (+ parallel
+         OPENAI_FALLBACK_MODELS / OPENAI_FALLBACK_KEYS, comma-separated).
+      3. Preset free providers: OPENAI_FALLBACK_PROVIDERS (names from FREE_PROVIDERS),
+         each resolved against its own key env var.
+
+    Returns a single LLMEngine when only the primary is configured (zero overhead,
+    fully backward compatible with callers expecting one engine).
+    """
+    primary = LLMConfig.from_env()
+    backends: list[LLMConfig] = [primary]
+
+    fb_urls = [u.strip() for u in os.getenv("OPENAI_FALLBACK_BASE_URLS", "").split(",") if u.strip()]
+    fb_models = [m.strip() for m in os.getenv("OPENAI_FALLBACK_MODELS", "").split(",") if m.strip()]
+    fb_keys = [k.strip() for k in os.getenv("OPENAI_FALLBACK_KEYS", "").split(",") if k.strip()]
+    for i, url in enumerate(fb_urls):
+        backends.append(LLMConfig(
+            provider=primary.provider,
+            model=fb_models[i] if i < len(fb_models) else primary.model,
+            api_key=fb_keys[i] if i < len(fb_keys) else primary.api_key,
+            base_url=url,
+            temperature=primary.temperature,
+            max_tokens=primary.max_tokens,
+        ))
+
+    for name in [p.strip() for p in os.getenv("OPENAI_FALLBACK_PROVIDERS", "").split(",") if p.strip()]:
+        prov = FREE_PROVIDERS.get(name)
+        if not prov:
+            logger.warning("Unknown OPENAI_FALLBACK_PROVIDERS entry: %r (skipped)", name)
+            continue
+        key_env = prov.get("key_env", "")
+        backends.append(LLMConfig(
+            provider=primary.provider,
+            model=prov.get("default_model", primary.model),
+            api_key=os.getenv(key_env, "") if key_env else "",
+            base_url=prov["base_url"],
+            temperature=primary.temperature,
+            max_tokens=primary.max_tokens,
+        ))
+
+    if len(backends) <= 1:
+        return LLMEngine(primary)
+    logger.info("LLMManager initialized with %d backends (failover enabled)", len(backends))
+    return LLMManager(backends)
+
+
 # ---------------------------------------------------------------------------
 # Singleton-style accessor for domain handlers
 # ---------------------------------------------------------------------------
 
-_llm_instance: Optional[LLMEngine] = None
+_llm_instance: Optional[Any] = None
 
 
-def get_llm() -> LLMEngine:
-    """Return the global LLM engine instance (auto-configured from env)."""
+def get_llm() -> Any:
+    """Return the global LLM engine/manager instance (auto-configured from env).
+
+    Builds an :class:`LLMManager` when fallback backends are configured, otherwise
+    a single :class:`LLMEngine`. Both expose the same ``complete`` surface used by
+    domain handlers.
+    """
     global _llm_instance
     if _llm_instance is None:
-        _llm_instance = LLMEngine(LLMConfig.from_env())
+        _llm_instance = build_manager_from_env()
     return _llm_instance
 
 
-def init_llm(config_obj: Any = None) -> LLMEngine:
-    """Initialize LLM engine, seeding from OPENAI_* env then explicit config.
+def init_llm(config_obj: Any = None) -> Any:
+    """Initialize the global LLM engine/manager, seeding from OPENAI_* env.
 
     Explicit config fields (when non-empty) override env values; env values
-    override built-in defaults. Setting ``OPENAI_BASE_URL`` alone is enough to
-    enable a live OpenAI-compatible endpoint.
+    override built-in defaults. Builds an :class:`LLMManager` when fallback
+    backends are configured, otherwise a single :class:`LLMEngine` — so serve
+    mode also gets multi-backend failover (consistent with :func:`get_llm`).
     """
     global _llm_instance
-    cfg = LLMConfig.from_env()
+    instance = build_manager_from_env()
+    # Allow an explicit config object to override the primary backend.
     llm_cfg = getattr(config_obj, "llm", None) or getattr(config_obj, "model", None)
     if llm_cfg is not None:
+        primary = instance.backends[0] if isinstance(instance, LLMManager) else instance.config
         for field in ("provider", "model", "api_key", "base_url", "temperature", "max_tokens"):
             value = getattr(llm_cfg, field, None)
             if value:
-                setattr(cfg, field, value)
-    _llm_instance = LLMEngine(cfg)
+                setattr(primary, field, value)
+    _llm_instance = instance
     return _llm_instance

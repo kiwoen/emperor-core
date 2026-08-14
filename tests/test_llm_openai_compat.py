@@ -106,3 +106,43 @@ def test_init_llm_explicit_config_overrides_env(monkeypatch, fake_litellm):
     eng = llm_mod.init_llm(_cfg)
     assert eng.config.base_url == "https://explicit.example/v1"
     assert eng.config.model == "explicit-model"
+
+
+def test_get_base_url_defaults_per_env():
+    assert llm_mod.get_base_url(llm_mod.Environment.DEVELOPMENT) == "https://api.openai.com/v1/"
+    assert llm_mod.get_base_url(llm_mod.Environment.TESTING) == "https://test-openai.your-company.com/v1/"
+    assert llm_mod.get_base_url(llm_mod.Environment.PRODUCTION) == "https://openai.your-company.com/v1/"
+
+
+def test_openai_env_resolves_tier_url(monkeypatch):
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("OPENAI_ENV", "testing")
+    monkeypatch.setenv("OPENAI_TEST_URL", "https://test-proxy.local/v1")
+    cfg = LLMConfig.from_env()
+    assert cfg.base_url == "https://test-proxy.local/v1"
+
+
+def test_openai_base_url_overrides_env_tier(monkeypatch):
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://explicit.example/v1")
+    monkeypatch.setenv("OPENAI_ENV", "production")
+    monkeypatch.setenv("OPENAI_PROD_URL", "https://prod-proxy.local/v1")
+    cfg = LLMConfig.from_env()
+    assert cfg.base_url == "https://explicit.example/v1"
+
+
+def test_unknown_openai_env_falls_back_to_dev(monkeypatch):
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+    monkeypatch.setenv("OPENAI_ENV", "staging")
+    cfg = LLMConfig.from_env()
+    assert cfg.base_url == "https://api.openai.com/v1/"
+
+
+def test_no_env_vars_keeps_mock_default(monkeypatch):
+    for v in ("OPENAI_BASE_URL", "OPENAI_API_KEY", "OPENAI_ENV",
+              "OPENAI_DEV_URL", "OPENAI_TEST_URL", "OPENAI_PROD_URL"):
+        monkeypatch.delenv(v, raising=False)
+    cfg = LLMConfig.from_env()
+    assert cfg.base_url == ""
+    eng = LLMEngine(cfg)
+    assert eng.mock_mode is True

@@ -39,36 +39,100 @@ def _uniform01(*parts: Any) -> float:
 
 
 def build_default_llm() -> Optional[Callable[..., str]]:
-    """探测环境里可用的真实 LLM 后端（OpenAI 兼容），返回同步可调用；无则返回 None。
+    """探测环境里可用的真实 LLM 后端（OpenAI 兼容，支持多后端故障转移），返回同步可调用；无则返回 None。
 
-    仅当同时满足「设置了 OPENAI_API_KEY 且 openai 包可导入」时才启用真实 LLM；
-    任何失败都安全退回 None（离线求解器），保证沙箱/CI/无网环境可运行。
+    按优先级收集候选后端，任一调用会顺序尝试直到成功：
+      1. OPENAI_API_KEY + OPENAI_BASE_URL + OPENAI_MODEL
+      2. DEEPSEEK_API_KEY  ->  https://api.deepseek.com/v1
+      3. OPENAI_FALLBACK_BASE_URLS（逗号分隔）+ 平行 *_MODELS / *_KEYS
+      4. OPENAI_FALLBACK_PROVIDERS（jarvis.core.llm.FREE_PROVIDERS 注册表中的免费端点名）
+
+    全部失败才抛异常，由调用方（:meth:`RealTaskExecutor._answer`）安全退回离线求解器。
+    保留「无 key 且无 base_url 则退回离线」的沙箱/CI 安全契约。
     """
-    api_key = os.getenv("OPENAI_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
-    if not api_key:
-        return None
     try:
         from openai import OpenAI  # type: ignore
     except Exception:
         logger.debug("[RealExecutor] openai 包不可用，使用离线求解器")
         return None
-    base_url = os.getenv("OPENAI_BASE_URL") or (
-        "https://api.deepseek.com/v1" if os.getenv("DEEPSEEK_API_KEY") else None
-    )
-    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+    pk = os.getenv("OPENAI_API_KEY", "")
+    dk = os.getenv("DEEPSEEK_API_KEY", "")
+    default_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    candidates: list[dict] = []
+
+    # 1) primary (keyed)
+    if pk:
+        candidates.append({
+            "api_key": pk,
+            "base_url": os.getenv("OPENAI_BASE_URL", ""),
+            "model": default_model,
+        })
+    # 1b) keyless proxy via explicit OPENAI_BASE_URL (free OpenAI-compatible proxies)
+    if os.getenv("OPENAI_BASE_URL") and not pk:
+        candidates.append({
+            "api_key": "sk-noauth",
+            "base_url": os.getenv("OPENAI_BASE_URL", ""),
+            "model": default_model,
+        })
+    # 2) deepseek
+    if dk:
+        candidates.append({
+            "api_key": dk,
+            "base_url": os.getenv("OPENAI_BASE_URL") or "https://api.deepseek.com/v1",
+            "model": default_model if os.getenv("OPENAI_MODEL") else "deepseek-chat",
+        })
+    # 3) explicit fallback urls
+    fb_urls = [u.strip() for u in os.getenv("OPENAI_FALLBACK_BASE_URLS", "").split(",") if u.strip()]
+    fb_models = [m.strip() for m in os.getenv("OPENAI_FALLBACK_MODELS", "").split(",") if m.strip()]
+    fb_keys = [k.strip() for k in os.getenv("OPENAI_FALLBACK_KEYS", "").split(",") if k.strip()]
+    for i, url in enumerate(fb_urls):
+        candidates.append({
+            "api_key": fb_keys[i] if i < len(fb_keys) else (pk or dk or "sk-noauth"),
+            "base_url": url,
+            "model": fb_models[i] if i < len(fb_models) else default_model,
+        })
+    # 4) preset free providers
+    try:
+        from jarvis.core.llm import FREE_PROVIDERS
+    except Exception:
+        FREE_PROVIDERS = {}
+    for name in [p.strip() for p in os.getenv("OPENAI_FALLBACK_PROVIDERS", "").split(",") if p.strip()]:
+        prov = FREE_PROVIDERS.get(name)
+        if not prov:
+            continue
+        key_env = prov.get("key_env", "")
+        key = os.getenv(key_env, "") if key_env else "sk-noauth"
+        if key_env and not key:
+            continue  # 需要 key 但未提供 -> 跳过
+        candidates.append({
+            "api_key": key,
+            "base_url": prov["base_url"],
+            "model": prov.get("default_model", default_model),
+        })
+
+    if not candidates:
+        return None
 
     def _call(prompt: str, temperature: float = 0.7, **_: Any) -> str:
-        kwargs: dict = {"api_key": api_key}
-        if base_url:
-            kwargs["base_url"] = base_url
-        client = OpenAI(**kwargs)
-        resp = client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=temperature,
-            max_tokens=512,
-        )
-        return resp.choices[0].message.content or ""
+        last_err: Optional[Exception] = None
+        for c in candidates:
+            try:
+                kwargs: dict = {"api_key": c["api_key"] or "sk-noauth"}
+                if c["base_url"]:
+                    kwargs["base_url"] = c["base_url"]
+                client = OpenAI(**kwargs)
+                resp = client.chat.completions.create(
+                    model=c["model"],
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=temperature,
+                    max_tokens=512,
+                )
+                return resp.choices[0].message.content or ""
+            except Exception as e:  # noqa: BLE001 - 故障转移需吞掉所有后端异常
+                logger.debug("[RealExecutor] 后端 %s 失败: %s", c["model"], e)
+                last_err = e
+        raise RuntimeError(f"所有 LLM 后端均失败: {last_err}")
 
     return _call
 
