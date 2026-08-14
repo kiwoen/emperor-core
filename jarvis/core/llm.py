@@ -11,8 +11,16 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass
 from typing import Any, Optional
+
+# litellm is an optional dependency; import lazily/guarded so the module
+# imports cleanly even when it is not installed (falls back to mock).
+try:  # pragma: no cover - environment dependent
+    import litellm  # type: ignore
+except Exception:  # pragma: no cover
+    litellm = None
 
 logger = logging.getLogger("jarvis.llm")
 
@@ -25,9 +33,30 @@ class LLMConfig:
     base_url: str = ""
     temperature: float = 0.7
     max_tokens: int = 1024
-    mock_mode: bool = True
+    mock_mode: Optional[bool] = None  # None => auto (live when api_key/base_url set)
     router_enabled: bool = True
     fallback_model: str = "gpt-4o"
+    request_timeout: int = 60
+
+    @classmethod
+    def from_env(cls, **overrides: Any) -> "LLMConfig":
+        """Build a config from OPENAI_* environment variables.
+
+        Works with any OpenAI-compatible endpoint (ChatOpens, DeepSeek,
+        local Ollama, etc.). ``overrides`` take precedence over env values.
+        """
+        cfg = cls(
+            provider=os.getenv("OPENAI_PROVIDER", "openai"),
+            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+            api_key=os.getenv("OPENAI_API_KEY", ""),
+            base_url=os.getenv("OPENAI_BASE_URL", ""),
+            temperature=float(os.getenv("OPENAI_TEMPERATURE", "0.7")),
+            max_tokens=int(os.getenv("OPENAI_MAX_TOKENS", "1024")),
+        )
+        for key, value in overrides.items():
+            if value is not None:
+                setattr(cfg, key, value)
+        return cfg
 
 
 class LLMEngine:
@@ -35,7 +64,12 @@ class LLMEngine:
 
     def __init__(self, config: LLMConfig) -> None:
         self.config = config
-        self.mock_mode = not config.api_key
+        self.last_error: Optional[str] = None
+        live = bool(config.api_key or config.base_url)
+        if config.mock_mode is None:
+            self.mock_mode = not live
+        else:
+            self.mock_mode = config.mock_mode
         self.router: Optional[ModelRouter] = None
 
         if config.router_enabled:
@@ -43,9 +77,9 @@ class LLMEngine:
             self.router = ModelRouter()
 
         if self.mock_mode:
-            logger.info("LLM running in MOCK mode (no API key configured)")
+            logger.info("LLM running in MOCK mode (no API key / base_url configured)")
         else:
-            logger.info(f"LLM running in LIVE mode: {config.provider}/{config.model}")
+            logger.info(f"LLM running in LIVE mode: {config.provider}/{config.model} base={config.base_url or 'default'}")
 
     async def complete(
         self,
@@ -98,7 +132,9 @@ class LLMEngine:
 
     async def _litellm_complete(self, prompt: str, system: str, temperature: float, max_tokens: int) -> str:
         """Real LLM invocation via LiteLLM."""
-        import litellm
+        if litellm is None:
+            logger.error("litellm not installed; falling back to mock")
+            return self._mock_complete(prompt, "general", system)
 
         messages = []
         if system:
@@ -111,14 +147,19 @@ class LLMEngine:
             "messages": messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
-            "api_key": self.config.api_key,
+            # Some OpenAI-compatible free proxies need no key; supply a dummy
+            # so litellm does not reject the call outright.
+            "api_key": self.config.api_key or "sk-noauth",
+            "timeout": self.config.request_timeout,
         }
         if self.config.base_url:
             kwargs["api_base"] = self.config.base_url
+        self.last_error = None
         try:
             response = await litellm.acompletion(**kwargs)
             return response.choices[0].message.content.strip()
         except Exception as e:
+            self.last_error = str(e)
             logger.error(f"LLM call failed: {e}, falling back to mock")
             return self._mock_complete(prompt, "general", system)
 
@@ -245,24 +286,27 @@ _llm_instance: Optional[LLMEngine] = None
 
 
 def get_llm() -> LLMEngine:
-    """Return the global LLM engine instance."""
+    """Return the global LLM engine instance (auto-configured from env)."""
     global _llm_instance
     if _llm_instance is None:
-        _llm_instance = LLMEngine(LLMConfig())
+        _llm_instance = LLMEngine(LLMConfig.from_env())
     return _llm_instance
 
 
-def init_llm(config_obj: Any) -> LLMEngine:
-    """Initialize LLM engine from JARVIS config."""
+def init_llm(config_obj: Any = None) -> LLMEngine:
+    """Initialize LLM engine, seeding from OPENAI_* env then explicit config.
+
+    Explicit config fields (when non-empty) override env values; env values
+    override built-in defaults. Setting ``OPENAI_BASE_URL`` alone is enough to
+    enable a live OpenAI-compatible endpoint.
+    """
     global _llm_instance
+    cfg = LLMConfig.from_env()
     llm_cfg = getattr(config_obj, "llm", None) or getattr(config_obj, "model", None)
-    llm_config = LLMConfig(
-        provider=getattr(llm_cfg, "provider", "openai"),
-        model=getattr(llm_cfg, "model", "gpt-4o"),
-        api_key=getattr(llm_cfg, "api_key", ""),
-        base_url=getattr(llm_cfg, "base_url", ""),
-        temperature=getattr(llm_cfg, "temperature", 0.7),
-        max_tokens=getattr(llm_cfg, "max_tokens", 1024),
-    )
-    _llm_instance = LLMEngine(llm_config)
+    if llm_cfg is not None:
+        for field in ("provider", "model", "api_key", "base_url", "temperature", "max_tokens"):
+            value = getattr(llm_cfg, field, None)
+            if value:
+                setattr(cfg, field, value)
+    _llm_instance = LLMEngine(cfg)
     return _llm_instance
