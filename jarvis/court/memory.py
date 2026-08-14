@@ -146,6 +146,7 @@ class CourtMemory:
         max_entries: int = 500,
         similarity_threshold: float = 0.15,
         decay_interval_hours: float = 1.0,
+        max_per_group: Optional[int] = None,
     ) -> None:
         """Initialize court memory.
 
@@ -154,6 +155,13 @@ class CourtMemory:
             max_entries:            Hard cap on total stored entries
             similarity_threshold:   Minimum keyword overlap ratio for a match
             decay_interval_hours:   How often decay is applied (in hours)
+            max_per_group:          Optional per-(domain, minister) retention cap.
+                                    When set, ``record`` keeps only the most
+                                    recent ``max_per_group`` entries per group and
+                                    drops the oldest — bounding staleness so old
+                                    samples never permanently dominate routing /
+                                    warm-start. ``None`` = no per-group cap
+                                    (backward compatible, default).
         """
         self._entries: list[MemoryEntry] = []
         self.decay_factor = max(0.5, min(1.0, decay_factor))
@@ -161,6 +169,7 @@ class CourtMemory:
         self.similarity_threshold = similarity_threshold
         self.decay_interval_s = decay_interval_hours * 3600.0
         self._last_decay: float = time.time()
+        self.max_per_group = max_per_group
 
     # ------------------------------------------------------------------
     # Properties
@@ -198,7 +207,11 @@ class CourtMemory:
 
         self._entries.append(entry)
 
-        # Enforce max cap
+        # Enforce per-group retention window (bounds staleness at the source)
+        if self.max_per_group:
+            self.prune_oldest_per_group()
+
+        # Enforce global max cap
         removed = self.prune_oldest()
         if removed:
             logger.info("Pruned %d oldest entries (cap=%d)", removed, self.max_entries)
@@ -487,6 +500,86 @@ class CourtMemory:
 
         return len(removed)
 
+    def prune_oldest_per_group(self) -> int:
+        """Enforce ``max_per_group`` cap per (domain, minister_name) group.
+
+        Keeps only the most recent ``max_per_group`` entries in each group and
+        drops the oldest. Returns total count removed. No-op when
+        ``max_per_group`` is ``None`` (default, backward compatible).
+        """
+        if not self.max_per_group or self.max_per_group <= 0:
+            return 0
+
+        by_group: dict = {}
+        for e in self._entries:
+            by_group.setdefault((e.domain, e.minister_name), []).append(e)
+
+        keep: list[MemoryEntry] = []
+        removed = 0
+        for group_entries in by_group.values():
+            if len(group_entries) <= self.max_per_group:
+                keep.extend(group_entries)
+                continue
+            # 按时间排序，保留最新的 max_per_group 条，丢弃最旧的。
+            ordered = sorted(group_entries, key=lambda e: e.timestamp)
+            keep.extend(ordered[-self.max_per_group:])
+            removed += len(ordered) - self.max_per_group
+
+        if removed:
+            self._entries = keep
+            logger.info("Pruned %d stale per-group entries (max_per_group=%d)",
+                        removed, self.max_per_group)
+        return removed
+
+    def per_minister_domain_quality(
+        self,
+        recency_decay: float = 1.0,
+    ) -> dict:
+        """Aggregate (success, total) per (minister, domain) for routing / warm-start.
+
+        Args:
+            recency_decay:  Weight of the *oldest* entry relative to the newest.
+                            ``1.0`` → equal weighting (matches the original
+                            unweighted behaviour, zero regression). ``0<d<1`` →
+                            newer samples weigh more (old experience gradually
+                            loses influence), so stale successes/failures do not
+                            permanently dominate dispatch decisions. Weights are
+                            computed deterministically from **insertion order**
+                            (newest=1.0, oldest=d**(n-1)), independent of
+                            wall-clock time, so it is reproducible in short
+                            offline runs.
+
+        Returns:
+            ``{(minister, domain): (weighted_success, weighted_total)}``
+        """
+        if recency_decay >= 1.0:
+            # Fast path: simple counts (identical to legacy aggregation).
+            agg: dict = {}
+            for e in self._entries:
+                k = (e.minister_name, e.domain)
+                s, t = agg.get(k, (0.0, 0.0))
+                agg[k] = (s + (1.0 if e.success else 0.0), t + 1.0)
+            return agg
+
+        d = max(0.0, min(0.999, recency_decay))
+        agg: dict = {}
+        # 按 (minister, domain) 分组，组内按时间升序，最新权重=1.0。
+        by_group: dict = {}
+        for e in self._entries:
+            by_group.setdefault((e.minister_name, e.domain), []).append(e)
+        for k, entries in by_group.items():
+            ordered = sorted(entries, key=lambda e: e.timestamp)
+            n = len(ordered)
+            w_success = 0.0
+            w_total = 0.0
+            for i, e in enumerate(ordered):
+                w = d ** (n - 1 - i)  # 最旧 d^(n-1)，最新 1.0
+                w_total += w
+                if e.success:
+                    w_success += w
+            agg[k] = (w_success, w_total)
+        return agg
+
     def clear_domain(self, domain: str) -> int:
         """Remove all entries for a domain. Returns count removed."""
         before = len(self._entries)
@@ -514,6 +607,7 @@ class CourtMemory:
             "saved_at": time.time(),
             "decay_factor": self.decay_factor,
             "max_entries": self.max_entries,
+            "max_per_group": self.max_per_group,
             "entries": [asdict(e) for e in self._entries],
         }
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
@@ -535,6 +629,9 @@ class CourtMemory:
                 payload = json.load(fh)
             for d in payload.get("entries", []) or []:
                 mem._entries.append(MemoryEntry(**d))
+            # 恢复留存窗口配置，使 --resume 复用同一上限（不丢边界）。
+            if payload.get("max_per_group") is not None:
+                mem.max_per_group = int(payload["max_per_group"])
             logger.info("CourtMemory 已恢复 %d 条记忆 ← %s", len(mem._entries), path)
         except Exception:
             logger.warning("CourtMemory 恢复失败（已忽略，从空记忆开始）：%s", path, exc_info=True)

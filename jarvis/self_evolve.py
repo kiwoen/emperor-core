@@ -337,6 +337,11 @@ class SelfEvolutionEngine:
         use_memory: bool = True,
         # ── Phase 12 续：记忆驱动基因 warm-start（默认关，零回归）──
         warm_start_from_memory: bool = False,
+        # ── Phase 12 续⁵：记忆衰减/留存窗口（默认 1.0=等权，零回归）──
+        # <1.0 时，路由/暖启动按插入序给新鲜样本更高权重（陈旧经验逐步失权）。
+        memory_recency_decay: float = 1.0,
+        # 每 (大臣,领域) 留存上限；None=关（零回归）。超限丢弃最旧样本。
+        memory_max_per_group: Optional[int] = None,
     ) -> None:
         self.court = court
         self.executor = executor or GenomeDrivenExecutor()
@@ -376,12 +381,21 @@ class SelfEvolutionEngine:
         # Phase 11 的临时基因微调），并可被路由/报告/真实 LLM 上下文复用。
         self._use_memory = bool(use_memory)
         self._memory_path = memory_path
+        self._memory_max_per_group = memory_max_per_group
         self._memory: Optional[CourtMemory] = (
-            memory if memory is not None else (CourtMemory() if self._use_memory else None)
+            memory if memory is not None else (
+                CourtMemory(max_per_group=self._memory_max_per_group)
+                if self._use_memory else None)
         )
         # 记忆驱动基因 warm-start：开启后，run() 启动时用已累积经验把冷启动基因
         # 朝「该域历史最优方向」轻推（opt-in，默认关 → 不改变既有行为）。
         self._warm_start_from_memory = bool(warm_start_from_memory)
+        # 记忆衰减/留存窗口（Phase 12 续⁵）：
+        #  - memory_recency_decay<1.0：路由/暖启动按插入序给新鲜样本更高权重。
+        #  - memory_max_per_group：每 (大臣,领域) 留存上限，超限丢弃最旧样本
+        #    （边界化'只增不减'；None=关→零回归）。
+        self._memory_recency_decay = max(0.0, min(1.0, float(memory_recency_decay)))
+        self._memory_max_per_group = memory_max_per_group
 
     # ── 主循环 ────────────────────────────────────────────────
 
@@ -566,11 +580,19 @@ class SelfEvolutionEngine:
         if not self._memory.entry_count:
             return
         # 按 (大臣,领域) 聚合历史成功率与样本量，作为校准先验（样本量同时决定步长）。
-        agg: dict = {}
+        raw_count: dict = {}
         for e in self._memory._entries:
             k = (e.minister_name, e.domain)
-            s, t, best_conf = agg.get(k, (0, 0, 0.0))
-            agg[k] = (s + (1 if e.success else 0), t + 1, max(best_conf, e.confidence))
+            s, t, best_conf = raw_count.get(k, (0, 0, 0.0))
+            raw_count[k] = (s + (1 if e.success else 0), t + 1, max(best_conf, e.confidence))
+
+        # recency_decay<1.0：用「按插入序加权的成功率」做校准（新鲜样本权重更高）；
+        # 样本量 t 仍取原始计数（更多样本=更多信任，与新旧无关）。
+        decay = self._memory_recency_decay
+        if decay < 1.0:
+            weighted = self._memory.per_minister_domain_quality(recency_decay=decay)
+        else:
+            weighted = None
 
         genomes = getattr(self.court._sm, "_genomes", {})
         for minister in self.court.active_ministers:
@@ -580,12 +602,17 @@ class SelfEvolutionEngine:
             domain = self._min_domain_of(minister)
             if not domain:
                 continue
-            prior = agg.get((minister, domain))
+            prior = raw_count.get((minister, domain))
             if prior is None:
                 # 该大臣在自己领域没有历史 → 不动（避免用他人/他域经验误导）。
                 continue
             s, t, _ = prior
-            rate = (s / t) if t else 0.5
+            # 校准用的成功率：开启时间衰减时取加权值，否则取朴素值。
+            if weighted is not None:
+                ws, wt = weighted.get((minister, domain), (0.0, 0.0))
+                rate = (ws / wt) if wt else 0.5
+            else:
+                rate = (s / t) if t else 0.5
             get = (lambda kk, d: genome.get(kk, d)) if isinstance(genome, dict) \
                 else (lambda kk, d: getattr(genome, kk, d))
             conf = float(get("confidence_baseline", 0.75))
@@ -690,15 +717,22 @@ class SelfEvolutionEngine:
 
         # 经验记忆驱动：统计 (大臣,领域) 历史成功率，用于「把任务派给该域最被证明的大臣」。
         # 这是 Phase 12「记录经验」之后的闭环——让累积的经验真正改善派发决策（而非只写不读）。
+        # recency_decay<1.0 时按插入序给新鲜样本更高权重（陈旧经验逐步失权，不被其永久主导）。
         mem_quality: dict = {}
         if self._memory is not None and self._use_memory:
-            agg: dict = {}
-            for e in self._memory._entries:
-                k = (e.minister_name, e.domain)
-                s, t = agg.get(k, (0, 0))
-                agg[k] = (s + (1 if e.success else 0), t + 1)
-            for k, (s, t) in agg.items():
-                mem_quality[k] = (s / t) if t else 0.5
+            decay = self._memory_recency_decay
+            if decay < 1.0:
+                for k, (ws, wt) in self._memory.per_minister_domain_quality(
+                        recency_decay=decay).items():
+                    mem_quality[k] = (ws / wt) if wt else 0.5
+            else:
+                agg: dict = {}
+                for e in self._memory._entries:
+                    k = (e.minister_name, e.domain)
+                    s, t = agg.get(k, (0, 0))
+                    agg[k] = (s + (1 if e.success else 0), t + 1)
+                for k, (s, t) in agg.items():
+                    mem_quality[k] = (s / t) if t else 0.5
 
         # 任务 → 大臣：同领域优先，否则 general 兜底；组内按「该域历史成功率」降序派发
         # （最被证明的大臣优先拿任务 → 真实成败信号更干净），历史缺失时退化为轮转。

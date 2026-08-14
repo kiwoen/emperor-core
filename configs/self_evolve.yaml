@@ -74,3 +74,10 @@ memory_path: jarvis/court/memory.json
 # 让新实例/新部署直接站在历史经验肩上（不覆盖已恢复的基因检查点）。
 # 通常配合 resume=False 使用（用经验播种基因、但仍从初始基因重新进化）。
 warm_start_from_memory: false
+
+# ── Phase 12 续⁵：记忆衰减 / 留存窗口（opt-in，默认关 → 零回归）──
+# memory_max_per_group: 每(大臣,领域)留存上限，超限丢弃最旧样本（边界化"只增不减"）；null=不封顶
+memory_max_per_group: null
+# memory_recency_decay: 路由/暖启动的历史成功率时间衰减；1.0=等权(零回归)，<1.0=新鲜样本权重更高
+memory_recency_decay: 1.0
+# CLI 覆盖：--memory-max-per-group <N>  /  --memory-recency-decay <0~1>

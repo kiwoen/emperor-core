@@ -494,3 +494,25 @@ real_executor）合计 **172 passed**，仅 `datetime.utcnow` 既有弃用告警
 | **P2** | 环境/部署 | 本沙箱无 git 凭证，本地提交就绪但推送受阻（需 `gh auth login` 后快进推送）；真实 LLM 需 key + 已装 `litellm`（本环境已装）；`test_core.py` 被 CI 忽略。 |
 
 **本轮回退验证**：`main.py` 语法 OK；`Emperor`/`EmperorConfig` 导入正常、`serve` 存在。自进化子系统本轮未改，定向回归 172 passed 不受影响。
+
+### Phase 12 续⁵：记忆衰减 / 留存窗口（边界化「只增不减 + 陈旧样本主导」）
+
+> 续¹/²/³ 让经验驱动派发与基因，但原聚合是**简单等权计数**：陈旧样本与新鲜样本权重相同，且
+> `CourtMemory` 只增不减——陈旧成败会**永久主导**「谁执行 / 基因朝哪校准」。已有的 `apply_decay()`
+> 依赖真实墙钟（默认 1 小时才衰减一次），在短时自进化运行里几乎不触发，对闭环不实用。本 refinement
+> 加两道**确定性、可关闭（默认关→零回归）**的边界。
+
+**改动（jarvis/court/memory.py + self_evolve.py + self_evolve_config.py + scripts/run_self_evolve.py + jarvis/cli.py）**：
+- `CourtMemory(max_per_group=None)`：新增**每 (大臣,领域) 留存上限**；`record()` 超限时 `prune_oldest_per_group()`
+  丢弃最旧样本，直接边界化「只增不减」。`save/load` 持久化该配置，使 `--resume` 复用同一窗口。
+- `CourtMemory.per_minister_domain_quality(recency_decay=1.0)`：新增**确定性**聚合助手——按**插入序**
+  （非墙钟）给新鲜样本更高权重（最新=1.0、最旧=d^(n-1)）；`=1.0` 时退化为朴素计数（与原逻辑逐位等价）。
+- 引擎接线：`memory_recency_decay` / `memory_max_per_group` 透传 → 路由与暖启动在 `<1.0` 时改用加权成功率
+  （暖启动的**校准率**加权、**样本量 t** 仍取原始计数决定步长）；CLI 新增 `--memory-recency-decay` /
+  `--memory-max-per-group`；YAML 加选项（默认关 → 零回归）。
+
+**测试（tests/test_memory_decay.py，6 项）**：留存窗口按组裁剪（只留最新 N）、时间衰减最新全胜+最旧全败→
+加权率显著>等权率、默认零回归（不封顶+等权=朴素计数）、save/load 保留上限、引擎内部记忆 cap 生效、配置默认零回归。
+
+**验证**：Phase 12 三连 + 续¹/²/³/⁵ + 定向回归（memory / self_evolve / safety / evolution / landing /
+real_executor）合计 **178 passed**，仅 `datetime.utcnow` 既有弃用告警（非本次引入）。

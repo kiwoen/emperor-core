@@ -57,6 +57,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "use_memory": True,                # 记录每次任务真实成败到经验库
     "memory_path": "jarvis/court/memory.json",  # 经验记忆持久化路径
     "warm_start_from_memory": False,   # 启动时用经验轻推冷启动基因（opt-in，默认关→零回归）
+    # ── Phase 12 续⁵：记忆衰减/留存窗口 ──
+    "memory_recency_decay": 1.0,       # 路由/暖启动的历史成功率权重；1.0=等权(零回归)，<1.0=新鲜样本权重更高
+    "memory_max_per_group": None,      # 每(大臣,领域)留存上限，None=不封顶(零回归)
 }
 
 
@@ -97,6 +100,8 @@ class SelfEvolveConfig:
     use_memory: bool = True
     memory_path: str = "jarvis/court/memory.json"
     warm_start_from_memory: bool = False
+    memory_recency_decay: float = 1.0
+    memory_max_per_group: Optional[int] = None
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "SelfEvolveConfig":
@@ -132,6 +137,10 @@ class SelfEvolveConfig:
             use_memory=bool(d.get("use_memory", True)),
             memory_path=str(d.get("memory_path", "jarvis/court/memory.json")),
             warm_start_from_memory=bool(d.get("warm_start_from_memory", False)),
+            memory_recency_decay=float(d.get("memory_recency_decay", 1.0)),
+            memory_max_per_group=(
+                int(d["memory_max_per_group"])
+                if d.get("memory_max_per_group") is not None else None),
         )
 
 

@@ -289,6 +289,10 @@ def cmd_self_evolve(args: argparse.Namespace) -> None:
         cfg.memory_path = args.memory_path
     if getattr(args, "warm_start_memory", False):
         cfg.warm_start_from_memory = True
+    if getattr(args, "memory_recency_decay", None) is not None:
+        cfg.memory_recency_decay = float(args.memory_recency_decay)
+    if getattr(args, "memory_max_per_group", None) is not None:
+        cfg.memory_max_per_group = int(args.memory_max_per_group)
     if getattr(args, "task_file", None):
         cfg.task_file = args.task_file
     if getattr(args, "task", None):  # 内联真实任务（可重复）
@@ -439,6 +443,10 @@ def main() -> None:
                            help="经验记忆持久化路径（默认 jarvis/court/memory.json）")
     se_parser.add_argument("--warm-start-memory", action="store_true",
                            help="启动时用已落盘经验轻推冷启动基因（opt-in；不覆盖已恢复的基因检查点）")
+    se_parser.add_argument("--memory-recency-decay", default=None, type=float,
+                           help="历史成功率的时间衰减系数（0<d<1=新鲜样本权重更高，1.0=等权，默认 1.0）")
+    se_parser.add_argument("--memory-max-per-group", default=None, type=int,
+                           help="每(大臣,领域)留存上限，超限丢弃最旧样本（默认不封顶）")
     # ── 嵌套子命令：安全校验 / 回滚 ──
     se_sub = se_parser.add_subparsers(dest="se_command")
     se_sc = se_sub.add_parser("safety-check", help="对当前基因快照跑金标准安全闸")

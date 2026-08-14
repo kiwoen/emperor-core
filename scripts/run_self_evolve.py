@@ -249,6 +249,8 @@ def run_orchestrator(cfg: SelfEvolveConfig, out_dir: str = "telemetry",
         use_memory=cfg.use_memory,
         memory_path=cfg.memory_path,
         warm_start_from_memory=cfg.warm_start_from_memory,
+        memory_recency_decay=cfg.memory_recency_decay,
+        memory_max_per_group=cfg.memory_max_per_group,
     )
 
     report = engine.run(n_cycles=cfg.cycles, tasks_per_minister=cfg.tasks_per_minister)
@@ -362,6 +364,10 @@ def main(argv=None) -> int:
     ap.add_argument("--approval", action="store_true", help="接入人类审批门（ApprovalEngine）")
     ap.add_argument("--auto-approve", action="store_true", help="审批门自动批准（仅离线/CI）")
     ap.add_argument("--audit", action="store_true", help="写入不可篡改审计库 audit.db")
+    ap.add_argument("--memory-recency-decay", type=float, default=None,
+                   help="历史成功率时间衰减系数（0<d<1=新鲜样本权重更高，1.0=等权，默认 1.0）")
+    ap.add_argument("--memory-max-per-group", type=int, default=None,
+                   help="每(大臣,领域)留存上限，超限丢弃最旧样本（默认不封顶）")
     args = ap.parse_args(argv)
 
     # 配置：先加载 YAML，再用命令行覆盖
@@ -383,6 +389,10 @@ def main(argv=None) -> int:
         cfg.use_approval_engine = True
     if args.audit:
         cfg.use_audit = True
+    if args.memory_recency_decay is not None:
+        cfg.memory_recency_decay = float(args.memory_recency_decay)
+    if args.memory_max_per_group is not None:
+        cfg.memory_max_per_group = int(args.memory_max_per_group)
 
     return run_orchestrator(cfg, out_dir=args.out, live=args.live,
                             no_writeback=args.no_writeback)
