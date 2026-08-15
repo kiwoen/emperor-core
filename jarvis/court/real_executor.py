@@ -22,6 +22,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import time
 from typing import Any, Callable, Optional
 
 from jarvis.court.fitness import FitnessSignal
@@ -41,14 +42,18 @@ def _uniform01(*parts: Any) -> float:
 def build_default_llm() -> Optional[Callable[..., str]]:
     """探测环境里可用的真实 LLM 后端（OpenAI 兼容，支持多后端故障转移），返回同步可调用；无则返回 None。
 
-    按优先级收集候选后端，任一调用会顺序尝试直到成功：
-      1. OPENAI_API_KEY + OPENAI_BASE_URL + OPENAI_MODEL
-      2. DEEPSEEK_API_KEY  ->  https://api.deepseek.com/v1
-      3. OPENAI_FALLBACK_BASE_URLS（逗号分隔）+ 平行 *_MODELS / *_KEYS
-      4. OPENAI_FALLBACK_PROVIDERS（jarvis.core.llm.FREE_PROVIDERS 注册表中的免费端点名）
+    后端解析统一交给 :func:`jarvis.core.llm._resolve_backends_from_env`，与
+    emperor 主路径（:func:`jarvis.core.llm.build_manager_from_env`）共用同一份
+    逻辑，因此 ``NVIDIA_MODEL`` / ``ARK_MODEL`` 等 ``model_env`` 覆盖在自进化闭环
+    里也会生效（修复此前两条链路不一致的问题）。
 
+    调用顺序：主端点 → OPENAI_FALLBACK_BASE_URLS → OPENAI_FALLBACK_PROVIDERS 注册表。
     全部失败才抛异常，由调用方（:meth:`RealTaskExecutor._answer`）安全退回离线求解器。
     保留「无 key 且无 base_url 则退回离线」的沙箱/CI 安全契约。
+
+    韧性增强（完整优化）：
+      * 每后端最多重试 ``LLM_MAX_RETRIES`` 次（指数退避）。
+      * 按 ``requests_per_minute``（免费端点注册表里已配置，如 NVIDIA=40）做最小间隔限流。
     """
     try:
         from openai import OpenAI  # type: ignore
@@ -56,82 +61,70 @@ def build_default_llm() -> Optional[Callable[..., str]]:
         logger.debug("[RealExecutor] openai 包不可用，使用离线求解器")
         return None
 
-    pk = os.getenv("OPENAI_API_KEY", "")
-    dk = os.getenv("DEEPSEEK_API_KEY", "")
-    default_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-    candidates: list[dict] = []
-
-    # 1) primary (keyed)
-    if pk:
-        candidates.append({
-            "api_key": pk,
-            "base_url": os.getenv("OPENAI_BASE_URL", ""),
-            "model": default_model,
-        })
-    # 1b) keyless proxy via explicit OPENAI_BASE_URL (free OpenAI-compatible proxies)
-    if os.getenv("OPENAI_BASE_URL") and not pk:
-        candidates.append({
-            "api_key": "sk-noauth",
-            "base_url": os.getenv("OPENAI_BASE_URL", ""),
-            "model": default_model,
-        })
-    # 2) deepseek
-    if dk:
-        candidates.append({
-            "api_key": dk,
-            "base_url": os.getenv("OPENAI_BASE_URL") or "https://api.deepseek.com/v1",
-            "model": default_model if os.getenv("OPENAI_MODEL") else "deepseek-chat",
-        })
-    # 3) explicit fallback urls
-    fb_urls = [u.strip() for u in os.getenv("OPENAI_FALLBACK_BASE_URLS", "").split(",") if u.strip()]
-    fb_models = [m.strip() for m in os.getenv("OPENAI_FALLBACK_MODELS", "").split(",") if m.strip()]
-    fb_keys = [k.strip() for k in os.getenv("OPENAI_FALLBACK_KEYS", "").split(",") if k.strip()]
-    for i, url in enumerate(fb_urls):
-        candidates.append({
-            "api_key": fb_keys[i] if i < len(fb_keys) else (pk or dk or "sk-noauth"),
-            "base_url": url,
-            "model": fb_models[i] if i < len(fb_models) else default_model,
-        })
-    # 4) preset free providers
     try:
-        from jarvis.core.llm import FREE_PROVIDERS
+        from jarvis.core.llm import _resolve_backends_from_env, _safe_int, _safe_float
     except Exception:
-        FREE_PROVIDERS = {}
-    for name in [p.strip() for p in os.getenv("OPENAI_FALLBACK_PROVIDERS", "").split(",") if p.strip()]:
-        prov = FREE_PROVIDERS.get(name)
-        if not prov:
-            continue
-        key_env = prov.get("key_env", "")
-        key = os.getenv(key_env, "") if key_env else "sk-noauth"
-        if key_env and not key:
-            continue  # 需要 key 但未提供 -> 跳过
-        candidates.append({
-            "api_key": key,
-            "base_url": prov["base_url"],
-            "model": prov.get("default_model", default_model),
-        })
+        logger.debug("[RealExecutor] 无法导入核心 LLM 解析器，退回离线求解器")
+        return None
 
+    resolved = _resolve_backends_from_env()
+    if not resolved:
+        return None
+
+    max_retries = _safe_int(os.getenv("LLM_MAX_RETRIES", "0"), 0)
+    backoff = _safe_float(os.getenv("LLM_RETRY_BACKOFF", "0.3"), 0.3)
+
+    candidates: list[dict] = []
+    for cfg in resolved:
+        candidates.append({
+            "api_key": cfg.api_key or "sk-noauth",
+            "base_url": cfg.base_url or "",
+            "model": cfg.model,
+            "rpm": int(getattr(cfg, "requests_per_minute", 0) or 0),
+        })
+    # Keep only *reachable* backends: a candidate must have a real base_url or a
+    # real api_key. A pure-mock primary (no base, dummy key) is dropped so we don't
+    # waste a call on api.openai.com and so "no key -> offline" stays intact.
+    def _is_live(c: dict) -> bool:
+        return bool(c["base_url"]) or c["api_key"] not in ("", "sk-noauth")
+    candidates = [c for c in candidates if _is_live(c)]
     if not candidates:
         return None
+
+    _last_ts: dict[int, float] = {}
 
     def _call(prompt: str, temperature: float = 0.7, **_: Any) -> str:
         last_err: Optional[Exception] = None
         for c in candidates:
-            try:
-                kwargs: dict = {"api_key": c["api_key"] or "sk-noauth"}
-                if c["base_url"]:
-                    kwargs["base_url"] = c["base_url"]
-                client = OpenAI(**kwargs)
-                resp = client.chat.completions.create(
-                    model=c["model"],
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=temperature,
-                    max_tokens=512,
-                )
-                return resp.choices[0].message.content or ""
-            except Exception as e:  # noqa: BLE001 - 故障转移需吞掉所有后端异常
-                logger.debug("[RealExecutor] 后端 %s 失败: %s", c["model"], e)
-                last_err = e
+            # ── 限流：按 rpm 保证最小调用间隔（免费端点防 429）──
+            rpm = c["rpm"]
+            if rpm > 0:
+                wait = (60.0 / rpm) - (time.time() - _last_ts.get(id(c), 0.0))
+                if wait > 0:
+                    time.sleep(wait)
+            _last_ts[id(c)] = time.time()
+            # ── 重试：指数退避（默认 0 次，不破坏既有行为）──
+            attempts = max(1, max_retries + 1)
+            for attempt in range(attempts):
+                try:
+                    kwargs: dict = {"api_key": c["api_key"]}
+                    if c["base_url"]:
+                        kwargs["base_url"] = c["base_url"]
+                    client = OpenAI(**kwargs)
+                    resp = client.chat.completions.create(
+                        model=c["model"],
+                        messages=[{"role": "user", "content": prompt}],
+                        temperature=temperature,
+                        max_tokens=512,
+                    )
+                    return resp.choices[0].message.content or ""
+                except Exception as e:  # noqa: BLE001 - 故障转移需吞掉所有后端异常
+                    last_err = e
+                    if attempt < attempts - 1:
+                        time.sleep(backoff * (2 ** attempt))
+                        logger.debug("[RealExecutor] 后端 %s 第 %d 次重试", c["model"], attempt + 1)
+                        continue
+                    logger.debug("[RealExecutor] 后端 %s 失败: %s", c["model"], e)
         raise RuntimeError(f"所有 LLM 后端均失败: {last_err}")
 
     return _call

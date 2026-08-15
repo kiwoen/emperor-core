@@ -111,6 +111,14 @@ class LLMManager:
     def get_cost_report(self) -> dict:
         return self._core.get_cost_report()
 
+    def get_stats(self) -> dict:
+        """Per-backend telemetry (success/failure, latency, circuit state)."""
+        return self._core.get_stats()
+
+    def reset_circuits(self) -> None:
+        """Clear circuit-breaker state across all backends."""
+        self._core.reset_circuits()
+
     def chat_sync(self, prompt: str, *, system: str = "", **_: Any) -> str:
         """Synchronous chat completion with multi-backend failover."""
         return _run_async(self._core.complete(prompt, system=system))
