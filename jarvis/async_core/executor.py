@@ -275,14 +275,17 @@ class AsyncExecutor:
             handles.append(h)
 
         results: list[Any] = []
-        first_exc: Optional[Exception] = None
+        first_exc: Optional[BaseException] = None
 
         for i, h in enumerate(handles):
             try:
                 results.append(await h)
-            except Exception as exc:
+            except BaseException as exc:  # noqa: BLE001 - surface both real errors and cancellations
                 results.append(exc)
-                if cancel_on_error and first_exc is None:
+                # CancelledError is a BaseException (not Exception); a cancelled
+                # handle here is almost always one we cancelled ourselves via
+                # `cancel_on_error`, so it must NOT mask the first real failure.
+                if cancel_on_error and first_exc is None and not isinstance(exc, asyncio.CancelledError):
                     first_exc = exc
                     # Cancel all remaining handles
                     for remaining in handles[i + 1 :]:
@@ -325,39 +328,47 @@ class AsyncExecutor:
                 self._stats["cancelled"] += 1
                 continue
 
-            # Acquire semaphore
-            async def _runner() -> None:
+            # Acquire semaphore.
+            # NOTE: _runner captures the loop variables by binding them as
+            # arguments at create_task time. Defining it without parameters and
+            # closing over `handle`/`coro_fn`/etc. would suffer from Python's
+            # late-binding closure trap (all workers would operate on the LAST
+            # iteration's values), causing every handle except the last to hang.
+            async def _runner(h, cf, a, k, tv) -> None:
                 async with self._semaphore:
-                    if handle.cancelled:
-                        handle._set_exception(asyncio.CancelledError("Task cancelled"))
+                    if h.cancelled:
+                        h._set_exception(asyncio.CancelledError("Task cancelled"))
                         self._stats["cancelled"] += 1
                         return
 
                     start = time.perf_counter()
                     try:
-                        if timeout_val is not None:
+                        if tv is not None:
                             result = await asyncio.wait_for(
-                                coro_fn(*args, **kwargs),
-                                timeout=timeout_val,
+                                cf(*a, **k),
+                                timeout=tv,
                             )
                         else:
-                            result = await coro_fn(*args, **kwargs)
-                        handle._set_result(result)
+                            result = await cf(*a, **k)
+                        h._set_result(result)
                         self._stats["completed"] += 1
                     except asyncio.TimeoutError:
-                        handle._set_exception(TimeoutError(f"Task timed out after {timeout_val}s"))
+                        h._set_exception(TimeoutError(f"Task timed out after {tv}s"))
                         self._stats["failed"] += 1
                     except asyncio.CancelledError:
-                        handle._set_exception(asyncio.CancelledError("Task cancelled"))
+                        h._set_exception(asyncio.CancelledError("Task cancelled"))
                         self._stats["cancelled"] += 1
                     except Exception as exc:
-                        handle._set_exception(exc)
+                        h._set_exception(exc)
                         self._stats["failed"] += 1
                     finally:
                         elapsed = (time.perf_counter() - start) * 1000
                         self._stats["total_duration_ms"] += elapsed
 
-            task = asyncio.create_task(_runner(), name="exec_worker")
+            task = asyncio.create_task(
+                _runner(handle, coro_fn, args, kwargs, timeout_val),
+                name="exec_worker",
+            )
             inflight.add(task)
             task.add_done_callback(inflight.discard)
 

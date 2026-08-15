@@ -148,13 +148,13 @@ class QueueManager:
             return
         self._running = False
 
-        # Push sentinels to unblock consumers
-        for _ in self._workers:
-            for q in self._queues.values():
-                try:
-                    q.put_nowait(_SHUTDOWN)
-                except asyncio.QueueFull:
-                    pass
+        # NOTE: Do NOT push _SHUTDOWN sentinels into the data queues. The
+        # consumers drain them in priority order (HIGH → MEDIUM → LOW); a
+        # sentinel placed ahead of real items would be dequeued first and make
+        # the consumer return early, silently dropping pending tasks. Instead we
+        # only flip `_running` off and let each consumer's
+        # `while self._running or self._has_pending()` loop drain everything
+        # before `_dequeue` returns the sentinel on an empty, stopped queue.
 
         # Wait for workers
         try:
