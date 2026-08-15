@@ -60,6 +60,49 @@ def _make_accept_callback(minister_name: str):
 # ══════════════════════════════════════════════════════════════════
 
 
+def resolve_data_dir() -> str:
+    """解析持久化根目录：读环境变量 ``EMPEROR_DATA_DIR``，未设置返回 ""。
+
+    返回 "" 表示"保持历史行为"——各组件各自回退到当前工作目录（CWD），
+    这样本机开发与既有测试完全不受影响。容器镜像里由 Dockerfile 设置
+    ``EMPEROR_DATA_DIR=/app/data``（挂载命名卷），从而实现数据持久化。
+
+    Returns:
+        绝对/相对目录字符串；"" 表示未配置。
+    """
+    return os.environ.get("EMPEROR_DATA_DIR", "").strip()
+
+
+def resolve_court_path() -> str:
+    """解析 ``jarvis.db`` 所在目录：``EMPEROR_COURT_PATH`` > ``EMPEROR_DATA_DIR`` > ""。
+
+    Returns:
+        目录字符串；"" 表示未配置（回退 CWD，保持历史行为）。
+    """
+    court = os.environ.get("EMPEROR_COURT_PATH", "").strip()
+    if court:
+        return court
+    return resolve_data_dir()
+
+
+def ensure_dir(path: str) -> str:
+    """确保目录存在（幂等）。空字符串直接原样返回，不做任何事。
+
+    Args:
+        path: 目录路径，可为空字符串。
+
+    Returns:
+        传入的 path（便于链式调用）。
+    """
+    if not path:
+        return path
+    try:
+        os.makedirs(path, exist_ok=True)
+    except OSError as exc:  # 只降级告警，不让启动直接崩
+        logger.warning("[Emperor] 无法创建数据目录 %s: %s", path, exc)
+    return path
+
+
 @dataclass
 class EmperorConfig:
     """Top-level Emperor configuration."""
@@ -79,6 +122,9 @@ class EmperorConfig:
     api_host: str = "127.0.0.1"
     api_port: int = 9020
     enable_api: bool = False
+    # 说明：这里保留 127.0.0.1:9020 的历史默认值（库调用者行为不变）；
+    # `jarvis serve` 命令行会用 EMPEROR_HOST/EMPEROR_PORT 或 0.0.0.0:8000
+    # 覆盖它（见 jarvis/cli.py:cmd_serve）。
 
     # Auto-start (serve() one-command live dashboard)
     auto_schedule: bool = True
@@ -88,7 +134,13 @@ class EmperorConfig:
     auto_tasks_interval_minutes: float = 3.0
 
     # Persistence
-    data_dir: str = ""
+    # data_dir：audit.db / approval.db / cost_records.json / outcome_records.json
+    #           / 版本快照 / 提示词模板 的落盘根目录。
+    # court_path：jarvis.db（法庭主库）所在目录。
+    # 两者默认从 EMPEROR_DATA_DIR / EMPEROR_COURT_PATH 读取；未设置时为 ""，
+    # 沿用历史行为（回退到 CWD）。容器里 Dockerfile 会设成 /app/data。
+    data_dir: str = field(default_factory=resolve_data_dir)
+    court_path: str = field(default_factory=resolve_court_path)
 
     # Logging
     log_level: str = "INFO"
@@ -122,7 +174,10 @@ def _app_config_to_emperor(app: AppConfig) -> EmperorConfig:
         auto_evolve_interval_minutes=app.scheduler.evolve_interval_minutes,
         auto_evolve_cycles=1,
         auto_tasks_interval_minutes=app.scheduler.task_interval_minutes,
-        data_dir="",
+        # jarvis.yaml 不描述部署路径，因此持久化目录仍由环境变量决定，
+        # 否则容器里的 EMPEROR_DATA_DIR 会被这里的空字符串覆盖掉。
+        data_dir=resolve_data_dir(),
+        court_path=resolve_court_path(),
         log_level="INFO",
         max_task_timeout=30.0,
         max_context_tokens=getattr(app, "max_context_tokens", 8192),
@@ -162,6 +217,12 @@ class Emperor:
             config = _app_config_to_emperor(app_cfg)
 
         self.config: EmperorConfig = config or EmperorConfig()
+
+        # 持久化目录必须先存在，否则下面 AuditLogger/ApprovalEngine/
+        # CostTracker 打开 sqlite/json 会直接 FileNotFoundError（容器首启
+        # 挂空卷就是这个场景）。空字符串 = 用 CWD，ensure_dir 会跳过。
+        ensure_dir(self.config.data_dir)
+        ensure_dir(getattr(self.config, "court_path", ""))
 
         # Defer imports for fast startup
         from jarvis.court.court import Court, CourtConfig
@@ -1442,12 +1503,12 @@ class Emperor:
         import os
         from jarvis.database import Database
 
-        db_path = os.path.join(
-            self.config.court_path
-            if hasattr(self.config, 'court_path') and self.config.court_path
-            else os.getcwd(),
-            "jarvis.db",
-        )
+        # court_path（EMPEROR_COURT_PATH / EMPEROR_DATA_DIR）优先，
+        # 未配置时沿用 CWD（历史行为）。容器里指向挂载卷 /app/data。
+        court_dir = getattr(self.config, "court_path", "") or os.getcwd()
+        ensure_dir(court_dir)
+        db_path = os.path.join(court_dir, "jarvis.db")
+        logger.info("[Emperor] 法庭主库 → %s", db_path)
         db = Database(db_path)
         self._court.db = db
 

@@ -7,6 +7,7 @@ Usage:
 
 Endpoints:
     GET  /                        — server health
+    GET  /health                  — 轻量存活探针（容器/云平台健康检查）
     GET  /court/summary           — court summary
     GET  /court/snapshot          — structured court state
     GET  /court/history           — evolution cycle history
@@ -408,6 +409,17 @@ def create_app(
             "status": "ok",
             "config_loaded": config is not None,
         }
+
+    @app.get("/health")
+    def health():
+        """容器 / 云平台健康探针（liveness probe）。
+
+        刻意做成"零依赖"实现：不触碰数据库、不加载大臣、不 import 任何
+        重依赖，保证进程一起来就能返回 200。供 Dockerfile HEALTHCHECK、
+        docker compose healthcheck、Render healthCheckPath、K8s 探针使用。
+        需要深度健康信息（组件级）请用 ``GET /api/health``。
+        """
+        return {"status": "ok", "service": "emperor-core"}
 
     @app.get("/court/summary")
     def get_summary():

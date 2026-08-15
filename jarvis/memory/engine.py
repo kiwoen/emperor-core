@@ -24,9 +24,18 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
-import numpy as np
-
 logger = logging.getLogger("jarvis.memory")
+
+# 可选依赖：numpy。本模块目前并未真正使用 np，历史上却在顶层硬导入，
+# 导致精简镜像（无 numpy）一旦 import 本模块就直接 ImportError。
+# 这里降级为可选，保持 `np` 名字可用以兼容外部引用。
+try:
+    import numpy as np
+
+    NUMPY_AVAILABLE = True
+except ImportError:  # pragma: no cover - 仅在精简运行时触发
+    np = None  # type: ignore[assignment]
+    NUMPY_AVAILABLE = False
 
 # Optional dependency: chromadb
 try:

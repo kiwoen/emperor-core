@@ -163,22 +163,29 @@ def run_demo_mode(config, use_mock=True):
     return 0 if failed == 0 else 1
 
 
-def run_server_mode(config, host="0.0.0.0", port=5000):
+def run_server_mode(config, host="", port=0):
     """启动 Web / Dashboard 服务（与 ``jarvis cli serve`` 同源的 Emperor.serve）。
 
     旧实现导入不存在的 ``jarvis.server``，导致 ``--mode server`` 直接 ``ImportError``。
     此处改用 JARVIS 真实的 ``Emperor.serve`` —— 一键式 live dashboard：自动播种大臣 +
     启动周期进化调度器（与 cli serve 同一实现，已验证可用）。
+
+    host/port 复用 ``jarvis.cli`` 的解析逻辑，保证与 Dockerfile /
+    docker-compose.yml / render.yaml 同一套事实来源（EMPEROR_HOST /
+    EMPEROR_PORT，缺省 0.0.0.0:8000），避免 main.py 又冒出一个 5000 端口。
     """
+    from jarvis.cli import _resolve_serve_host, _resolve_serve_port
     from jarvis.emperor import Emperor, EmperorConfig
+
+    host = _resolve_serve_host(host or None)
+    port = _resolve_serve_port(port or None)
 
     # main.py 的 load_config 返回裸 dict，而 Emperor 内部按 EmperorConfig 访问
     # (self.config.api_port 等)，故必须显式构造 EmperorConfig，不能直接传 dict。
+    # EmperorConfig 会自行读取 EMPEROR_DATA_DIR / EMPEROR_COURT_PATH。
     cfg = EmperorConfig()
-    if port:
-        cfg.api_port = port
-    if host:
-        cfg.api_host = host
+    cfg.api_port = port
+    cfg.api_host = host
 
     print(BANNER)
     print(f"  Web 服务启动中... http://{host}:{port}")
@@ -199,8 +206,8 @@ def main():
                         help="运行模式 (默认: demo)")
     parser.add_argument("--config", type=str, default=None,
                         help="配置文件路径 (YAML)")
-    parser.add_argument("--port", type=int, default=5000,
-                        help="Web 服务端口 (默认: 5000)")
+    parser.add_argument("--port", type=int, default=0,
+                        help="Web 服务端口 (未指定时读 EMPEROR_PORT，默认: 8000)")
     parser.add_argument("--mock", action="store_true", default=True,
                         help="使用 Mock 数据 (默认开启)")
     parser.add_argument("--no-mock", dest="mock", action="store_false",

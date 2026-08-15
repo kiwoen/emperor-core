@@ -1,0 +1,33 @@
+# ============================================================
+# emperor-core 容器运行时依赖（精简版 / 部署专用）
+# ============================================================
+# 为什么不直接 `pip install -e .`（即 pyproject 的全量依赖）？
+#   全量依赖含 sentence-transformers(torch ~2.5GB)、chromadb、playwright、
+#   pyautogui(需 X11)、pandas 等，镜像会膨胀到 GB 级、构建十几分钟，且
+#   pyautogui 在无显示环境 import 即失败——对 2C2G 云主机完全不划算。
+#
+# 实测结论：`jarvis serve` 的启动链（Emperor.__init__ → court_api.create_app
+# → uvicorn）只需要下面这几个包；chromadb / sentence-transformers / litellm
+# 等重依赖在代码里全部是函数内懒加载，缺失时对应功能降级、服务照常启动。
+#
+# 需要完整能力（向量记忆、浏览器自动化、本地 embedding）时，把 Dockerfile 里
+# 这一行换成 `pip install -r requirements.txt` 再重建镜像（务必先确认磁盘 ≥20G、
+# 内存 ≥4G），或者只按需追加单个包，例如：
+#   echo "chromadb>=0.5.0" >> requirements-docker.txt && docker compose up -d --build
+# ------------------------------------------------------------
+
+# ── Web 服务内核（必需，缺一个都起不来）──────────────────────
+fastapi>=0.111.0
+uvicorn>=0.30.0
+starlette>=0.37.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+python-multipart>=0.0.9
+
+# ── 配置与工具（必需）────────────────────────────────────────
+pyyaml>=6.0
+python-dotenv>=1.0.0
+
+# ── LLM 网关（保留：让"填个 API Key 就能接真模型"无需重建镜像）──
+# 代码中 `import litellm` 均在函数内部，删掉这行服务依然可离线 mock 运行。
+litellm>=1.40.0

@@ -1,0 +1,66 @@
+# ============================================================
+# emperor-core —— 自管云服务器一键部署编排
+# ------------------------------------------------------------
+#   docker compose up -d --build      # 构建并后台拉起
+#   docker compose logs -f            # 看启动日志
+#   docker compose ps                 # 看健康状态(healthy)
+#   curl -f http://localhost:8000/health
+#   docker compose down               # 停止（命名卷数据保留）
+#
+# 详细落地步骤见 docs/DEPLOY_CLOUD_VM.md
+# ============================================================
+
+services:
+  emperor-core:
+    build: .
+    image: emperor-core:local
+    container_name: emperor-core
+    # 与 Dockerfile CMD 保持一致：部署侧唯一事实来源 = 0.0.0.0:8000
+    # （`python -m jarvis.cli` 等价于 `jarvis`，但不依赖控制台脚本注册）
+    command: ["python", "-m", "jarvis.cli", "serve", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    volumes:
+      # 全部持久化数据（jarvis.db / audit.db / approval.db /
+      # cost_records.json / outcome_records.json / 版本快照）都在 /app/data
+      - emperor-data:/app/data
+    environment:
+      # ── 运行形态 ───────────────────────────────────────────
+      EMPEROR_MODE: server
+      EMPEROR_HOST: 0.0.0.0
+      EMPEROR_PORT: "8000"
+      # ── 持久化路径（对应上面的命名卷）─────────────────────
+      EMPEROR_DATA_DIR: /app/data
+      EMPEROR_COURT_PATH: /app/data
+      # ── 模型供应商：默认 mock，无任何 Key 也能完整启动 ─────
+      EMPEROR_LLM_PROVIDER: mock
+      EMPEROR_ENABLE_FEEDBACK: "true"
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      # ── 接真实大模型：取消注释并写进 .env（勿硬编码进本文件）──
+      # EMPEROR_LLM_PROVIDER: deepseek        # 或 openai / anthropic
+      # OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      # ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    # 2C2G 小机器上给个上限，避免调度器/进化循环把主机拖死
+    deploy:
+      resources:
+        limits:
+          cpus: "1.50"
+          memory: 1536M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  emperor-data:
+    name: emperor-data

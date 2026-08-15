@@ -67,8 +67,11 @@ jarvis.log
 # Sandbox
 sandbox_workspace/
 # Docker
-Dockerfile
-docker-compose.yml
+# ⚠️ Dockerfile / docker-compose.yml / requirements-docker.txt 是**部署源码**，
+#    必须入库。此前它们被忽略，导致云主机 git clone 后没有构建文件，
+#    `docker compose up -d --build` 必然失败。这里只忽略本地个人覆盖配置。
+docker-compose.override.yml
+docker-compose.*.local.yml
 .docker/
 # Secrets
 *.key

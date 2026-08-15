@@ -15,10 +15,17 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import textwrap
 
 VERSION = "0.2.0"
+
+# ── 部署侧单一事实来源：容器/云平台统一监听 0.0.0.0:8000 ──────────────
+# 优先级：命令行显式参数 > 环境变量 EMPEROR_HOST/EMPEROR_PORT > 下列默认值。
+# Dockerfile / docker-compose.yml / render.yaml 三处都以这一组值为准。
+DEFAULT_SERVE_HOST = "0.0.0.0"
+DEFAULT_SERVE_PORT = 8000
 
 # ANSI colors — only enabled when stdout is a TTY
 _GREEN = "\033[92m"
@@ -36,18 +43,51 @@ def _c(text: str, code: str) -> str:
     return text
 
 
+def _resolve_serve_host(cli_host: str | None) -> str:
+    """解析监听地址：命令行 > EMPEROR_HOST > 默认 0.0.0.0。"""
+    if cli_host:
+        return cli_host
+    env_host = os.environ.get("EMPEROR_HOST", "").strip()
+    if env_host:
+        return env_host
+    return DEFAULT_SERVE_HOST
+
+
+def _resolve_serve_port(cli_port: int | None) -> int:
+    """解析监听端口：命令行 > EMPEROR_PORT > 默认 8000。
+
+    环境变量非法（非数字/越界）时回退到默认端口并告警，不让容器直接崩。
+    """
+    if cli_port:
+        return int(cli_port)
+    env_port = os.environ.get("EMPEROR_PORT", "").strip()
+    if env_port:
+        try:
+            port = int(env_port)
+        except ValueError:
+            print(f"  [警告] EMPEROR_PORT={env_port!r} 不是合法整数，回退到 {DEFAULT_SERVE_PORT}")
+            return DEFAULT_SERVE_PORT
+        if 1 <= port <= 65535:
+            return port
+        print(f"  [警告] EMPEROR_PORT={port} 越界(1-65535)，回退到 {DEFAULT_SERVE_PORT}")
+    return DEFAULT_SERVE_PORT
+
+
 def cmd_serve(args: argparse.Namespace) -> None:
-    """启动 Dashboard 服务器。"""
+    """启动 Dashboard 服务器（API + 法庭 + 仪表盘）。"""
     from jarvis.emperor import Emperor, EmperorConfig
 
+    host = _resolve_serve_host(getattr(args, "host", None))
+    port = _resolve_serve_port(getattr(args, "port", None))
+
+    # EmperorConfig 的 data_dir/court_path 会自行读取 EMPEROR_DATA_DIR /
+    # EMPEROR_COURT_PATH，这里只负责把最终 host/port 灌进配置。
     cfg = EmperorConfig()
-    if args.port:
-        cfg.api_port = args.port
-    if args.host:
-        cfg.api_host = args.host
+    cfg.api_host = host
+    cfg.api_port = port
 
     emperor = Emperor(config=cfg)
-    emperor.serve(host=args.host or "127.0.0.1", port=args.port or 9020)
+    emperor.serve(host=host, port=port)
 
 
 def cmd_task(args: argparse.Namespace) -> None:
@@ -370,10 +410,12 @@ def main() -> None:
     # ── serve ──
     serve_parser = subparsers.add_parser("serve", help="启动 Dashboard 服务器")
     serve_parser.add_argument(
-        "--host", default="127.0.0.1", help="监听地址 (默认: 127.0.0.1)"
+        "--host", default=None,
+        help=f"监听地址 (未指定时读 EMPEROR_HOST，默认: {DEFAULT_SERVE_HOST})",
     )
     serve_parser.add_argument(
-        "--port", type=int, default=0, help="监听端口 (默认: 9020)"
+        "--port", type=int, default=0,
+        help=f"监听端口 (未指定时读 EMPEROR_PORT，默认: {DEFAULT_SERVE_PORT})",
     )
     serve_parser.set_defaults(func=cmd_serve)
 
