@@ -652,14 +652,24 @@ class Emperor:
 
     @property
     def llm_engine(self):
-        """Lazy-loaded LLMEngine for multi-provider LLM access (OpenAI / Anthropic / Ollama)."""
+        """Lazy-loaded multi-backend LLM manager (OpenAI / Anthropic / Ollama / free providers).
+
+        Uses :func:`jarvis.llm.build_manager_from_env` so the emperor entry honours
+        the same OPENAI_* env contract and failover chain as the domains main chain
+        (``jarvis.core.llm.LLMManager``). Falls back to a single default backend if
+        the env builder fails for any reason.
+        """
         if not hasattr(self, '_llm_engine'):
-            from jarvis.llm import LLMEngine, LLMConfig, ModelProvider
-            self._llm_config = LLMConfig(
-                provider=ModelProvider.OPENAI,
-                model_name="gpt-4o",
-            )
-            self._llm_engine = LLMEngine(config=self._llm_config)
+            from jarvis.llm import LLMManager, LLMConfig, ModelProvider, build_manager_from_env
+            try:
+                self._llm_engine = build_manager_from_env()
+            except Exception as e:  # noqa: BLE001 - keep emperor importable regardless
+                logger.warning("[Emperor] LLM manager env build failed (%s); using default backend", e)
+                self._llm_engine = LLMManager(backends=[LLMConfig(
+                    provider=ModelProvider.OPENAI,
+                    model_name="gpt-4o",
+                )])
+            self._llm_config = self._llm_engine.config
         return self._llm_engine
 
     @property

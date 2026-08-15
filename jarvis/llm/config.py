@@ -6,10 +6,14 @@ LLM backend configuration across OpenAI / Anthropic / Ollama providers.
 
 from __future__ import annotations
 
+import logging
+import os
 from enum import Enum
 from typing import Any, Optional
 
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger("jarvis.llm.config")
 
 
 class ModelProvider(str, Enum):
@@ -46,3 +50,58 @@ class LLMConfig(BaseModel):
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Sampling temperature")
     max_tokens: int = Field(default=4096, gt=0, description="Maximum tokens in response")
     extra_params: dict[str, Any] = Field(default_factory=dict, description="Extra kwargs forwarded to litellm")
+
+    # ── Cross-layer adapters ─────────────────────────────────────────
+    # The canonical multi-backend implementation lives in jarvis.core.llm
+    # (LLMManager + FREE_PROVIDERS registry + environment-based failover).
+    # These adapters keep the pydantic ``LLMConfig`` API backward-compatible
+    # (callers use ``model_name`` / ``ModelProvider``) while letting the two
+    # LLM stacks share one source of truth for failover and free providers.
+
+    @classmethod
+    def from_env(cls, **overrides: Any) -> "LLMConfig":
+        """Build a config from OPENAI_* environment variables.
+
+        Mirrors ``jarvis.core.llm.LLMConfig.from_env`` so the emperor entry
+        (which uses the pydantic stack) honours the same env contract as the
+        domains main chain. ``overrides`` take precedence over env values.
+        """
+        provider_str = os.getenv("OPENAI_PROVIDER", "openai")
+        try:
+            provider = ModelProvider(provider_str)
+        except ValueError:
+            logger.warning("Unknown OPENAI_PROVIDER=%r, falling back to openai", provider_str)
+            provider = ModelProvider.OPENAI
+        return cls(
+            provider=overrides.get("provider", provider),
+            model_name=overrides.get("model_name", os.getenv("OPENAI_MODEL", "gpt-4o")),
+            api_key=overrides.get("api_key", os.getenv("OPENAI_API_KEY", "")),
+            base_url=overrides.get("base_url", os.getenv("OPENAI_BASE_URL", "")),
+            temperature=float(overrides.get("temperature", os.getenv("OPENAI_TEMPERATURE", "0.7"))),
+            max_tokens=int(overrides.get("max_tokens", os.getenv("OPENAI_MAX_TOKENS", "4096"))),
+        )
+
+    def to_core(self) -> Any:
+        """Convert to a ``jarvis.core.llm.LLMConfig`` dataclass for delegation."""
+        from jarvis.core.llm import LLMConfig as CoreLLMConfig
+
+        return CoreLLMConfig(
+            provider=self.provider.value,
+            model=self.model_name,
+            api_key=self.api_key,
+            base_url=self.base_url,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens,
+        )
+
+    @classmethod
+    def from_core(cls, core_cfg: Any) -> "LLMConfig":
+        """Build a pydantic ``LLMConfig`` from a ``jarvis.core.llm.LLMConfig``."""
+        return cls(
+            provider=ModelProvider(core_cfg.provider),
+            model_name=core_cfg.model,
+            api_key=core_cfg.api_key,
+            base_url=core_cfg.base_url,
+            temperature=core_cfg.temperature,
+            max_tokens=core_cfg.max_tokens,
+        )
