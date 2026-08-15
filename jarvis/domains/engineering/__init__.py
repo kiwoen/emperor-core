@@ -26,6 +26,39 @@ class DomainModule(DomainModule):
     async def handle(self, intent: Intent) -> TaskResult:
         text = intent.raw_text.lower()
 
+        # 代码审查（多维加权，离线确定性，不触发 LLM）
+        if any(k in text for k in ["审查", "代码评审", "代码检查", "代码审计",
+                                    "code review", "review", "audit"]):
+            import re as _re
+            from jarvis.codex.reviewer import CodeReviewer
+
+            m = _re.search(r"```(?:python|js|ts|go|rust)?\s*\n(.*?)```", intent.raw_text, _re.DOTALL)
+            code = m.group(1) if m else intent.raw_text
+            report = CodeReviewer().review(code, language=None)
+            return TaskResult(
+                domain=Domain.ENGINEERING,
+                success=True,
+                output=CodeReviewer.to_markdown(report),
+                data={
+                    "operation": "code_review",
+                    "language": report.language,
+                    "code_type": report.code_type,
+                    "overall_score": report.overall_score,
+                    "grade": report.grade,
+                    "issues": [
+                        {
+                            "severity": i.severity.value,
+                            "dimension": i.dimension.value,
+                            "location": i.location,
+                            "message": i.message,
+                            "suggestion": i.suggestion,
+                        }
+                        for i in report.prioritized_issues
+                    ],
+                    "honest_na": report.honest_na,
+                },
+            )
+
         if "写" in text or "生成" in text or "函数" in text:
             data: dict[str, Any] = {"language": "python"}
         elif "bug" in text or "修复" in text or "debug" in text:

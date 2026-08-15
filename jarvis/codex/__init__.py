@@ -26,5 +26,6 @@ Each sub-engine communicates via Hermes topics:
 from jarvis.codex.engine import CodexEngine
 from jarvis.codex.analyzer import Analyzer
 from jarvis.codex.generator import Generator
+from jarvis.codex.reviewer import CodeReviewer, ReviewReport
 
-__all__ = ["CodexEngine", "Analyzer", "Generator"]
+__all__ = ["CodexEngine", "Analyzer", "Generator", "CodeReviewer", "ReviewReport"]
