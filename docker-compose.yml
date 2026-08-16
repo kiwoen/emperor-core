@@ -38,6 +38,9 @@ services:
       EMPEROR_ENABLE_FEEDBACK: "true"
       PYTHONUNBUFFERED: "1"
       PYTHONDONTWRITEBYTECODE: "1"
+      # ── 访问鉴权（强烈建议设置！避免 8000 公网裸奔）──
+      # 生成：openssl rand -hex 24 ；留空=不鉴权。设了之后除 /health 外需带令牌
+      EMPEROR_API_TOKEN: ${EMPEROR_API_TOKEN:-}
       # ── 接真实大模型：取消注释并写进 .env（勿硬编码进本文件）──
       # EMPEROR_LLM_PROVIDER: deepseek        # 或 openai / anthropic
       # OPENAI_API_KEY: ${OPENAI_API_KEY:-}

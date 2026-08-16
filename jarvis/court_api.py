@@ -65,6 +65,9 @@ from jarvis.prompt_guard import PromptGuard, ScanResult
 # RBAC module imports
 from jarvis.rbac import RBACEngine, Permission, Role, intent_to_permission
 
+# 可选启用的 Token 鉴权中间件（EMPEROR_API_TOKEN 未设则不生效）
+from jarvis.api.token_guard import add_token_auth
+
 
 # ══════════════════════════════════════════════════════════════════
 # Request models (module-level for FastAPI type resolution)
@@ -370,6 +373,11 @@ def create_app(
         recovery_engine: Optional RecoveryEngine for /recovery endpoints.
     """
     app = FastAPI(title="Emperor Court API", version="0.1.0")
+
+    # 可选 Token 鉴权：EMPEROR_API_TOKEN 未设置则不生效（向后兼容），
+    # 详见 jarvis/api/token_guard.py
+    add_token_auth(app)
+
     if court is None:
         court = Court()
 

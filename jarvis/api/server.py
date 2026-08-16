@@ -23,6 +23,9 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger("jarvis.api")
 
+# 可选启用的 Token 鉴权中间件（EMPEROR_API_TOKEN 未设则不生效）
+from jarvis.api.token_guard import add_token_auth
+
 # ---------------------------------------------------------------------------
 # Pydantic models
 # ---------------------------------------------------------------------------
@@ -102,6 +105,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 可选 Token 鉴权：未设 EMPEROR_API_TOKEN 则不生效（向后兼容）
+add_token_auth(app)
 
 # ---------------------------------------------------------------------------
 # Global references (injected at startup)

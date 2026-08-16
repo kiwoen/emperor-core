@@ -45,6 +45,35 @@ class TestHealth:
 
 
 # ══════════════════════════════════════════════════════════════════
+# Token 鉴权（可选启用：EMPEROR_API_TOKEN 未设则不生效）
+# ══════════════════════════════════════════════════════════════════
+
+class TestTokenAuth:
+    def test_no_token_open_by_default(self, client):
+        # 默认无 EMPEROR_API_TOKEN → 不鉴权，受保护路由直接 200
+        assert client.get("/court/summary").status_code == 200
+
+    def test_health_and_routes_with_token(self, monkeypatch):
+        monkeypatch.setenv("EMPEROR_API_TOKEN", "secret-token-123")
+        from jarvis.court_api import create_app
+        app = create_app()
+        c = TestClient(app)
+        # /health 始终放行（容器/云平台探针）
+        assert c.get("/health").status_code == 200
+        # 无令牌访问受保护路由 → 401
+        assert c.get("/court/summary").status_code == 401
+        # Bearer 头正确 → 200
+        assert c.get(
+            "/court/summary",
+            headers={"Authorization": "Bearer secret-token-123"},
+        ).status_code == 200
+        # 查询参数 token 正确 → 200（方便浏览器开仪表盘）
+        assert c.get("/court/summary?token=secret-token-123").status_code == 200
+        # 错误令牌 → 401
+        assert c.get("/court/summary?token=wrong").status_code == 401
+
+
+# ══════════════════════════════════════════════════════════════════
 # Registration
 # ══════════════════════════════════════════════════════════════════
 

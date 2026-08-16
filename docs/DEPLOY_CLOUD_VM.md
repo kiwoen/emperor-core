@@ -1,27 +1,27 @@
 # emperor-core 云服务器部署手册（从零到上线）
 
-> 目标：在一台**自己管的**云主机（腾讯云轻量 / 阿里云 ECS / 任意 Ubuntu VM）上，
-> 用 Docker Compose 把 emperor-core 跑成 7×24 常驻服务，带持久化数据、
+> 目标：在一台**自己管的**云主机（腾讯云轻量 / 阿里云 ECS / 任意 Ubuntu VM）上，  
+> 用 Docker Compose 把 emperor-core 跑成 7×24 常驻服务，带持久化数据、  
 > 自动重启、HTTPS 域名访问和备份。
 >
-> 全文命令**可直接复制粘贴**。带 `#` 的是注释，`$` 后面是要敲的命令。
+> 全文命令**可直接复制粘贴**。带 `#` 的是注释，`$` 后面是要敲的命令。  
 > 没有任何 API Key 也能跑通全流程（默认离线 `mock` 模式）。
 
 ---
 
 ## 0. 结论先行：这套东西到底跑的是什么
 
-| 项 | 值 |
-| --- | --- |
+| 项         | 值                                                                                                      |
+| --------- | ------------------------------------------------------------------------------------------------------ |
 | 容器真正的服务入口 | `python -m jarvis.cli serve`（≡ `jarvis serve`） → `Emperor.serve()` → `court_api.create_app()`（FastAPI） |
-| 监听地址 | `0.0.0.0:8000`（Dockerfile / compose / render.yaml 三处统一） |
-| 健康探针 | `GET /health` → `{"status":"ok","service":"emperor-core"}` |
-| 仪表盘 | `GET /dashboard` |
-| 法庭接口 | `GET /court/summary`、`/court/ministers` … |
-| 接口文档 | `GET /docs`（FastAPI 自带 Swagger） |
-| 数据落盘 | 容器内 `/app/data`，由命名卷 `emperor-data` 承载 |
+| 监听地址      | `0.0.0.0:8000`（Dockerfile / compose / render.yaml 三处统一）                                                |
+| 健康探针      | `GET /health` → `{"status":"ok","service":"emperor-core"}`                                             |
+| 仪表盘       | `GET /dashboard`                                                                                       |
+| 法庭接口      | `GET /court/summary`、`/court/ministers` …                                                              |
+| 接口文档      | `GET /docs`（FastAPI 自带 Swagger）                                                                        |
+| 数据落盘      | 容器内 `/app/data`，由命名卷 `emperor-data` 承载                                                                 |
 
-启动时系统会**自动播种 8 位大臣**并拉起后台调度器（周期性进化 + 周期性任务），
+启动时系统会**自动播种 8 位大臣**并拉起后台调度器（周期性进化 + 周期性任务），  
 即"完整 JARVIS 体验"。
 
 ---
@@ -30,14 +30,14 @@
 
 ### 1.1 推荐配置
 
-| 选项 | 推荐值 | 说明 |
-| --- | --- | --- |
-| 平台 | **腾讯云轻量应用服务器**（国内最省事）／阿里云 ECS／Vultr、Hetzner（海外，免备案） |
-| 镜像 | **Ubuntu 22.04 LTS 64 位** | 本文命令基于它；24.04 同样适用 |
-| 规格 | **2 核 2G 起**（推荐 2C4G） | 2C2G 可跑；大臣多 / 开真实 LLM 时建议 4G |
-| 磁盘 | 40G SSD | 审计库会持续增长 |
-| 带宽 | 3–5 Mbps 或按流量 | 自用足够 |
-| 地域 | 国内业务选就近地域；要免备案选**香港/新加坡** | 国内 80/443 绑域名需备案 |
+| 选项 | 推荐值                                                 | 说明                           |
+| -- | --------------------------------------------------- | ---------------------------- |
+| 平台 | **腾讯云轻量应用服务器**（国内最省事）／阿里云 ECS／Vultr、Hetzner（海外，免备案） |                              |
+| 镜像 | **Ubuntu 22.04 LTS 64 位**                           | 本文命令基于它；24.04 同样适用           |
+| 规格 | **2 核 2G 起**（推荐 2C4G）                               | 2C2G 可跑；大臣多 / 开真实 LLM 时建议 4G |
+| 磁盘 | 40G SSD                                             | 审计库会持续增长                     |
+| 带宽 | 3–5 Mbps 或按流量                                       | 自用足够                         |
+| 地域 | 国内业务选就近地域；要免备案选**香港/新加坡**                           | 国内 80/443 绑域名需备案             |
 
 > 国内厂商的"轻量应用服务器"新用户常年有 60–120 元/年的活动机型，够用。
 
@@ -46,12 +46,12 @@
 1. **设置 root 密码**或**绑定 SSH 密钥**（推荐密钥）。
 2. **防火墙/安全组放行端口**（控制台 → 防火墙 → 添加规则）：
 
-| 协议 | 端口 | 用途 |
-| --- | --- | --- |
-| TCP | 22 | SSH 登录 |
-| TCP | 80 | HTTP（Caddy 申请证书 + 跳转 HTTPS） |
-| TCP | 443 | HTTPS 正式访问 |
-| TCP | 8000 | 直连调试用（**配好域名后建议关掉**） |
+| 协议  | 端口   | 用途                          |
+| --- | ---- | --------------------------- |
+| TCP | 22   | SSH 登录                      |
+| TCP | 80   | HTTP（Caddy 申请证书 + 跳转 HTTPS） |
+| TCP | 443  | HTTPS 正式访问                  |
+| TCP | 8000 | 直连调试用（**配好域名后建议关掉**）        |
 
 ---
 
@@ -81,7 +81,7 @@ $ docker --version
 $ docker compose version
 ```
 
-> 如果 `docker compose version` 报错（老版本只有 `docker-compose`），执行：
+> 如果 `docker compose version` 报错（老版本只有 `docker-compose`），执行：  
 > `apt install -y docker-compose-plugin`
 
 **（可选）国内拉镜像加速** —— `python:3.11-slim` 拉不动时：
@@ -108,8 +108,8 @@ $ cd /srv/emperor-core
 $ ls -l Dockerfile docker-compose.yml requirements-docker.txt
 ```
 
-> **历史坑（已修）**：仓库 `.gitignore` 曾把 `Dockerfile` 和
-> `docker-compose.yml` 列为忽略项，导致 `git clone` 下来根本没有构建文件。
+> **历史坑（已修）**：仓库 `.gitignore` 曾把 `Dockerfile` 和  
+> `docker-compose.yml` 列为忽略项，导致 `git clone` 下来根本没有构建文件。  
 > 现已放行；**请确认这三个文件已经提交进仓库**，否则用下面的 scp 方式传。
 
 **没有 Git 仓库？** 从本机直接推上去（在**本机**执行）：
@@ -178,9 +178,9 @@ Caddy 会**自动申请并续期 Let's Encrypt 证书**，比 Nginx + certbot �
 
 在域名服务商控制台加一条记录：
 
-| 类型 | 主机记录 | 记录值 |
-| --- | --- | --- |
-| A | `emperor` | `123.45.67.89`（你的公网 IP） |
+| 类型 | 主机记录      | 记录值                     |
+| -- | --------- | ----------------------- |
+| A  | `emperor` | `123.45.67.89`（你的公网 IP） |
 
 等 1–5 分钟生效，验证：`ping emperor.example.com` 能解析到你的 IP。
 
@@ -232,15 +232,18 @@ $ curl -f https://emperor.example.com/health
 
 ### 6.3 收口 8000 端口（重要）
 
-域名通了之后，回云厂商控制台**删掉 8000 的放行规则**，只留 22/80/443。
+域名通了之后，回云厂商控制台**删掉 8000 的放行规则**，只留 22/80/443。  
 容器仍监听 8000，但只能被本机 Caddy 访问，外网打不到。
 
 > 想加个访问口令？在 Caddyfile 的站点块里加：
+>
 > ```
 > basic_auth {
 >     admin <用 `caddy hash-password` 生成的哈希>
 > }
 > ```
+>
+>
 
 ---
 
@@ -248,17 +251,17 @@ $ curl -f https://emperor.example.com/health
 
 ### 7.1 数据在哪
 
-`docker-compose.yml` 已把命名卷 `emperor-data` 挂到容器 `/app/data`，
+`docker-compose.yml` 已把命名卷 `emperor-data` 挂到容器 `/app/data`，  
 容器**删了重建数据也不丢**。里面是：
 
-| 文件 | 内容 |
-| --- | --- |
-| `jarvis.db` | 法庭主库：大臣、基因、进化历史、任务记录 |
-| `audit.db` | **不可篡改审计流水**（务必备份） |
-| `approval.db` | 人类审批（HITL）记录 |
-| `cost_records.json` | 逐次调用成本 |
+| 文件                     | 内容                       |
+| ---------------------- | ------------------------ |
+| `jarvis.db`            | 法庭主库：大臣、基因、进化历史、任务记录     |
+| `audit.db`             | **不可篡改审计流水**（务必备份）       |
+| `approval.db`          | 人类审批（HITL）记录             |
+| `cost_records.json`    | 逐次调用成本                   |
 | `outcome_records.json` | 单次成功成本（cost-per-success） |
-| `templates/`、版本快照 | 自适应提示词模板、上下文回滚快照 |
+| `templates/`、版本快照      | 自适应提示词模板、上下文回滚快照         |
 
 查看卷与实际内容：
 
@@ -305,14 +308,14 @@ $ ( crontab -l 2>/dev/null; echo "0 3 * * * /usr/local/bin/emperor-backup.sh >> 
 $ crontab -l    # 确认已写入
 ```
 
-> 更稳的做法：把 `/srv/backups` 再同步到对象存储（腾讯云 COS / 阿里云 OSS），
+> 更稳的做法：把 `/srv/backups` 再同步到对象存储（腾讯云 COS / 阿里云 OSS），  
 > 一条 `coscmd upload` 或 `ossutil cp` 加到脚本末尾即可。
 
 ---
 
 ## 8. 接真实大模型（可选，随时切换）
 
-**不做这一步系统也完整可用**（`EMPEROR_LLM_PROVIDER=mock`，离线确定性推理）。
+**不做这一步系统也完整可用**（`EMPEROR_LLM_PROVIDER=mock`，离线确定性推理）。  
 要接真模型，**不用改代码、不用重建镜像**：
 
 ```bash
@@ -341,7 +344,7 @@ $ docker compose up -d
 $ docker compose logs --tail 30
 ```
 
-> **绝不要**把 Key 直接写进 `docker-compose.yml` 或提交到 Git —— 仓库的
+> **绝不要**把 Key 直接写进 `docker-compose.yml` 或提交到 Git —— 仓库的  
 > `.gitignore` / `.dockerignore` 已经排除 `.env`。
 
 ---
@@ -361,8 +364,8 @@ $ docker stats emperor-core         # 实时 CPU / 内存占用
 
 ### 9.2 自动重启
 
-`docker-compose.yml` 里已配 `restart: unless-stopped`：
-进程崩溃、Docker 重启、**服务器重启**后都会自动把服务拉回来。
+`docker-compose.yml` 里已配 `restart: unless-stopped`：  
+进程崩溃、Docker 重启、**服务器重启**后都会自动把服务拉回来。  
 （Docker 本身的开机自启已在第 2 步 `systemctl enable docker` 完成。）
 
 ### 9.3 代码更新上线
@@ -384,7 +387,7 @@ $ docker run -d --name watchtower --restart unless-stopped \
     containrrr/watchtower --cleanup --interval 3600 emperor-core
 ```
 
-> 本地 `build:` 出来的镜像不会被 Watchtower 更新，它只跟踪远端仓库标签。
+> 本地 `build:` 出来的镜像不会被 Watchtower 更新，它只跟踪远端仓库标签。  
 > 手动构建流程用 9.3 就够了。
 
 ---
@@ -406,7 +409,7 @@ $ chmod +x /usr/local/bin/emperor-watch.sh
 $ ( crontab -l 2>/dev/null; echo "*/5 * * * * /usr/local/bin/emperor-watch.sh" ) | crontab -
 ```
 
-外部拨测（免费）：[UptimeRobot](https://uptimerobot.com) / 腾讯云云拨测
+外部拨测（免费）：[UptimeRobot](https://uptimerobot.com) / 腾讯云云拨测  
 → 监控 `https://emperor.example.com/health`，异常邮件/微信告警。
 
 Docker 自带的 healthcheck 也一直在跑：
@@ -445,38 +448,79 @@ $ curl -f http://localhost:8000/health
 
 ## 11. 成本与免费替代
 
-| 方案 | 月成本 | 持久化 | 常驻不休眠 | 适用 |
-| --- | --- | --- | --- | --- |
-| **腾讯云轻量 2C2G**（本文方案） | ￥5–15（年付活动价） | ✅ 命名卷 | ✅ | **推荐**，自进化需要长期累积数据 |
-| 阿里云 ECS 突发性能 t6 | ￥15–30 | ✅ | ✅ | 同上 |
-| Hetzner CX22 / Vultr | €4 / $5 | ✅ | ✅ | 海外免备案，拉镜像快 |
-| Render 免费套餐（`render.yaml`） | ￥0 | ❌ **重启即丢** | ❌ 15 分钟休眠 | 只适合演示；审计/审批数据会丢 |
-| Fly.io 免费额度 | ￥0 起 | 需挂 volume | ✅ | 会用 flyctl 的可选 |
+| 方案                         | 月成本          | 持久化        | 常驻不休眠     | 适用                 |
+| -------------------------- | ------------ | ---------- | --------- | ------------------ |
+| **腾讯云轻量 2C2G**（本文方案）       | ￥5–15（年付活动价） | ✅ 命名卷      | ✅         | **推荐**，自进化需要长期累积数据 |
+| 阿里云 ECS 突发性能 t6            | ￥15–30       | ✅          | ✅         | 同上                 |
+| Hetzner CX22 / Vultr       | €4 / $5      | ✅          | ✅         | 海外免备案，拉镜像快         |
+| Render 免费套餐（`render.yaml`） | ￥0           | ❌ **重启即丢** | ❌ 15 分钟休眠 | 只适合演示；审计/审批数据会丢    |
+| Fly.io 免费额度                | ￥0 起         | 需挂 volume  | ✅         | 会用 flyctl 的可选      |
 
-> **为什么不推荐免费 PaaS 长期跑**：emperor-core 靠 `audit.db`（不可篡改审计）
-> 和 `jarvis.db`（基因/进化历史）**跨重启累积进化**。免费套餐无持久盘 + 定时
-> 休眠会让调度器被打断、历史被清零，等于每次都从零开始。自管 VM + 命名卷才
+> **为什么不推荐免费 PaaS 长期跑**：emperor-core 靠 `audit.db`（不可篡改审计）  
+> 和 `jarvis.db`（基因/进化历史）**跨重启累积进化**。免费套餐无持久盘 + 定时  
+> 休眠会让调度器被打断、历史被清零，等于每次都从零开始。自管 VM + 命名卷才  
 > 是这套系统的正确形态。
 
 ---
 
 ## 12. 故障排查
 
-| 现象 | 排查命令 / 处理 |
-| --- | --- |
-| `curl /health` 连不上 | `docker compose ps` 看是否 Up；`docker compose logs --tail 50` 看报错 |
-| 状态一直 `starting` | 冷启动要 10–20 秒；超过 1 分钟看日志是否有 traceback |
-| 状态 `unhealthy` | 进容器手测：`docker compose exec emperor-core curl -v http://localhost:8000/health` |
-| 端口被占 | `ss -lntp \| grep 8000`，杀掉占用进程或改 compose 的 `"8001:8000"` |
-| 构建时 pip 超时 | 配 pip 镜像：Dockerfile 的 pip 命令加 `-i https://pypi.tuna.tsinghua.edu.cn/simple` |
-| 内存不够被 OOM kill | `dmesg \| grep -i kill`；升到 4G，或调小 compose 里的 memory 上限 |
-| 域名 HTTPS 不通 | `systemctl status caddy`、`journalctl -u caddy -n 50`；确认 80/443 已放行且 DNS 已生效 |
-| 想进容器看看 | `docker compose exec emperor-core sh` |
-| 磁盘满了 | `docker system df`，清理：`docker system prune -a`（**不会**动命名卷） |
+| 现象                 | 排查命令 / 处理                                                                     |
+| ------------------ | ----------------------------------------------------------------------------- |
+| `curl /health` 连不上 | `docker compose ps` 看是否 Up；`docker compose logs --tail 50` 看报错                |
+| 状态一直 `starting`    | 冷启动要 10–20 秒；超过 1 分钟看日志是否有 traceback                                          |
+| 状态 `unhealthy`     | 进容器手测：`docker compose exec emperor-core curl -v http://localhost:8000/health` |
+| 端口被占               | `ss -lntp \| grep 8000`，杀掉占用进程或改 compose 的 `"8001:8000"`                      |
+| 构建时 pip 超时         | 配 pip 镜像：Dockerfile 的 pip 命令加 `-i https://pypi.tuna.tsinghua.edu.cn/simple`   |
+| 内存不够被 OOM kill     | `dmesg \| grep -i kill`；升到 4G，或调小 compose 里的 memory 上限                        |
+| 域名 HTTPS 不通        | `systemctl status caddy`、`journalctl -u caddy -n 50`；确认 80/443 已放行且 DNS 已生效   |
+| 想进容器看看             | `docker compose exec emperor-core sh`                                         |
+| 磁盘满了               | `docker system df`，清理：`docker system prune -a`（**不会**动命名卷）                    |
 
 ---
 
-## 13. 一页速查（部署完存起来）
+## 13. 公网安全：访问令牌（强烈建议）
+
+`docker-compose.yml` 把 8000 暴露到公网，**不设令牌等于把仪表盘和所有 API 裸奔**。  
+本项目内置一个**可选启用的 Token 鉴权中间件**，由环境变量 `EMPEROR_API_TOKEN` 控制：
+
+- **不设置 / 留空** → 完全不鉴权（内网实验、本地开发方便，向后兼容）。
+- **设置一个强随机串** → 除 `/health` 外所有请求必须携带令牌，否则返回 `401`。
+
+```bash
+# 生成强令牌（32 字节十六进制）
+openssl rand -hex 24
+# 例如输出：9f2c...（复制下来）
+
+# 写入 .env（已被 .gitignore 忽略，勿提交）
+cd /srv/emperor-core
+cat >> .env <<'EOF'
+EMPEROR_API_TOKEN=把上面那串粘这里
+EOF
+chmod 600 .env
+
+# 重新拉起
+docker compose up -d
+```
+
+**两种携带方式**（任选其一）：
+
+- 请求头：`Authorization: Bearer <token>`
+- 查询参数（方便浏览器直接开仪表盘）：`http://<公网IP>:8000/dashboard?token=<token>`
+
+验证：
+
+```bash
+curl -f http://localhost:8000/health                       # 200，探针永远放行
+curl -i http://localhost:8000/court/ministers               # 401（无令牌）
+curl -H "Authorization: Bearer <token>" http://localhost:8000/court/ministers  # 200
+```
+
+> 这是"够用的最小防护"，适合个人实验。若要接企业 / 多用户，再上 Caddy 反代 + 反向代理级鉴权或 OAuth。
+
+---
+
+## 14. 一页速查（部署完存起来）
 
 ```bash
 # 上线
@@ -496,9 +540,9 @@ docker run --rm -v emperor-data:/data -v $(pwd):/backup busybox \
 docker tag emperor-core:v1 emperor-core:local && docker compose up -d --force-recreate
 ```
 
-| 访问入口 | URL |
-| --- | --- |
-| 健康检查 | `https://emperor.example.com/health` |
-| 仪表盘 | `https://emperor.example.com/dashboard` |
-| 接口文档 | `https://emperor.example.com/docs` |
+| 访问入口 | URL                                         |
+| ---- | ------------------------------------------- |
+| 健康检查 | `https://emperor.example.com/health`        |
+| 仪表盘  | `https://emperor.example.com/dashboard`     |
+| 接口文档 | `https://emperor.example.com/docs`          |
 | 法庭总览 | `https://emperor.example.com/court/summary` |

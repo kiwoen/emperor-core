@@ -36,6 +36,19 @@ class TestHealth:
             assert key in data, f"Missing key: {key}"
 
 
+class TestTokenAuth:
+    def test_health_open_with_token_set(self, monkeypatch):
+        monkeypatch.setenv("EMPEROR_API_TOKEN", "abc")
+        from jarvis.api.server import app
+        c = TestClient(app)
+        # /health 始终放行
+        assert c.get("/health").status_code == 200
+        # 无令牌访问受保护路由 → 401
+        assert c.get("/status").status_code == 401
+        # Bearer 正确 → 200
+        assert c.get("/status", headers={"Authorization": "Bearer abc"}).status_code == 200
+
+
 # ---------------------------------------------------------------------------
 # Domains
 # ---------------------------------------------------------------------------
