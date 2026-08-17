@@ -281,6 +281,8 @@ class LLMEngine:
             logger.info("LLM running in MOCK mode (no API key / base_url configured)")
         else:
             logger.info(f"LLM running in LIVE mode: {config.provider}/{config.model} base={config.base_url or 'default'}")
+        # 最近一次调用的 token 用量（由 _record_usage 写入），供上层计量
+        self.last_usage: dict = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
     async def complete(
         self,
@@ -289,12 +291,16 @@ class LLMEngine:
         domain: str = "general",
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        history: Optional[list[dict]] = None,
     ) -> str:
         """Execute a completion and return the text response.
 
         On a live-call failure the engine degrades to a mock reply (so a single
         backend never crashes a caller) and records ``last_error`` so the
         manager can fail over to the next backend.
+
+        :param history: optional list of ``{"role": "user"|"assistant", "content": str}``
+            for multi-turn context (used by the chat UI for persistent sessions).
         """
         # ── Route to optimal model tier (skip in mock_mode) ──
         if self.router is not None and not self.mock_mode:
@@ -311,7 +317,8 @@ class LLMEngine:
             return self._mock_complete(prompt, domain, system)
         try:
             return await self._litellm_complete(
-                prompt, system, temperature or self.config.temperature, max_tokens or self.config.max_tokens
+                prompt, system, temperature or self.config.temperature, max_tokens or self.config.max_tokens,
+                history=history,
             )
         except Exception as e:  # noqa: BLE001 - degrade to mock, surface via last_error
             self.last_error = str(e)
@@ -335,7 +342,7 @@ class LLMEngine:
         report["router_enabled"] = True
         return report
 
-    async def _litellm_complete(self, prompt: str, system: str, temperature: float, max_tokens: int) -> str:
+    async def _litellm_complete(self, prompt: str, system: str, temperature: float, max_tokens: int, history: Optional[list[dict]] = None) -> str:
         """Real LLM invocation via LiteLLM, with internal retry/backoff.
 
         Raises on final failure (after ``max_retries`` attempts) so the caller
@@ -347,6 +354,11 @@ class LLMEngine:
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
+        # 注入多轮历史（取最近 20 条，避免超出上下文）
+        if history:
+            for h in history[-20:]:
+                if isinstance(h, dict) and h.get("role") in ("user", "assistant") and h.get("content"):
+                    messages.append({"role": h["role"], "content": str(h["content"])})
         messages.append({"role": "user", "content": prompt})
 
         model_id = f"{self.config.provider}/{self.config.model}"
@@ -368,6 +380,7 @@ class LLMEngine:
         for attempt in range(attempts):
             try:
                 response = await litellm.acompletion(**kwargs)
+                self._record_usage(response)
                 return response.choices[0].message.content.strip()
             except Exception as e:  # noqa: BLE001 - retry transient failures
                 last_exc = e
@@ -378,6 +391,20 @@ class LLMEngine:
                         await asyncio.sleep(wait)
         assert last_exc is not None
         raise last_exc
+
+    def _record_usage(self, response) -> None:
+        """Best-effort extraction of token usage from a litellm response."""
+        try:
+            u = response.usage
+            if u is None:
+                return
+            self.last_usage = {
+                "prompt_tokens": int(getattr(u, "prompt_tokens", 0) or 0),
+                "completion_tokens": int(getattr(u, "completion_tokens", 0) or 0),
+                "total_tokens": int(getattr(u, "total_tokens", 0) or 0),
+            }
+        except Exception:  # noqa: BLE001 - never let usage bookkeeping break a call
+            pass
 
     @staticmethod
     def _backoff_seconds(exc: Exception, attempt: int) -> float:
@@ -570,10 +597,12 @@ class LLMManager:
         domain: str = "general",
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        history: Optional[list[dict]] = None,
     ) -> str:
         self.last_error = None
         self.last_used_backend = None
         self.last_used_model = None
+        self.last_usage: dict = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
         last_reply: Optional[str] = None
         for idx, eng in enumerate(self.engines):
             # Skip a mock-only backend when a live backend exists later in the
@@ -597,7 +626,7 @@ class LLMManager:
             try:
                 reply = await eng.complete(
                     prompt, system=system, domain=domain,
-                    temperature=temperature, max_tokens=max_tokens,
+                    temperature=temperature, max_tokens=max_tokens, history=history,
                 )
             except Exception as e:  # noqa: BLE001 - failover must be bullet-proof
                 st.record_failure(self.cb_threshold, self.cb_cooldown)
@@ -616,6 +645,7 @@ class LLMManager:
             self.last_used_backend = idx
             self.last_used_model = eng.config.model
             self.last_latency_ms = latency
+            self.last_usage = eng.last_usage
             return reply
         # Every backend errored: return best-effort last reply (mock stub) if any.
         if last_reply is not None:

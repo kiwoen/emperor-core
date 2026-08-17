@@ -27,12 +27,13 @@ Endpoints:
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import time
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -68,6 +69,8 @@ from jarvis.rbac import RBACEngine, Permission, Role, intent_to_permission
 
 # 可选启用的 Token 鉴权中间件（EMPEROR_API_TOKEN 未设则不生效）
 from jarvis.api.token_guard import add_token_auth
+# 多用户 / 会话 / token 用量存储层
+from jarvis.api import auth_store
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -95,11 +98,25 @@ class EvolutionRunRequest(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str = Field(..., description="用户消息")
-    history: list[dict] = Field(default_factory=list, description="对话历史 [{role, content}]")
+    history: list[dict] = Field(default_factory=list, description="对话历史 [{role, content}]（前端内存态，兼容未建会话时）")
+    conversation_id: Optional[int] = Field(default=None, description="会话 ID；提供则从数据库加载持久化历史并保存消息")
     system: str = Field(
         default="你是 Emperor Core —— 一个会自我进化的 AI 助手，回答简洁、准确、有帮助。",
         description="系统提示词",
     )
+
+
+class AuthRequest(BaseModel):
+    username: str
+    password: str
+
+
+class ConversationCreate(BaseModel):
+    title: str = "新对话"
+
+
+class ConversationRename(BaseModel):
+    title: str
 
 
 class DispatchRequest(BaseModel):
@@ -418,9 +435,36 @@ def create_app(
     """
     app = FastAPI(title="Emperor Court API", version="0.1.0")
 
+    # 多用户存储层初始化（幂等建表；数据落在 $EMPEROR_DATA_DIR/emperor.db，数据卷持久化）
+    auth_store.init_db()
     # 可选 Token 鉴权：EMPEROR_API_TOKEN 未设置则不生效（向后兼容），
+    # 否则支持「全局 admin token 直通」+「用户登录会话 token」两种凭据，
     # 详见 jarvis/api/token_guard.py
-    add_token_auth(app)
+    add_token_auth(app, session_validator=auth_store.is_session_valid)
+
+    # ── 当前用户解析（从 Bearer / ?token= 取出会话用户；全局 admin token 视为 admin 用户）──
+    def _extract_token(request: Request) -> str:
+        header = request.headers.get("Authorization", "")
+        if header.startswith("Bearer "):
+            return header[7:].strip()
+        return request.query_params.get("token", "")
+
+    def get_current_user(request: Request) -> dict:
+        """返回当前登录用户 dict；匿名/无效则 401。
+
+        - 全局 admin token（EMPEROR_API_TOKEN）视为 admin 伪用户；
+        - 否则走用户登录会话（auth_store）。
+        """
+        token = _extract_token(request)
+        if not token:
+            raise HTTPException(401, "未提供令牌")
+        admin_token = os.getenv("EMPEROR_API_TOKEN", "").strip()
+        if admin_token and token == admin_token:
+            return {"id": 0, "username": "admin", "is_admin": True, "admin_token": True}
+        user = auth_store.get_session_user(token)
+        if user is None:
+            raise HTTPException(401, "无效或过期的会话令牌，请重新登录")
+        return user
 
     if court is None:
         court = Court()
@@ -981,12 +1025,79 @@ def create_app(
         except Exception as e:
             return {"mock_mode": True, "model": "unknown", "error": str(e)}
 
+    # ══════════════════════════════════════════════════════════════════
+    # 多用户：鉴权 / 会话 / token 用量
+    # ══════════════════════════════════════════════════════════════════
+    @app.post("/api/auth/register")
+    def auth_register(req: AuthRequest):
+        """注册（首个注册用户自动成为 admin）。返回会话 token。"""
+        if not req.username or not req.password:
+            raise HTTPException(400, "用户名与密码不能为空")
+        if len(req.password) < 6:
+            raise HTTPException(400, "密码至少 6 位")
+        if auth_store.get_user_by_username(req.username):
+            raise HTTPException(409, "用户名已存在")
+        try:
+            uid = auth_store.create_user(req.username, req.password)
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(500, f"注册失败: {e}")
+        token = auth_store.create_session(uid)
+        return {"ok": True, "token": token, "user": auth_store.get_user(uid)}
+
+    @app.post("/api/auth/login")
+    def auth_login(req: AuthRequest):
+        user = auth_store.verify_user(req.username, req.password)
+        if user is None:
+            raise HTTPException(401, "用户名或密码错误")
+        token = auth_store.create_session(user["id"])
+        return {"ok": True, "token": token, "user": user}
+
+    @app.post("/api/auth/logout")
+    def auth_logout(request: Request):
+        token = _extract_token(request)
+        if token:
+            auth_store.delete_session(token)
+        return {"ok": True}
+
+    @app.get("/api/me")
+    def api_me(user: dict = Depends(get_current_user)):
+        usage = {} if user.get("admin_token") else auth_store.get_user_usage(user["id"])
+        return {"ok": True, "user": user, "usage": usage}
+
+    @app.get("/api/conversations")
+    def list_convs(user: dict = Depends(get_current_user)):
+        return {"ok": True, "conversations": auth_store.list_conversations(user["id"])}
+
+    @app.post("/api/conversations")
+    def create_conv(req: ConversationCreate, user: dict = Depends(get_current_user)):
+        cid = auth_store.create_conversation(user["id"], req.title)
+        return {"ok": True, "id": cid}
+
+    @app.get("/api/conversations/{conv_id}/messages")
+    def get_conv_messages(conv_id: int, user: dict = Depends(get_current_user)):
+        if auth_store.get_conversation(conv_id, user["id"]) is None:
+            raise HTTPException(404, "会话不存在或无权访问")
+        return {"ok": True, "messages": auth_store.list_messages(conv_id)}
+
+    @app.put("/api/conversations/{conv_id}")
+    def rename_conv(conv_id: int, req: ConversationRename, user: dict = Depends(get_current_user)):
+        if not auth_store.rename_conversation(conv_id, user["id"], req.title):
+            raise HTTPException(404, "会话不存在或无权访问")
+        return {"ok": True}
+
+    @app.delete("/api/conversations/{conv_id}")
+    def delete_conv(conv_id: int, user: dict = Depends(get_current_user)):
+        if not auth_store.delete_conversation(conv_id, user["id"]):
+            raise HTTPException(404, "会话不存在或无权访问")
+        return {"ok": True}
+
     @app.post("/api/chat")
-    async def chat(req: ChatRequest):
+    async def chat(req: ChatRequest, user: dict = Depends(get_current_user)):
         """ChatGPT 风格流式对话端点（SSE）。
 
         走真实多后端 LLM（已接 NVIDIA NIM 时即为真模型推理）；以打字机方式
         把完整回复分块推送，获得类 ChatGPT 的流式体验（无需后端原生 streaming）。
+        支持多会话持久化：提供 ``conversation_id`` 时从数据库加载历史、保存消息并计量 token。
         """
         import asyncio
         import json as _json
@@ -996,11 +1107,23 @@ def create_app(
         if not prompt:
             raise HTTPException(400, "message is required")
 
+        # 历史来源：优先数据库持久化会话，否则用前端内存态 history（兼容）
+        conv_id = req.conversation_id
+        if conv_id is not None:
+            conv = auth_store.get_conversation(conv_id, user["id"])
+            if conv is None:
+                raise HTTPException(404, "会话不存在或无权访问")
+            history_ctx = auth_store.list_messages(conv_id, limit=20)
+        else:
+            history_ctx = req.history or []
+
         async def generate():
             try:
-                answer = await mgr.complete(prompt, system=req.system)
+                answer = await mgr.complete(prompt, system=req.system, history=history_ctx)
+                usage = dict(getattr(mgr, "last_usage", {}) or {})
             except Exception as e:  # noqa: BLE001
                 answer = f"[模型调用失败] {e}"
+                usage = {}
             if not answer:
                 answer = "(空响应)"
             # 打字机式分块推送
@@ -1009,6 +1132,20 @@ def create_app(
                 chunk = answer[i:i + step]
                 yield f"data: {_json.dumps({'delta': chunk}, ensure_ascii=False)}\n\n"
                 await asyncio.sleep(0.012)
+            # 持久化 + 计量（仅对有会话的非 admin 用户计费）
+            pt = int(usage.get("prompt_tokens", 0) or 0)
+            ct = int(usage.get("completion_tokens", 0) or 0)
+            if conv_id is not None and user.get("id") and not user.get("admin_token"):
+                try:
+                    auth_store.add_message(conv_id, "user", prompt, 0, 0)
+                    auth_store.add_message(conv_id, "assistant", answer, pt, ct)
+                    auth_store.add_token_usage(user["id"], pt, ct)
+                except Exception:  # noqa: BLE001 - 计量失败绝不影响对话
+                    pass
+            yield "data: " + _json.dumps(
+                {"usage": {"prompt_tokens": pt, "completion_tokens": ct, "total_tokens": pt + ct}},
+                ensure_ascii=False,
+            ) + "\n\n"
             yield "data: [DONE]\n\n"
 
         return StreamingResponse(
