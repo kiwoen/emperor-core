@@ -205,6 +205,7 @@ const TOKEN = new URLSearchParams(location.search).get('token') || '';
 const Q = TOKEN ? ('?token='+encodeURIComponent(TOKEN)) : '';
 let history = [];
 let busy = false;
+let evoRunning = false;
 
 /* ── Theme ── */
 function applyTheme(t){
@@ -217,6 +218,7 @@ function toggleTheme(){ const cur=document.documentElement.getAttribute('data-th
 
 /* ── Utilities ── */
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
 function autoGrow(){ const t=document.getElementById('input'); t.style.height='auto'; t.style.height=Math.min(t.scrollHeight,160)+'px'; }
 function onKey(e){ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); } }
 function scrollChat(){ const c=document.getElementById('chat'); c.scrollTop=c.scrollHeight; }
@@ -288,18 +290,41 @@ async function send(){
   busy=false; document.getElementById('sendBtn').disabled=false;
 }
 
-/* ── Run evolution rounds ── */
+/* ── Run evolution rounds (async + progress polling) ── */
 async function runRounds(){
+  if(evoRunning) return;
   const n=prompt('运行多少轮进化？（推荐 3–10）','5');
   if(n===null) return; const cycles=Math.max(1,Math.min(200,parseInt(n)||3));
-  const btn=document.querySelector('.tbtn.primary'); const old=btn.textContent; btn.disabled=true; btn.textContent='⏳ 进化中…';
+  const btn=document.querySelector('.tbtn.primary'); const old=btn.textContent;
+  evoRunning=true; btn.disabled=true; btn.textContent='⏳ 启动中…';
   try{
     const r=await fetch(API+'/api/evolution/run'+Q,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cycles})});
+    if(!r.ok) throw new Error('HTTP '+r.status);
     const j=await r.json();
-    addEvent('evo','完成 '+cycles+' 轮进化 · 已记录第 '+j.recorded_round+' 点');
-    await refreshInsight(); refreshStats();
-  }catch(e){ alert('进化失败：'+e); }
-  btn.disabled=false; btn.textContent=old;
+    if(j.already_running) addEvent('evo','进化已在后台进行中，接入进度轮询');
+    await pollEvolution(btn);
+  }catch(e){ alert('进化启动失败：'+e); }
+  evoRunning=false; btn.disabled=false; btn.textContent=old;
+}
+
+async function pollEvolution(btn){
+  const deadline=Date.now()+1000*60*30; // 30 分钟硬上限，超时不再等待
+  while(Date.now()<deadline){
+    await sleep(1500);
+    let s;
+    try{ s=await (await fetch(API+'/api/evolution/status'+Q)).json(); }
+    catch(e){ continue; } // 偶发网络抖动，继续轮询
+    const done=Number(s.rounds_done||0), total=Number(s.rounds_total||0);
+    btn.textContent='⏳ 进化中 '+done+'/'+total;
+    await refreshInsight(); // 实时刷新学习曲线，逐点生长
+    if(!s.running){
+      if(s.last_error){ addEvent('evo','进化出错：'+s.last_error); }
+      else { addEvent('evo','完成进化 · 已记录 '+done+' 轮 · 曲线点 '+s.last_recorded_round); }
+      await refreshStats();
+      return;
+    }
+  }
+  addEvent('evo','进化轮询超时（>30min），可手动点「进化看板」刷新');
 }
 
 /* ── Insight panel ── */
@@ -392,6 +417,11 @@ async function refreshModel(){
 (async function(){ await refreshStats(); await refreshModel(); await refreshInsight(); connectSSE();
   setInterval(refreshStats, 15000); setInterval(refreshInsight, 30000);
   document.getElementById('input').focus();
+  // 若后台进化仍在进行（如刷新页面），恢复进度轮询
+  try{
+    const s=await (await fetch(API+'/api/evolution/status'+Q)).json();
+    if(s.running){ evoRunning=true; const b=document.querySelector('.tbtn.primary'); if(b) b.disabled=true; pollEvolution(b); }
+  }catch(e){}
 })();
 </script>
 </body>

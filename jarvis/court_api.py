@@ -27,6 +27,7 @@ Endpoints:
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from pathlib import Path
 from typing import Any, Optional
@@ -361,6 +362,19 @@ def _get_llm_manager():
         from jarvis.core.llm import build_manager_from_env
         _llm_manager = build_manager_from_env()
     return _llm_manager
+
+
+# ── Background evolution job state (non-blocking /api/evolution/run) ──
+_evo_lock = threading.Lock()
+_evo_job: dict = {
+    "running": False,
+    "rounds_total": 0,
+    "rounds_done": 0,
+    "started_at": None,
+    "finished_at": None,
+    "last_error": None,
+    "last_recorded_round": 0,
+}
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -892,24 +906,63 @@ def create_app(
         from jarvis.learning_curve import get_learning_curve
         return get_learning_curve()
 
+    def _run_evolution_worker(cycles: int):
+        """后台线程：逐轮进化并在每轮后记录一个学习曲线点。
+
+        之所以每轮单独 ``emperor.evolve(cycles=1)`` 而不是一次性
+        ``evolve(cycles=N)``，是因为后者只在末尾记 1 个点，看不出收敛过程。
+        逐轮调用才能画出有形状的学习曲线。
+        """
+        global _evo_job
+        from jarvis.learning_curve import get_learning_curve
+        emperor = app.extra.get("emperor")
+        _evo_job["rounds_total"] = cycles
+        _evo_job["rounds_done"] = 0
+        _evo_job["last_error"] = None
+        _evo_job["finished_at"] = None
+        _evo_job["started_at"] = time.time()
+        if emperor is None:
+            _evo_job["last_error"] = "Emperor not available"
+            _evo_job["running"] = False
+            _evo_job["finished_at"] = time.time()
+            return
+        try:
+            for i in range(cycles):
+                emperor.evolve(cycles=1)
+                _evo_job["rounds_done"] = i + 1
+            _evo_job["last_recorded_round"] = get_learning_curve()["rounds"]
+        except Exception as e:  # noqa: BLE001
+            _evo_job["last_error"] = str(e)
+        finally:
+            _evo_job["running"] = False
+            _evo_job["finished_at"] = time.time()
+
     @app.post("/api/evolution/run")
     def evolution_run(req: EvolutionRunRequest):
-        """手动触发 N 轮进化（多轮运行）。每次调用都会在学习曲线上记一个点。"""
-        emperor = app.extra.get("emperor")
-        if emperor is None:
-            raise HTTPException(503, "Emperor not available")
-        try:
-            result = emperor.evolve(cycles=req.cycles)
-        except Exception as e:
-            raise HTTPException(500, f"Evolution failed: {e}")
-        from jarvis.learning_curve import get_learning_curve
-        return {
-            "ok": True,
-            "cycles": req.cycles,
-            "generation": (result.get("generation", 0)
-                           if isinstance(result, dict) else 0),
-            "recorded_round": get_learning_curve()["rounds"],
-        }
+        """手动触发 N 轮进化（多轮运行），后台异步执行，立即返回。
+
+        前端轮询 ``GET /api/evolution/status`` 获取进度。每轮结束会往学习曲线
+        记一个点，因此跑 5 轮会画出 5 个点。
+        """
+        with _evo_lock:
+            if _evo_job["running"]:
+                return {
+                    "ok": True,
+                    "accepted": True,
+                    "already_running": True,
+                    "status": dict(_evo_job),
+                }
+            _evo_job["running"] = True
+        t = threading.Thread(
+            target=_run_evolution_worker, args=(req.cycles,), daemon=True
+        )
+        t.start()
+        return {"ok": True, "accepted": True, "cycles": req.cycles}
+
+    @app.get("/api/evolution/status")
+    def evolution_status():
+        """返回后台进化任务的实时进度（前端轮询用）。"""
+        return dict(_evo_job)
 
     @app.get("/api/llm/status")
     def llm_status():
