@@ -161,6 +161,34 @@ def _row_to_user(row) -> dict:
     }
 
 
+def ensure_admin(username: str, password: str) -> int:
+    """幂等确保单一管理员账号存在（单用户部署用）。
+
+    - 账号不存在 → 以 admin 身份创建；
+    - 已存在 → 确保其 ``is_admin=1``，但**不覆盖**既有密码（避免每次重启重置用户口令）。
+    - 返回该用户 id。
+    """
+    username = (username or "admin").strip()
+    password = password or "changeme"
+    with _lock:
+        c = _get_conn()
+        row = c.execute("SELECT id, is_admin FROM users WHERE username=?", (username,)).fetchone()
+        if row is not None:
+            if not row["is_admin"]:
+                c.execute("UPDATE users SET is_admin=1 WHERE id=?", (row["id"],))
+                c.commit()
+            return int(row["id"])
+        salt = secrets.token_bytes(16)
+        pw_hash = _hash_password(password, salt)
+        cur = c.execute(
+            "INSERT INTO users (username, pw_hash, pw_salt, is_admin, created_at, last_active) "
+            "VALUES (?,?,?,1,?,?)",
+            (username, pw_hash, salt.hex(), _now(), _now()),
+        )
+        c.commit()
+        return int(cur.lastrowid)
+
+
 # ── 会话 token ──
 def create_session(user_id: int) -> str:
     token = secrets.token_urlsafe(32)

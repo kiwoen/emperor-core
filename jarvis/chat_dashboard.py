@@ -245,13 +245,9 @@ def generate_chat_html(api_base: str = "http://127.0.0.1:8000") -> str:
 <div class="overlay" id="overlay" style="display:none">
   <div class="authcard">
     <h2 id="authTitle">登录</h2>
-    <div class="sub">登录后对话、会话、token 消耗将与你的账号绑定</div>
-    <div class="tabs">
-      <button id="tabLogin" class="on" onclick="setMode('login')">登录</button>
-      <button id="tabReg" onclick="setMode('reg')">注册</button>
-    </div>
+    <div class="sub">单用户部署 · 使用你的管理员账号登录</div>
     <div class="field"><label>用户名</label><input id="authUser" autocomplete="username" placeholder="用户名" /></div>
-    <div class="field"><label>密码</label><input id="authPass" type="password" autocomplete="current-password" placeholder="至少 6 位" /></div>
+    <div class="field"><label>密码</label><input id="authPass" type="password" autocomplete="current-password" placeholder="管理员密码" /></div>
     <button class="auth-submit" onclick="submitAuth()">进入</button>
     <div class="auth-err" id="authErr"></div>
   </div>
@@ -311,11 +307,6 @@ function mdLite(text){
 }
 
 /* ── Auth modal ── */
-let authMode='login';
-function setMode(m){ authMode=m; document.getElementById('authTitle').textContent = m==='login'?'登录':'注册';
-  document.getElementById('tabLogin').classList.toggle('on', m==='login');
-  document.getElementById('tabReg').classList.toggle('on', m==='reg');
-  document.getElementById('authErr').textContent=''; }
 function showLogin(){ document.getElementById('overlay').style.display='flex'; }
 function closeLogin(){ document.getElementById('overlay').style.display='none'; }
 async function submitAuth(){
@@ -323,13 +314,12 @@ async function submitAuth(){
   const p=document.getElementById('authPass').value;
   const err=document.getElementById('authErr');
   if(!u||!p){ err.textContent='请输入用户名和密码'; return; }
-  const path = authMode==='login' ? '/api/auth/login' : '/api/auth/register';
   try{
-    const res = await fetch(API+path+Q, {method:'POST',
-      headers:{'Content-Type':'application/json','Authorization': TOKEN?'Bearer '+TOKEN:''},
+    const res = await fetch(API+'/api/auth/login'+Q, {method:'POST',
+      headers:{'Content-Type':'application/json'},
       body: JSON.stringify({username:u, password:p})});
     const j = await res.json().catch(()=>({}));
-    if(!res.ok){ err.textContent = j.detail || ('失败：'+res.status); return; }
+    if(!res.ok){ err.textContent = j.detail || ('登录失败：'+res.status); return; }
     if(j.token){ setToken(j.token); }
     closeLogin(); await boot();
   }catch(e){ err.textContent='网络错误：'+e; }

@@ -39,6 +39,11 @@ services:
       # ── 访问鉴权（强烈建议设置！避免 8000 公网裸奔）──
       # 生成：openssl rand -hex 24 ；留空=不鉴权。设了之后除 /health 外需带令牌
       EMPEROR_API_TOKEN: ${EMPEROR_API_TOKEN:-}
+      # ── 单用户强制登录：唯一管理员账号（注册已关闭）──
+      # 默认用户名 admin；初始密码默认复用上面的 EMPEROR_API_TOKEN 值（升级平滑、不会锁死），
+      # 也可显式设置 EMPEROR_ADMIN_PASS 改用自定义强密码（改完需重建镜像）。
+      EMPEROR_ADMIN_USER: ${EMPEROR_ADMIN_USER:-admin}
+      EMPEROR_ADMIN_PASS: ${EMPEROR_ADMIN_PASS:-${EMPEROR_API_TOKEN}}
       # ── 接真实大模型（全部从同目录 .env 透传；勿硬编码 Key）──
       # 不设任何 Key 时自动降级 mock 模式，仍可完整启动（离线自进化）。
       # NVIDIA NIM：.env 里写 NVIDIA_API_KEY=... 与 OPENAI_FALLBACK_PROVIDERS=nvidia

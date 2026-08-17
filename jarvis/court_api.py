@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import logging
 import os
+import secrets
 import threading
 import time
 from pathlib import Path
@@ -437,9 +438,20 @@ def create_app(
 
     # 多用户存储层初始化（幂等建表；数据落在 $EMPEROR_DATA_DIR/emperor.db，数据卷持久化）
     auth_store.init_db()
-    # 可选 Token 鉴权：EMPEROR_API_TOKEN 未设置则不生效（向后兼容），
-    # 否则支持「全局 admin token 直通」+「用户登录会话 token」两种凭据，
-    # 详见 jarvis/api/token_guard.py
+    # 强制登录 + 单用户部署：启动时种入唯一管理员账号。
+    # 凭据来源：EMPEROR_ADMIN_USER / EMPEROR_ADMIN_PASS；若未设则回退到
+    # EMPEROR_API_TOKEN 的值作为初始密码（保证升级后不会锁死），再不行则随机生成并打印告警。
+    admin_user = (os.getenv("EMPEROR_ADMIN_USER", "admin") or "admin").strip()
+    admin_pass = (os.getenv("EMPEROR_ADMIN_PASS", "") or "").strip() or (os.getenv("EMPEROR_API_TOKEN", "") or "").strip()
+    if not admin_pass:
+        admin_pass = secrets.token_urlsafe(16)
+        logger.warning(
+            "EMPEROR_ADMIN_PASS 与 EMPEROR_API_TOKEN 均未设置，已生成随机管理员密码"
+            "（仅本次启动有效，请尽快在 .env 固定 EMPEROR_ADMIN_PASS）：%s", admin_pass
+        )
+    auth_store.ensure_admin(admin_user, admin_pass)
+    logger.info("已确保管理员账号存在：username=%s", admin_user)
+    # 强制会话登录鉴权（详见 jarvis/api/token_guard.py）
     add_token_auth(app, session_validator=auth_store.is_session_valid)
 
     # ── 当前用户解析（从 Bearer / ?token= 取出会话用户；全局 admin token 视为 admin 用户）──
@@ -450,17 +462,10 @@ def create_app(
         return request.query_params.get("token", "")
 
     def get_current_user(request: Request) -> dict:
-        """返回当前登录用户 dict；匿名/无效则 401。
-
-        - 全局 admin token（EMPEROR_API_TOKEN）视为 admin 伪用户；
-        - 否则走用户登录会话（auth_store）。
-        """
+        """返回当前登录用户 dict；匿名/无效则 401（强制会话登录）。"""
         token = _extract_token(request)
         if not token:
-            raise HTTPException(401, "未提供令牌")
-        admin_token = os.getenv("EMPEROR_API_TOKEN", "").strip()
-        if admin_token and token == admin_token:
-            return {"id": 0, "username": "admin", "is_admin": True, "admin_token": True}
+            raise HTTPException(401, "未提供会话令牌")
         user = auth_store.get_session_user(token)
         if user is None:
             raise HTTPException(401, "无效或过期的会话令牌，请重新登录")
@@ -1029,20 +1034,9 @@ def create_app(
     # 多用户：鉴权 / 会话 / token 用量
     # ══════════════════════════════════════════════════════════════════
     @app.post("/api/auth/register")
-    def auth_register(req: AuthRequest):
-        """注册（首个注册用户自动成为 admin）。返回会话 token。"""
-        if not req.username or not req.password:
-            raise HTTPException(400, "用户名与密码不能为空")
-        if len(req.password) < 6:
-            raise HTTPException(400, "密码至少 6 位")
-        if auth_store.get_user_by_username(req.username):
-            raise HTTPException(409, "用户名已存在")
-        try:
-            uid = auth_store.create_user(req.username, req.password)
-        except Exception as e:  # noqa: BLE001
-            raise HTTPException(500, f"注册失败: {e}")
-        token = auth_store.create_session(uid)
-        return {"ok": True, "token": token, "user": auth_store.get_user(uid)}
+    def auth_register():
+        """注册已关闭（单用户部署，仅管理员账号可用）。"""
+        raise HTTPException(403, "注册已关闭（单用户部署，仅管理员账号可用）")
 
     @app.post("/api/auth/login")
     def auth_login(req: AuthRequest):
@@ -1061,7 +1055,7 @@ def create_app(
 
     @app.get("/api/me")
     def api_me(user: dict = Depends(get_current_user)):
-        usage = {} if user.get("admin_token") else auth_store.get_user_usage(user["id"])
+        usage = auth_store.get_user_usage(user["id"])
         return {"ok": True, "user": user, "usage": usage}
 
     @app.get("/api/conversations")
@@ -1132,10 +1126,10 @@ def create_app(
                 chunk = answer[i:i + step]
                 yield f"data: {_json.dumps({'delta': chunk}, ensure_ascii=False)}\n\n"
                 await asyncio.sleep(0.012)
-            # 持久化 + 计量（仅对有会话的非 admin 用户计费）
+            # 持久化 + 计量（登录用户均计费，含管理员）
             pt = int(usage.get("prompt_tokens", 0) or 0)
             ct = int(usage.get("completion_tokens", 0) or 0)
-            if conv_id is not None and user.get("id") and not user.get("admin_token"):
+            if conv_id is not None and user.get("id"):
                 try:
                     auth_store.add_message(conv_id, "user", prompt, 0, 0)
                     auth_store.add_message(conv_id, "assistant", answer, pt, ct)
