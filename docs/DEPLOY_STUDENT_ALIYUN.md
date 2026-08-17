@@ -155,7 +155,6 @@ openssl rand -hex 24
 # 2) 写进 .env（已被 .gitignore 忽略，不会提交；compose 自动读取）
 cat > .env <<'EOF'
 EMPEROR_API_TOKEN=把上面那串粘这里
-EMPEROR_LLM_PROVIDER=mock
 EOF
 chmod 600 .env
 
@@ -187,13 +186,13 @@ curl -H "Authorization: Bearer <token>" http://localhost:8000/court/ministers   
 
 ```bash
 cat >> .env <<'EOF'
-EMPEROR_LLM_PROVIDER=nvidia
 NVIDIA_API_KEY=你的_NVIDIA_API_KEY
+OPENAI_FALLBACK_PROVIDERS=nvidia
 EOF
 docker compose up -d
 ```
 
-可用供应商值：`deepseek` / `openai` / `nvidia` / `anthropic` 等（见 `.env.example`）。
+通过 `OPENAI_FALLBACK_PROVIDERS` 选择预设供应商（`nvidia` / `deepseek` / `groq` / `openrouter` / `together` / `mistral` / `ollama` / `doubao`）；不设任何 Key 时自动走 mock 模式。完整选项与模型覆盖见 `.env.example`。
 
 > 接真实 LLM 会消耗公网流量（每次调用上行 prompt + 下行 answer，约 5–15KB/次），正常用量远低于 20GB 月配额。
 

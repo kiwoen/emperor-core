@@ -164,7 +164,7 @@ docker compose logs --tail 50 | grep -iE "llm|openai|deepseek|nvidia|rate|401|40
 | `401 Unauthorized` | Key 错/没填 → `.env` 里 `OPENAI_API_KEY=` / `DEEPSEEK_API_KEY=` / `NVIDIA_API_KEY=` 填真实值，`docker compose up -d` |
 | `429 / RateLimit` | 额度用完 → 换供应商或等额度恢复；NVIDIA NIM 当前实测有额度可试 |
 | `timeout` | 服务器到 LLM 端点网络慢/不通 → 确认能 `curl -I https://api.nvidia.com`；或调大超时 |
-| 仍走 mock | `EMPEROR_LLM_PROVIDER` 还是 `mock` → 改成 `nvidia`/`deepseek`/`openai` 并重启 |
+| 仍走 mock | 没填 Key 或 Key 变量名不对 → `.env` 填 `NVIDIA_API_KEY=...` 并设 `OPENAI_FALLBACK_PROVIDERS=nvidia`，再 `docker compose up -d`；确认日志出现 `LLM running in LIVE mode` |
 
 ---
 

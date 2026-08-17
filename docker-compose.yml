@@ -33,19 +33,21 @@ services:
       # ── 持久化路径（对应上面的命名卷）─────────────────────
       EMPEROR_DATA_DIR: /app/data
       EMPEROR_COURT_PATH: /app/data
-      # ── 模型供应商：默认 mock，无任何 Key 也能完整启动 ─────
-      EMPEROR_LLM_PROVIDER: mock
       EMPEROR_ENABLE_FEEDBACK: "true"
       PYTHONUNBUFFERED: "1"
       PYTHONDONTWRITEBYTECODE: "1"
       # ── 访问鉴权（强烈建议设置！避免 8000 公网裸奔）──
       # 生成：openssl rand -hex 24 ；留空=不鉴权。设了之后除 /health 外需带令牌
       EMPEROR_API_TOKEN: ${EMPEROR_API_TOKEN:-}
-      # ── 接真实大模型：取消注释并写进 .env（勿硬编码进本文件）──
-      # EMPEROR_LLM_PROVIDER: deepseek        # 或 openai / anthropic
-      # OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      # DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
-      # ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # ── 接真实大模型（全部从同目录 .env 透传；勿硬编码 Key）──
+      # 不设任何 Key 时自动降级 mock 模式，仍可完整启动（离线自进化）。
+      # NVIDIA NIM：.env 里写 NVIDIA_API_KEY=... 与 OPENAI_FALLBACK_PROVIDERS=nvidia
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      OPENAI_FALLBACK_PROVIDERS: ${OPENAI_FALLBACK_PROVIDERS:-}
+      OPENAI_FALLBACK_BASE_URLS: ${OPENAI_FALLBACK_BASE_URLS:-}
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 30s
