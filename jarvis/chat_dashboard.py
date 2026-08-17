@@ -197,7 +197,9 @@ def generate_chat_html(api_base: str = "http://127.0.0.1:8000") -> str:
 </aside>
 
 <script>
-const API = "{API_BASE}";
+// 用当前页面的真实来源作为 API 基地址，避免服务器填的 bind host（127.0.0.1/0.0.0.0）
+// 在远程浏览器里指向错误地址导致 "Failed to fetch"；有 origin 时优先用它，否则回退到服务端注入的基址。
+const API = (window.location && window.location.origin) ? window.location.origin : "{API_BASE}";
 // 从地址栏 ?token= 取令牌并透传给所有 API 调用（与 /dashboard?token= 一致）
 const TOKEN = new URLSearchParams(location.search).get('token') || '';
 const Q = TOKEN ? ('?token='+encodeURIComponent(TOKEN)) : '';

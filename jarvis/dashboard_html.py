@@ -2343,7 +2343,8 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 </div>
 
 <script>
-  var API = "{{API_BASE}}";
+  // 优先用当前页面真实来源，避免服务端 bind host（127.0.0.1/0.0.0.0）在远程浏览器里指向错误地址
+  var API = (window.location && window.location.origin) ? window.location.origin : "{{API_BASE}}";
 
   function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   var MAX_POINTS = 40;   // rolling window for charts
