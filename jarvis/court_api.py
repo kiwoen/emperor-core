@@ -1112,6 +1112,12 @@ def create_app(
             history_ctx = req.history or []
 
         async def generate():
+            # 用户消息开头即落库，避免「新建对话后看不到历史」
+            if conv_id is not None and user.get("id"):
+                try:
+                    auth_store.add_message(conv_id, "user", prompt, 0, 0)
+                except Exception:  # noqa: BLE001
+                    pass
             try:
                 answer = await mgr.complete(prompt, system=req.system, history=history_ctx)
                 usage = dict(getattr(mgr, "last_usage", {}) or {})
@@ -1120,22 +1126,25 @@ def create_app(
                 usage = {}
             if not answer:
                 answer = "(空响应)"
-            # 打字机式分块推送
+            # 打字机式分块推送（buffer 累积，便于中断时回写）
+            buf = []
             step = 3
-            for i in range(0, len(answer), step):
-                chunk = answer[i:i + step]
-                yield f"data: {_json.dumps({'delta': chunk}, ensure_ascii=False)}\n\n"
-                await asyncio.sleep(0.012)
-            # 持久化 + 计量（登录用户均计费，含管理员）
-            pt = int(usage.get("prompt_tokens", 0) or 0)
-            ct = int(usage.get("completion_tokens", 0) or 0)
-            if conv_id is not None and user.get("id"):
-                try:
-                    auth_store.add_message(conv_id, "user", prompt, 0, 0)
-                    auth_store.add_message(conv_id, "assistant", answer, pt, ct)
-                    auth_store.add_token_usage(user["id"], pt, ct)
-                except Exception:  # noqa: BLE001 - 计量失败绝不影响对话
-                    pass
+            try:
+                for i in range(0, len(answer), step):
+                    chunk = answer[i:i + step]
+                    buf.append(chunk)
+                    yield f"data: {_json.dumps({'delta': chunk}, ensure_ascii=False)}\n\n"
+                    await asyncio.sleep(0.012)
+            finally:
+                # 无论流是否被客户端中断（切会话/关页面），都按已累积内容落库
+                pt = int(usage.get("prompt_tokens", 0) or 0)
+                ct = int(usage.get("completion_tokens", 0) or 0)
+                if conv_id is not None and user.get("id"):
+                    try:
+                        auth_store.add_message(conv_id, "assistant", "".join(buf), pt, ct)
+                        auth_store.add_token_usage(user["id"], pt, ct)
+                    except Exception:  # noqa: BLE001 - 计量失败绝不影响对话
+                        pass
             yield "data: " + _json.dumps(
                 {"usage": {"prompt_tokens": pt, "completion_tokens": ct, "total_tokens": pt + ct}},
                 ensure_ascii=False,
