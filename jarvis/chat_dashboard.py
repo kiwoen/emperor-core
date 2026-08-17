@@ -198,6 +198,9 @@ def generate_chat_html(api_base: str = "http://127.0.0.1:8000") -> str:
 
 <script>
 const API = "{API_BASE}";
+// 从地址栏 ?token= 取令牌并透传给所有 API 调用（与 /dashboard?token= 一致）
+const TOKEN = new URLSearchParams(location.search).get('token') || '';
+const Q = TOKEN ? ('?token='+encodeURIComponent(TOKEN)) : '';
 let history = [];
 let busy = false;
 
@@ -261,7 +264,7 @@ async function send(){
   busy=true; document.getElementById('sendBtn').disabled=true;
   let acc='';
   try{
-    const res=await fetch(API+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+    const res=await fetch(API+'/api/chat'+Q,{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({message:text,history:history.slice(0,-1)})});
     const reader=res.body.getReader(); const dec=new TextDecoder(); let buf='';
     while(true){
@@ -289,7 +292,7 @@ async function runRounds(){
   if(n===null) return; const cycles=Math.max(1,Math.min(200,parseInt(n)||3));
   const btn=document.querySelector('.tbtn.primary'); const old=btn.textContent; btn.disabled=true; btn.textContent='⏳ 进化中…';
   try{
-    const r=await fetch(API+'/api/evolution/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cycles})});
+    const r=await fetch(API+'/api/evolution/run'+Q,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cycles})});
     const j=await r.json();
     addEvent('evo','完成 '+cycles+' 轮进化 · 已记录第 '+j.recorded_round+' 点');
     await refreshInsight(); refreshStats();
@@ -323,12 +326,12 @@ function drawCurve(points){
 
 async function refreshInsight(){
   try{
-    const lc=await (await fetch(API+'/api/evolution/learning-curve')).json();
+    const lc=await (await fetch(API+'/api/evolution/learning-curve'+Q)).json();
     drawCurve(lc.points||[]);
     document.getElementById('st-rounds').textContent=lc.rounds||0;
   }catch(e){}
   try{
-    const m=await (await fetch(API+'/api/ministers')).json();
+    const m=await (await fetch(API+'/api/ministers'+Q)).json();
     const arr=(m.ministers||[]).slice().sort((a,b)=>(b.merit||0)-(a.merit||0));
     const max=Math.max(1,...arr.map(x=>x.merit||0));
     document.getElementById('leader').innerHTML = arr.length? arr.map(x=>
@@ -341,11 +344,11 @@ async function refreshInsight(){
 /* ── Stats + ministers sidebar ── */
 async function refreshStats(){
   try{
-    const s=await (await fetch(API+'/api/dashboard/summary')).json();
+    const s=await (await fetch(API+'/api/dashboard/summary'+Q)).json();
     document.getElementById('st-rate').textContent=(s.success_rate||0)+'%';
   }catch(e){}
   try{
-    const m=await (await fetch(API+'/api/ministers')).json();
+    const m=await (await fetch(API+'/api/ministers'+Q)).json();
     const arr=m.ministers||[];
     document.getElementById('st-min').textContent=arr.length;
     document.getElementById('minlist').innerHTML = arr.length? arr.map(x=>
@@ -365,7 +368,7 @@ function addEvent(kind, msg){
 }
 function connectSSE(){
   try{
-    const es=new EventSource(API+'/api/events');
+    const es=new EventSource(API+'/api/events'+Q);
     es.onmessage=(e)=>{ try{ const j=JSON.parse(e.data); const kind=(j.type||'info').toLowerCase();
       let label=j.type||'event'; if(j.data&&j.data.message) label+=' · '+j.data.message;
       addEvent(['evo','evolution'].some(k=>kind.includes(k))?'evo':(['dispatch'].some(k=>kind.includes(k))?'dispatch':'ev'), label);
@@ -377,7 +380,7 @@ function connectSSE(){
 /* ── Model badge ── */
 async function refreshModel(){
   try{
-    const s=await (await fetch(API+'/api/llm/status')).json();
+    const s=await (await fetch(API+'/api/llm/status'+Q)).json();
     document.getElementById('modelName').textContent = (s.mock_mode?'mock · ':'LIVE · ')+(s.model||'?');
     document.querySelector('#modelBadge span').className = s.mock_mode?'mock':'live';
   }catch(e){ document.getElementById('modelName').textContent='unknown'; }
