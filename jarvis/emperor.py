@@ -785,6 +785,12 @@ class Emperor:
                            context="evolve")
             raise
         self._dispatch(LifecycleEvent.ON_EVOLVE_END, result=result)
+        # ── 学习曲线埋点：每轮进化后记录一个时序点（跨重启持久化）──
+        try:
+            from jarvis.learning_curve import record_evolve_round
+            record_evolve_round(self._court)
+        except Exception:  # 度量失败绝不拖垮进化主流程
+            logger.debug("[Emperor] learning-curve record skipped", exc_info=True)
         return result
 
     # ── Task execution ─────────────────────────────────────────────

@@ -88,6 +88,19 @@ class EvolveRequest(BaseModel):
     cycles: int = Field(default=1, ge=1, le=100)
 
 
+class EvolutionRunRequest(BaseModel):
+    cycles: int = Field(default=3, ge=1, le=200, description="运行的进化轮数")
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(..., description="用户消息")
+    history: list[dict] = Field(default_factory=list, description="对话历史 [{role, content}]")
+    system: str = Field(
+        default="你是 Emperor Core —— 一个会自我进化的 AI 助手，回答简洁、准确、有帮助。",
+        description="系统提示词",
+    )
+
+
 class DispatchRequest(BaseModel):
     minister: str
     edict_id: str
@@ -331,6 +344,23 @@ def configure_app(emperor_config=None):
     global _emperor_config
     if emperor_config is not None:
         _emperor_config = emperor_config
+
+
+# ── Cached LLM manager (for the ChatGPT-style chat endpoint) ──
+_llm_manager = None
+
+
+def _get_llm_manager():
+    """Lazily build (and cache) the multi-backend LLM manager from env.
+
+    Uses the same env-driven resolution as the rest of the app, so NVIDIA NIM /
+    DeepSeek / OpenAI keys injected into the container are picked up automatically.
+    """
+    global _llm_manager
+    if _llm_manager is None:
+        from jarvis.core.llm import build_manager_from_env
+        _llm_manager = build_manager_from_env()
+    return _llm_manager
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -581,7 +611,15 @@ def create_app(
 
     @app.get("/dashboard", response_class=HTMLResponse)
     def dashboard():
-        """Serve the monitoring dashboard."""
+        """Serve the ChatGPT-style chat + evolution-insight dashboard."""
+        from jarvis.chat_dashboard import generate_chat_html
+        return generate_chat_html(
+            api_base=f"http://{app.extra.get('host', '127.0.0.1')}:{app.extra.get('port', 9020)}"
+        )
+
+    @app.get("/dashboard/legacy", response_class=HTMLResponse)
+    def dashboard_legacy():
+        """原监控大盘（保留入口，便于访问大臣 CRUD / 自愈 / 调度配置等高级功能）。"""
         from jarvis.dashboard_html import generate_html
         return generate_html(api_base=f"http://{app.extra.get('host', '127.0.0.1')}:{app.extra.get('port', 9020)}")
 
@@ -839,6 +877,96 @@ def create_app(
             "report": result.get("response", ""),
             "id": result.get("task_id", ""),
         }
+
+    # ── 学习曲线 / 多轮运行 / 对话 端点 ──────────────────────────
+
+    @app.get("/api/evolution/learning-curve")
+    def evolution_learning_curve():
+        """返回自进化学习曲线的完整时间序列（跨重启持久化）。
+
+        结构：
+          { "rounds": int,
+            "points": [ {round, ts, avg_merit, success_rate, active_ministers,
+                         ministers: {name: {merit, success_rate, tasks, domain}}} ] }
+        """
+        from jarvis.learning_curve import get_learning_curve
+        return get_learning_curve()
+
+    @app.post("/api/evolution/run")
+    def evolution_run(req: EvolutionRunRequest):
+        """手动触发 N 轮进化（多轮运行）。每次调用都会在学习曲线上记一个点。"""
+        emperor = app.extra.get("emperor")
+        if emperor is None:
+            raise HTTPException(503, "Emperor not available")
+        try:
+            result = emperor.evolve(cycles=req.cycles)
+        except Exception as e:
+            raise HTTPException(500, f"Evolution failed: {e}")
+        from jarvis.learning_curve import get_learning_curve
+        return {
+            "ok": True,
+            "cycles": req.cycles,
+            "generation": (result.get("generation", 0)
+                           if isinstance(result, dict) else 0),
+            "recorded_round": get_learning_curve()["rounds"],
+        }
+
+    @app.get("/api/llm/status")
+    def llm_status():
+        """返回当前 LLM 后端状态（模型 / 是否 live / 熔断），供 UI 显示模型徽标。"""
+        try:
+            mgr = _get_llm_manager()
+            stats = mgr.get_stats()
+            live = [b for b in stats.get("backends", []) if b.get("live")]
+            return {
+                "mock_mode": mgr.mock_mode,
+                "model": (live[0]["model"] if live else "mock"),
+                "provider": (live[0]["provider"] if live else "mock"),
+                "backends": stats.get("backends", []),
+                "last_latency_ms": stats.get("last_latency_ms"),
+            }
+        except Exception as e:
+            return {"mock_mode": True, "model": "unknown", "error": str(e)}
+
+    @app.post("/api/chat")
+    async def chat(req: ChatRequest):
+        """ChatGPT 风格流式对话端点（SSE）。
+
+        走真实多后端 LLM（已接 NVIDIA NIM 时即为真模型推理）；以打字机方式
+        把完整回复分块推送，获得类 ChatGPT 的流式体验（无需后端原生 streaming）。
+        """
+        import asyncio
+        import json as _json
+
+        mgr = _get_llm_manager()
+        prompt = req.message.strip()
+        if not prompt:
+            raise HTTPException(400, "message is required")
+
+        async def generate():
+            try:
+                answer = await mgr.complete(prompt, system=req.system)
+            except Exception as e:  # noqa: BLE001
+                answer = f"[模型调用失败] {e}"
+            if not answer:
+                answer = "(空响应)"
+            # 打字机式分块推送
+            step = 3
+            for i in range(0, len(answer), step):
+                chunk = answer[i:i + step]
+                yield f"data: {_json.dumps({'delta': chunk}, ensure_ascii=False)}\n\n"
+                await asyncio.sleep(0.012)
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(
+            generate(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     @app.post("/dashboard/heal")
     def dashboard_heal():

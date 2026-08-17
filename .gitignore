@@ -95,3 +95,8 @@ jarvis/court/snapshots/
 
 # 经验记忆（自我学习跨重启累积的运行时产物，环境相关，不入库）
 jarvis/court/memory.json
+
+# 学习曲线时序（每轮进化记录，跨重启持久化于数据卷，不入库）
+learning_curve.json
+/app/data/learning_curve.json
+jarvis/court/learning_curve.json
