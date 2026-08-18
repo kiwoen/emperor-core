@@ -32,8 +32,11 @@ WORKDIR /app
 
 # ── 依赖层（单独 COPY，改代码不会击穿这层缓存）────────────────
 COPY requirements-docker.txt ./
-RUN pip install --upgrade pip setuptools wheel \
-    && pip install -r requirements-docker.txt
+# 走阿里云 PyPI 镜像（服务器在国内，直连 pypi.org 常超时）；
+# 不再 `--upgrade pip setuptools wheel`——避免下载 pip 大文件超时导致构建失败。
+RUN pip install -r requirements-docker.txt \
+        -i https://mirrors.aliyun.com/pypi/simple/ \
+        --timeout 120 --retries 5
 
 # ── 应用层 ────────────────────────────────────────────────────
 # pyproject.toml 仅供容器内查阅元信息/按需 pip install 使用
