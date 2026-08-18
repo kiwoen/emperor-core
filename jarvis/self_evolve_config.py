@@ -60,6 +60,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # ── Phase 12 续⁵：记忆衰减/留存窗口 ──
     "memory_recency_decay": 1.0,       # 路由/暖启动的历史成功率权重；1.0=等权(零回归)，<1.0=新鲜样本权重更高
     "memory_max_per_group": None,      # 每(大臣,领域)留存上限，None=不封顶(零回归)
+    # ── 派发反偏置（熵正则 / UCB 探索）──
+    "exploration_weight": 0.3,         # >0 时按 UCB 探索项对冲马太偏斜（被派发少的大臣更优先）；0=纯历史成功率排序
 }
 
 
@@ -102,6 +104,7 @@ class SelfEvolveConfig:
     warm_start_from_memory: bool = False
     memory_recency_decay: float = 1.0
     memory_max_per_group: Optional[int] = None
+    exploration_weight: float = 0.3
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "SelfEvolveConfig":
@@ -141,6 +144,7 @@ class SelfEvolveConfig:
             memory_max_per_group=(
                 int(d["memory_max_per_group"])
                 if d.get("memory_max_per_group") is not None else None),
+            exploration_weight=float(d.get("exploration_weight", 0.3)),
         )
 
 

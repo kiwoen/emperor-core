@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import math
 import os
 import random
 from dataclasses import dataclass, field
@@ -81,18 +82,41 @@ def _rank_ministers(
     group: list,
     domain: str,
     mem_quality: dict,
+    dispatch_counts: Optional[Dict] = None,
+    exploration_weight: float = 0.0,
 ) -> list:
-    """按「该域历史成功率」对候选大臣降序排序，让最被证明的大臣优先拿到任务。
+    """按「该域历史成功率」对候选大臣降序排序，并用 UCB 探索项对冲马太效应。
 
     闭环关键：``mem_quality`` 来自已持久化的 :class:`CourtMemory`（Phase 12 记录 +
     本改进消费）。无记忆（或某大臣无历史）时回退为 0.5，Python ``sorted`` 稳定排序保证
     退化为「原序轮转」，与无经验时行为一致（无回归）。
+
+    当 ``exploration_weight > 0`` 且提供 ``dispatch_counts`` 时，排序键叠加 UCB
+    探索项::
+
+        q + exploration_weight * sqrt(ln(total + 1) / (count_i + 1))
+
+    其中 ``q`` 为历史成功率、``count_i`` 为该 (大臣,领域) 已派发次数、``total`` 为全局
+    已派发总数。被派发越少的大臣 ``count_i`` 越小 → 探索项越大 → 越优先被选中，从而打破
+    「成功者恒成功」的马太偏斜，让任务分布更均衡（熵正则）。``exploration_weight <= 0``
+    或 ``dispatch_counts`` 为空时退化为纯历史成功率排序（与旧行为完全一致，零回归）。
     """
-    return sorted(
-        group,
-        key=lambda m: mem_quality.get((m, domain), 0.5),
-        reverse=True,
-    )
+    if exploration_weight <= 0 or not dispatch_counts:
+        return sorted(
+            group,
+            key=lambda m: mem_quality.get((m, domain), 0.5),
+            reverse=True,
+        )
+
+    total = max(1, sum(dispatch_counts.values()))
+
+    def _key(m: str) -> float:
+        q = mem_quality.get((m, domain), 0.5)
+        c = dispatch_counts.get((m, domain), 0)
+        explore = exploration_weight * math.sqrt(math.log(total + 1) / (c + 1))
+        return q + explore
+
+    return sorted(group, key=_key, reverse=True)
 
 
 # ── 任务与执行器 ──────────────────────────────────────────────
@@ -342,6 +366,11 @@ class SelfEvolutionEngine:
         memory_recency_decay: float = 1.0,
         # 每 (大臣,领域) 留存上限；None=关（零回归）。超限丢弃最旧样本。
         memory_max_per_group: Optional[int] = None,
+        # ── 派发反偏置（熵正则 / UCB 探索）──
+        # 默认开启轻量探索，对冲「按历史成功率降序派发」导致的马太偏斜：
+        # 被派发少的大臣在 _rank_ministers 中获得更高 UCB 探索项，拿到更多任务机会，
+        # 让分布更均衡。设为 0 即退化为纯历史成功率排序（零回归）。
+        exploration_weight: float = 0.3,
     ) -> None:
         self.court = court
         self.executor = executor or GenomeDrivenExecutor()
@@ -396,6 +425,9 @@ class SelfEvolutionEngine:
         #    （边界化'只增不减'；None=关→零回归）。
         self._memory_recency_decay = max(0.0, min(1.0, float(memory_recency_decay)))
         self._memory_max_per_group = memory_max_per_group
+        # 派发反偏置：UCB 探索权重 + 跨轮累积的派发计数（驱动探索项，对抗马太偏斜）。
+        self._exploration_weight = max(0.0, float(exploration_weight))
+        self._dispatch_counts: Dict[tuple, int] = {}
 
     # ── 主循环 ────────────────────────────────────────────────
 
@@ -738,13 +770,28 @@ class SelfEvolutionEngine:
         # （最被证明的大臣优先拿任务 → 真实成败信号更干净），历史缺失时退化为轮转。
         assigned: dict = {m: [] for m in ministers}
         cursor: dict = {}
+        # 惰性恢复派发计数：resume 时已恢复经验记忆，但 _dispatch_counts 不持久化，
+        # 这里从现有经验记忆一次性重建，使探索项跨重启延续（不丢均衡状态）。
+        if not self._dispatch_counts and self._memory is not None:
+            for e in self._memory._entries:
+                k = (e.minister_name, e.domain)
+                self._dispatch_counts[k] = self._dispatch_counts.get(k, 0) + 1
+
         for task in self.tasks:
             group = by_domain.get(task.domain) or by_domain.get("general") or ministers
-            ordered = _rank_ministers(group, task.domain, mem_quality)
+            ordered = _rank_ministers(
+                group, task.domain, mem_quality,
+                dispatch_counts=self._dispatch_counts,
+                exploration_weight=self._exploration_weight,
+            )
             key = id(group)
             idx = cursor.get(key, 0) % len(ordered)
             cursor[key] = cursor.get(key, 0) + 1
-            assigned[ordered[idx]].append(task)
+            chosen = ordered[idx]
+            assigned[chosen].append(task)
+            # 累积派发计数 → 驱动下一轮 UCB 探索项，逐步均衡分布。
+            dk = (chosen, task.domain)
+            self._dispatch_counts[dk] = self._dispatch_counts.get(dk, 0) + 1
 
         # 兜底：无同领域任务的大臣（如 reasoning）用任意任务补一个，
         # 保证每个大臣都执行过真实任务，从而驱动其基因自我学习。

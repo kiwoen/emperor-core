@@ -1202,7 +1202,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   <div class="summary-card" id="sc-success">
     <div class="summary-icon">✅</div>
     <div class="summary-value" id="sv-success">--</div>
-    <div class="summary-label">成功率（1h）</div>
+    <div class="summary-label" id="sl-success">成功率（累计）</div>
   </div>
   <div class="summary-card" id="sc-alerts">
     <div class="summary-icon">🚨</div>
@@ -2479,6 +2479,10 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     var rate = data.success_rate;
     var rateClass = rate >= 95 ? 'success' : rate >= 80 ? 'warning' : 'danger';
     setSummaryValue('sv-success', rate != null ? rate + '%' : '--', rateClass);
+    // 主口径与学习曲线同源（全局累计）；近1h 作为 hover 副指标，避免两套数字打架。
+    var scEl = document.getElementById('sc-success');
+    if (scEl) scEl.title = '全局累计成功率（与学习曲线同源）｜近1小时: ' +
+      (data.success_rate_1h != null ? data.success_rate_1h + '%' : '--');
     setSummaryValue('sv-alerts', data.active_alerts);
     setSummaryValue('sv-healing', data.healings_today);
     setSummaryValue('sv-pipelines', data.pipelines_today);

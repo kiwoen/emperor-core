@@ -835,15 +835,21 @@ def create_app(
         snap = court.inspect.snapshot()
         active_ministers = snap.active_count
 
-        # ─── success rate (last hour) ───
+        # ─── success rate（全局累计，与学习曲线口径一致）───
+        # 左栏主口径 = court.success_rate（merit_board 全量累计），与
+        # /api/dashboard/evolution-learning-curve 的 success_rate 同源，避免
+        # 「左栏最近成功率」与「曲线平均成功率」两套数字互相打架。
+        success_rate = round(float(getattr(court, "success_rate", 0.0)) * 100, 1)
+
+        # ─── success rate (last hour) — 副指标，保留供 hover 显示 ───
         db = app.extra.get("db")
-        success_rate = 0.0
+        success_rate_1h = 0.0
         if db is not None:
             tasks = db.get_task_history(limit=10000)
             recent = [t for t in tasks if (now - t.get("timestamp", 0)) < 3600]
             total = len(recent)
             if total > 0:
-                success_rate = round(sum(1 for t in recent if t.get("success")) / total * 100, 1)
+                success_rate_1h = round(sum(1 for t in recent if t.get("success")) / total * 100, 1)
 
         # ─── active alerts (last hour) ───
         mgr = app.extra.get("alert_manager")
@@ -875,6 +881,7 @@ def create_app(
         return {
             "active_ministers": active_ministers,
             "success_rate": success_rate,
+            "success_rate_1h": success_rate_1h,
             "active_alerts": active_alerts,
             "healings_today": healings_today,
             "pipelines_today": pipelines_today,

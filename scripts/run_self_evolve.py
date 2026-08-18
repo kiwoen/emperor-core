@@ -251,6 +251,7 @@ def run_orchestrator(cfg: SelfEvolveConfig, out_dir: str = "telemetry",
         warm_start_from_memory=cfg.warm_start_from_memory,
         memory_recency_decay=cfg.memory_recency_decay,
         memory_max_per_group=cfg.memory_max_per_group,
+        exploration_weight=cfg.exploration_weight,
     )
 
     report = engine.run(n_cycles=cfg.cycles, tasks_per_minister=cfg.tasks_per_minister)
@@ -368,6 +369,8 @@ def main(argv=None) -> int:
                    help="历史成功率时间衰减系数（0<d<1=新鲜样本权重更高，1.0=等权，默认 1.0）")
     ap.add_argument("--memory-max-per-group", type=int, default=None,
                    help="每(大臣,领域)留存上限，超限丢弃最旧样本（默认不封顶）")
+    ap.add_argument("--exploration-weight", type=float, default=None,
+                   help="派发反偏置 UCB 探索权重（默认 0.3；0=纯历史成功率排序，关闭探索）")
     args = ap.parse_args(argv)
 
     # 配置：先加载 YAML，再用命令行覆盖
@@ -393,6 +396,8 @@ def main(argv=None) -> int:
         cfg.memory_recency_decay = float(args.memory_recency_decay)
     if args.memory_max_per_group is not None:
         cfg.memory_max_per_group = int(args.memory_max_per_group)
+    if args.exploration_weight is not None:
+        cfg.exploration_weight = float(args.exploration_weight)
 
     return run_orchestrator(cfg, out_dir=args.out, live=args.live,
                             no_writeback=args.no_writeback)
