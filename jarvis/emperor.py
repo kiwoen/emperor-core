@@ -1505,6 +1505,30 @@ class Emperor:
         if self.config.auto_seed_ministers:
             self._ensure_default_ministers()
 
+        # 启动即确保大臣基因多样化并落盘：
+        #  - 已有 genomes.json 的旧代码坍缩（同质基因 → 永久 [Diversity]
+        #    Crisis）在 _load_state 中已自愈；此处兜底覆盖 _load_state 未跑
+        #    的路径（如无 data_dir 时的内存态）。
+        #  - 全新部署则把 archetype 播种的多样化大臣立即持久化，避免被
+        #    SIGKILL 吞掉而未落盘。
+        try:
+            _court_dir = Path(
+                getattr(self.config, "court_path", "")
+                or getattr(self.config, "data_dir", "")
+                or "."
+            ).resolve()
+            _gp = (
+                Path(self._court._sm._genome_path)
+                if self._court._sm._genome_path
+                else (_court_dir / "genomes.json")
+            )
+            if self._court.redisperse_if_homogeneous() or not _gp.exists():
+                self._court.save_genomes(str(_gp))
+        except Exception:
+            logger.warning(
+                "[Emperor] 启动基因自检/落盘失败（已忽略）", exc_info=True
+            )
+
         # ── Initialize database persistence ────────────────────────
         import os
         from jarvis.database import Database
@@ -1792,6 +1816,24 @@ class Emperor:
         genomes_file = target / "genomes.json"
         if genomes_file.exists():
             self._court.load_genomes(str(genomes_file))
+            # 钉住基因文件路径，使随后的 save_genomes()（自愈 / 优雅关闭）
+            # 写回同一个文件，而非因 _genome_path 为空而静默丢弃。
+            self._court._sm._genome_path = str(genomes_file)
+            # 重启自愈：若已部署的大臣基因同质（旧代码的 groupthink 坍缩，
+            # 表现为永久 [Diversity] Crisis similarity=1.000），立即按
+            # archetype 再散布并落盘，使本轮 serve 在多样化种群上进化。
+            try:
+                if self._court.redisperse_if_homogeneous():
+                    self._court.save_genomes()
+                    logger.warning(
+                        "[Emperor] 启动检测到同质大臣基因，已自愈并落盘 %s",
+                        genomes_file,
+                    )
+            except Exception:
+                logger.warning(
+                    "[Emperor] 启动自愈失败（已忽略，不影响启动）",
+                    exc_info=True,
+                )
         history_file = target / "history.json"
         if history_file.exists():
             self._court.load_history(str(history_file))

@@ -167,6 +167,50 @@ class TestRestartSelfHeal:
         assert court.redisperse_if_homogeneous() is False
 
 
+class TestLoadStateHealPersists:
+    """Mirrors Emperor._load_state(): a deployed homogeneous genomes.json is
+    healed on boot AND written back so the cure survives the next restart."""
+
+    def _write_homogeneous_genomes(self, tmp_path, names):
+        payload = {
+            "version": 1,
+            "metadata": {},
+            "genomes": [
+                {
+                    "name": n, "domain": "general",
+                    "temperature": 0.7, "confidence_baseline": 0.85,
+                    "exploration_rate": 0.3, "conservatism": 0.5,
+                    "prompt_mutation_rate": 0.1, "specialization_weight": 1.0,
+                    "generation": 0, "parent": "",
+                }
+                for n in names
+            ],
+        }
+        p = tmp_path / "genomes.json"
+        p.write_text(json.dumps(payload))
+        return str(p)
+
+    def test_homogeneous_genomes_json_is_healed_and_persisted(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = self._write_homogeneous_genomes(
+                Path(d), ["m%d" % i for i in range(6)])
+
+            # --- first boot (emulates Emperor._load_state) ---
+            court = Court()
+            court.load_genomes(path)
+            court._sm._genome_path = path  # _load_state pins this before heal
+            assert genomic_diversity(court._sm._genomes) == 0.0
+            healed = court.redisperse_if_homogeneous()
+            assert healed is True
+            court.save_genomes()  # _load_state persists the cure
+
+            # --- next boot: reload the on-disk file ---
+            reloaded = Court()
+            reloaded.load_genomes(path)
+            # The persisted cure must survive the restart.
+            assert genomic_diversity(reloaded._sm._genomes) > 0.15
+
+
 class TestCrisisGateGenomicDriven:
     def _monitor(self):
         return DiversityMonitor()
