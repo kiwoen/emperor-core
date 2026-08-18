@@ -275,7 +275,7 @@ class GapAnalyzer:
     # Thresholds
     MIN_COVERAGE = 1        # at least 1 minister per domain
     MIN_AVG_MERIT = 35.0    # average merit below this = quality gap
-    MIN_DIVERSITY = 0.20    # diversity score below this = diversity gap
+    MIN_DIVERSITY = 0.18    # diversity score below this = diversity gap
     MAX_GAPS = 5            # cap gaps to avoid overwhelming breeding
 
     def __init__(
@@ -481,7 +481,7 @@ class StrategySelector:
             return BreedingStrategy.SPECIALIST
         elif gap.avg_merit < 25:
             return BreedingStrategy.SPECIALIZE
-        elif gap.diversity_score < 0.10:
+        elif gap.diversity_score < 0.18:
             return BreedingStrategy.EXPLORE
         else:
             return self._choose_strategy_weighted()

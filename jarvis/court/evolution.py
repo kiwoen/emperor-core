@@ -55,6 +55,14 @@ from jarvis.court.breeding import (  # noqa: E402
     StrategySelector,
     GenomeGenerator,
 )
+# Re-dispersion helpers cure the "[Diversity] Crisis similarity=1.000" collapse:
+# the four personality genes were seeded at defaults for every minister and never
+# evolved, so all ministers shared a byte-identical gene vector.
+from jarvis.court.genome_redispersal import (  # noqa: E402
+    archetype_for_index,
+    genomic_diversity,
+    redisperse,
+)
 
 
 class MinisterStatus(Enum):
@@ -522,8 +530,30 @@ class SurvivalMechanism:
         domain: str = "",
         temperature: float = 0.7,
         confidence_baseline: float = 0.85,
+        exploration_rate: Optional[float] = None,
+        conservatism: Optional[float] = None,
+        prompt_mutation_rate: Optional[float] = None,
+        specialization_weight: Optional[float] = None,
     ) -> None:
-        """Register a new minister for evolutionary tracking."""
+        """Register a new minister for evolutionary tracking.
+
+        The four "personality" genes (exploration_rate, conservatism,
+        prompt_mutation_rate, specialization_weight) are seeded from a
+        deterministic archetype rotation unless explicitly provided. This stops
+        every minister from starting with a byte-identical 6-gene vector — the
+        root cause of the "[Diversity] Crisis similarity=1.000" groupthink.
+        """
+        if (exploration_rate is None or conservatism is None
+                or prompt_mutation_rate is None or specialization_weight is None):
+            arch = archetype_for_index(len(self._genomes))
+            if exploration_rate is None:
+                exploration_rate = arch["exploration_rate"]
+            if conservatism is None:
+                conservatism = arch["conservatism"]
+            if prompt_mutation_rate is None:
+                prompt_mutation_rate = arch["prompt_mutation_rate"]
+            if specialization_weight is None:
+                specialization_weight = arch["specialization_weight"]
         self._statuses[name] = MinisterStatus.ACTIVE
         self._probation_cycles[name] = 0
         genome = MinisterGenome(
@@ -531,16 +561,25 @@ class SurvivalMechanism:
             domain=domain,
             temperature=temperature,
             confidence_baseline=confidence_baseline,
+            exploration_rate=exploration_rate,
+            conservatism=conservatism,
+            prompt_mutation_rate=prompt_mutation_rate,
+            specialization_weight=specialization_weight,
             generation=0,
         )
         self.set_genome(name, genome)
 
     def register_shadow(self, name: str, domain: str = "") -> None:
         """Register a shadow minister (trains but doesn't vote)."""
+        arch = archetype_for_index(len(self._genomes))
         self._statuses[name] = MinisterStatus.SHADOW
         self._probation_cycles[name] = 0
         self.set_genome(name, MinisterGenome(
             name=name, domain=domain, generation=0,
+            exploration_rate=arch["exploration_rate"],
+            conservatism=arch["conservatism"],
+            prompt_mutation_rate=arch["prompt_mutation_rate"],
+            specialization_weight=arch["specialization_weight"],
         ))
 
     # ------------------------------------------------------------------
@@ -627,7 +666,7 @@ class SurvivalMechanism:
             return
 
         self._auto_breeder.set_diversity_provider(
-            lambda: self.diversity.get_latest_score()
+            lambda: self.diversity.get_latest_genomic_diversity()
         )
         self._auto_breeder.set_merit_provider(
             lambda m: self._get_minister_merit(m)
@@ -768,14 +807,28 @@ class SurvivalMechanism:
 
         self._statuses[name] = MinisterStatus.SHADOW
         self._probation_cycles[name] = 0
+        # AutoBreeder emits abstract trait keys (creativity / thoroughness /
+        # speed / social_intelligence); map them onto the concrete MinisterGenome
+        # genes so bred ministers actually carry the diverse personality the
+        # breeder intended (otherwise they silently fall back to the frozen
+        # defaults and re-introduce homogeneity).
+        exploration_rate = genome.get(
+            "exploration_rate", genome.get("creativity", 0.3))
+        conservatism = genome.get(
+            "conservatism", genome.get("thoroughness", 0.5))
+        prompt_mutation_rate = genome.get(
+            "prompt_mutation_rate", genome.get("speed", 0.1))
+        specialization_weight = genome.get(
+            "specialization_weight", genome.get("social_intelligence", 1.0))
         self.set_genome(name, MinisterGenome(
             name=name,
             domain=domain,
             temperature=genome.get("temperature", 0.5),
             confidence_baseline=genome.get("confidence_baseline", 0.80),
-            exploration_rate=genome.get("exploration_rate", 0.3),
-            conservatism=genome.get("conservatism", 0.5),
-            specialization_weight=1.0,
+            exploration_rate=exploration_rate,
+            conservatism=conservatism,
+            prompt_mutation_rate=prompt_mutation_rate,
+            specialization_weight=specialization_weight,
             generation=generation,
             parent=parent,
         ))
@@ -1035,6 +1088,32 @@ class SurvivalMechanism:
         if not target:
             return [], {}
         return GenomeStore.load(target)
+
+    def redisperse_if_homogeneous(
+        self, threshold: float = 0.10,
+    ) -> bool:
+        """Restart self-heal for a deployed homogeneous population.
+
+        If the currently loaded population is genetically near-identical
+        (genomic diversity below ``threshold`` -- the symptom behind
+        ``[Diversity] Crisis similarity=1.000``), re-assign the four dormant
+        personality genes across distinct archetypes so the court is no longer a
+        monoculture. Mutates the live ``MinisterGenome`` objects in place.
+
+        Returns True if a re-dispersion was applied (so callers can log/save).
+        """
+        if not self._genomes:
+            return False
+        diversity = genomic_diversity(self._genomes)
+        if diversity >= threshold:
+            return False
+        redisperse(self._genomes, threshold)
+        logger.warning(
+            "[Evolution] 重启自愈：检测到种群基因同质化(多样性=%.3f<%.2f)，"
+            "已再散布 %d 名大臣",
+            diversity, threshold, len(self._genomes),
+        )
+        return True
 
     # ------------------------------------------------------------------
     # Step-by-step logic
@@ -1541,6 +1620,7 @@ class SurvivalMechanism:
         all_names = list(self._statuses.keys())
         plan = self.diversity.plan_catastrophe(
             self._genomes, merit_scores, active_names, all_names,
+            cycle_count=self._cycle_count,
         )
 
         return self._execute_catastrophe(plan)

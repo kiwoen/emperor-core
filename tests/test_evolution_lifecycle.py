@@ -18,6 +18,7 @@ import pytest
 
 from jarvis.court.config import SurvivalConfig
 from jarvis.court.evolution import SurvivalMechanism
+from jarvis.court.genome_redispersal import archetype_for_index
 from jarvis.court.genome_store import GenomeStore
 from jarvis.court.inspector import CourtInspector
 from jarvis.court.merit_board import MeritBoard
@@ -164,7 +165,15 @@ def test_genome_values_survive_persist_roundtrip(tmp_path: Path) -> None:
     custom = next(g for g in loaded if g.name == "custom")
     assert custom.temperature == 0.42
     assert custom.confidence_baseline == 0.88
-    assert custom.exploration_rate == 0.3  # default (not passed to register_minister)
+    # Unpassed personality genes are now seeded from a deterministic archetype
+    # (index 0 here, since "custom" is the first minister) rather than the frozen
+    # dataclass default. This is the deliberate fix for minister homogeneity —
+    # an unpassed gene must NOT collapse to the shared 0.3 default.
+    arch = archetype_for_index(0)
+    assert custom.exploration_rate == arch["exploration_rate"]
+    assert custom.conservatism == arch["conservatism"]
+    assert custom.prompt_mutation_rate == arch["prompt_mutation_rate"]
+    assert custom.specialization_weight == arch["specialization_weight"]
 
 
 # ── Error resilience ──────────────────────────────────────────────────

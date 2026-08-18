@@ -443,6 +443,14 @@ class SelfEvolutionEngine:
         if self._resume and os.path.exists(self._genome_state_path):
             try:
                 self.court.load_genomes(self._genome_state_path)
+                # 重启自愈：若检查点是同质化种群（[Diversity] Crisis similarity=1.000
+                # 危机），立即再散布 4 个沉睡的性格基因，避免重启后再次陷入危机。
+                # 治愈后的种群直接落盘，使 genome_state.json 永久修复。
+                if self.court.redisperse_if_homogeneous():
+                    try:
+                        self.court.save_genomes(self._genome_state_path)
+                    except Exception:
+                        logger.warning("[SelfEvolve] 重启自愈后落盘失败，将延后由检查点写入", exc_info=True)
                 logger.info("[SelfEvolve] 已从检查点恢复基因：%s", self._genome_state_path)
             except Exception:
                 logger.warning("[SelfEvolve] 检查点恢复失败，从初始基因开始", exc_info=True)

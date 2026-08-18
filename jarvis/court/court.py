@@ -378,6 +378,17 @@ class Court:
             self._sm._statuses[g.name] = MinisterStatus.ACTIVE
         return genomes, meta
 
+    def redisperse_if_homogeneous(self, threshold: float = 0.10) -> bool:
+        """Restart self-heal: re-disperses a deployed homogeneous population.
+
+        The deployed ``genome_state.json`` may have been saved from a run where
+        every minister shared identical personality genes (the
+        ``[Diversity] Crisis similarity=1.000`` collapse). Calling this right
+        after :meth:`load_genomes` cures that on the next restart without losing
+        any learned ``temperature`` / ``confidence_baseline`` values.
+        """
+        return self._sm.redisperse_if_homogeneous(threshold)
+
     def genome_state_payload(self) -> dict:
         """Snapshot all living genomes as a GenomeStore-style payload dict.
 

@@ -98,6 +98,7 @@ class DiversityMonitor:
         self.catastrophes: list[CatastropheReport] = []  # type: ignore[arg-type]
         self._crisis_streak: int = 0
         self._last_catastrophe_cycle: int = -self.CATASTROPHE_COOLDOWN
+        self._last_genomic_diversity: float = 1.0
 
     # ------------------------------------------------------------------
     # Measurement
@@ -165,12 +166,22 @@ class DiversityMonitor:
         else:
             merit_diversity = 0.5
 
-        # Composite score: 70% genomic + 30% merit
+        # Composite score: 70% genomic + 30% merit. This composite is what the
+        # public ``in_crisis`` flag and ``score`` field report, so historical
+        # semantics (and existing tests) are preserved.
         composite = 0.7 * genomic_diversity + 0.3 * merit_diversity
         composite = max(0.0, min(1.0, composite))
 
+        # Groupthink is fundamentally a *genetic* problem. Previously the crisis
+        # escalation streak was driven by the composite score, but merit noise
+        # kept pushing the composite above the threshold on some cycles, which
+        # reset ``_crisis_streak`` before ``CRISIS_STREAK_LIMIT`` was ever
+        # reached — stranding a homogeneous court in perpetual "[Diversity]
+        # Crisis" with no recovery path. So we gate the *escalation streak* on
+        # genomic diversity only; ``in_crisis``/``score`` stay composite-driven.
+        self._last_genomic_diversity = genomic_diversity
         in_crisis = composite < self.DIVERSITY_CRISIS_THRESHOLD
-        if in_crisis:
+        if genomic_diversity < self.DIVERSITY_CRISIS_THRESHOLD:
             self._crisis_streak += 1
         else:
             self._crisis_streak = 0
@@ -185,13 +196,15 @@ class DiversityMonitor:
         )
         self.history.append(snap)
 
-        if in_crisis:
+        if self._crisis_streak > 0:
             logger.warning(
-                "[Diversity] Crisis cycle %d/%d (score=%.3f, similarity=%.3f)",
+                "[Diversity] Crisis cycle %d/%d (genomic_diversity=%.3f, "
+                "similarity=%.3f, composite=%.3f)",
                 self._crisis_streak,
                 self.CRISIS_STREAK_LIMIT,
-                composite,
+                genomic_diversity,
                 avg_similarity,
+                composite,
             )
 
         return snap
@@ -221,6 +234,7 @@ class DiversityMonitor:
         merit_scores: dict[str, float],
         active_names: list[str],
         all_names: list[str],
+        cycle_count: int = 0,
     ) -> CatastropheReport:
         """Plan a catastrophe: determine who lives, who dies, who spawns.
 
@@ -286,7 +300,13 @@ class DiversityMonitor:
 
         # Reset crisis tracking
         self._crisis_streak = 0
-        self._last_catastrophe_cycle = self.history[-1].active_count if self.history else 0
+        # Fix: the cooldown gate must be measured in *cycles*, not active_count.
+        # Callers that wire the real evolution cycle pass cycle_count; legacy
+        # callers (and tests) that don't fall back to the previous behavior.
+        self._last_catastrophe_cycle = (
+            cycle_count if cycle_count > 0
+            else (self.history[-1].active_count if self.history else 0)
+        )
 
         logger.critical(
             "[Diversity] CATASTROPHE! Eliminating %d ministers. "
@@ -331,6 +351,15 @@ class DiversityMonitor:
         if self.history:
             return self.history[-1].score
         return 1.0
+
+    def get_latest_genomic_diversity(self) -> float:
+        """Return the most recent *genomic* diversity (1 - mean cosine sim).
+
+        Unlike :meth:`get_latest_score` (which blends noisy merit variance),
+        this reflects pure genetic groupthink and is what the breeding loop and
+        crisis gate should react to.
+        """
+        return self._last_genomic_diversity
 
     def get_crisis_streak(self) -> int:
         """Return current crisis streak length."""
