@@ -34,8 +34,8 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger("jarvis.court_api")
@@ -72,6 +72,10 @@ from jarvis.rbac import RBACEngine, Permission, Role, intent_to_permission
 from jarvis.api.token_guard import add_token_auth
 # 多用户 / 会话 / token 用量存储层
 from jarvis.api import auth_store
+# 鉴权依赖（get_current_user / require_admin，提炼自本模块闭包，供单测与复用）
+from jarvis.api.deps import get_current_user, require_admin
+# 能力服务：文件上传 / 联网搜索 / 图文识别
+from jarvis.capabilities import UploadStore, WebSearchService, build_vision_processor
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -105,11 +109,37 @@ class ChatRequest(BaseModel):
         default="你是 Emperor Core —— 一个会自我进化的 AI 助手，回答简洁、准确、有帮助。",
         description="系统提示词",
     )
+    web_search: bool = Field(default=False, description="是否开启联网搜索")
+    image_url: Optional[str] = Field(default=None, description="图片 URL（视觉识别）")
+    file_id: Optional[str] = Field(default=None, description="已上传文件引用（图片→视觉；pdf/txt/md→抽取文本）")
 
 
 class AuthRequest(BaseModel):
     username: str
     password: str
+
+
+class VisionRequest(BaseModel):
+    image_url: Optional[str] = None
+    file_id: Optional[str] = None
+    prompt: str = Field(default="Describe this image in detail.", description="视觉提问提示词")
+
+
+class SearchRequest(BaseModel):
+    query: str
+    limit: int = Field(default=5, ge=1, le=10)
+
+
+class AdminSetBannedRequest(BaseModel):
+    banned: bool = True
+
+
+class AdminResetPasswordRequest(BaseModel):
+    password: str = Field(..., min_length=6)
+
+
+class AdminSetQuotaRequest(BaseModel):
+    quota: Optional[dict] = None  # None = 不限额
 
 
 class ConversationCreate(BaseModel):
@@ -382,6 +412,32 @@ def _get_llm_manager():
     return _llm_manager
 
 
+# 图片扩展名（用于判断上传文件是否走视觉识别）
+_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
+
+
+def _read_file_text(path: str, ext: str) -> str:
+    """从已上传文件中抽取文本（txt/md 直读；pdf 走 PyPDF2）。
+
+    失败返回可读占位文案而非抛异常（能力服务降级原则）。
+    """
+    limit = 8000
+    try:
+        if ext in (".txt", ".md"):
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                return f.read()[:limit]
+        if ext == ".pdf":
+            import PyPDF2
+
+            with open(path, "rb") as f:
+                reader = PyPDF2.PdfReader(f)
+                pages = [page.extract_text() or "" for page in reader.pages]
+            return "\n\n".join(pages)[:limit]
+    except Exception as e:  # noqa: BLE001
+        logger.warning("文件文本抽取失败（%s）：%s", ext, e)
+    return f"[文件文本抽取失败：{ext}]"
+
+
 # ── Background evolution job state (non-blocking /api/evolution/run) ──
 _evo_lock = threading.Lock()
 _evo_job: dict = {
@@ -452,24 +508,33 @@ def create_app(
     auth_store.ensure_admin(admin_user, admin_pass)
     logger.info("已确保管理员账号存在：username=%s", admin_user)
     # 强制会话登录鉴权（详见 jarvis/api/token_guard.py）
-    add_token_auth(app, session_validator=auth_store.is_session_valid)
+    add_token_auth(
+        app,
+        session_validator=auth_store.is_session_valid,
+        public_paths=(
+            "/health",
+            "/api/auth/login",
+            "/api/auth/register",
+            "/",
+            "/dashboard",
+            "/dashboard/legacy",
+        ),
+    )
 
-    # ── 当前用户解析（从 Bearer / ?token= 取出会话用户；全局 admin token 视为 admin 用户）──
+    # ── token 解析（供 logout 等场景复用；鉴权主依赖已提炼至 jarvis/api/deps.py）──
     def _extract_token(request: Request) -> str:
         header = request.headers.get("Authorization", "")
         if header.startswith("Bearer "):
             return header[7:].strip()
         return request.query_params.get("token", "")
 
-    def get_current_user(request: Request) -> dict:
-        """返回当前登录用户 dict；匿名/无效则 401（强制会话登录）。"""
-        token = _extract_token(request)
-        if not token:
-            raise HTTPException(401, "未提供会话令牌")
-        user = auth_store.get_session_user(token)
-        if user is None:
-            raise HTTPException(401, "无效或过期的会话令牌，请重新登录")
-        return user
+    # ── 能力服务实例（文件上传 / 联网搜索 / 图文识别）──
+    upload_store = UploadStore()
+    search_service = WebSearchService()
+    vision_processor = build_vision_processor()
+    app.extra["upload_store"] = upload_store
+    app.extra["search_service"] = search_service
+    app.extra["vision_processor"] = vision_processor
 
     if court is None:
         court = Court()
@@ -1041,9 +1106,25 @@ def create_app(
     # 多用户：鉴权 / 会话 / token 用量
     # ══════════════════════════════════════════════════════════════════
     @app.post("/api/auth/register")
-    def auth_register():
-        """注册已关闭（单用户部署，仅管理员账号可用）。"""
-        raise HTTPException(403, "注册已关闭（单用户部署，仅管理员账号可用）")
+    def auth_register(req: AuthRequest):
+        """开放注册（EMPEROR_OPEN_REGISTRATION 开关，默认 1）。注册成功即自动登录。"""
+        open_flag = str(os.getenv("EMPEROR_OPEN_REGISTRATION", "1") or "1").strip().lower()
+        if open_flag not in ("1", "true", "yes", "on"):
+            raise HTTPException(403, "注册已关闭（管理员可在环境变量中开放）")
+        username = (req.username or "").strip()
+        if not username or not req.password:
+            raise HTTPException(400, "用户名与密码均不能为空")
+        if len(req.password) < 6:
+            raise HTTPException(400, "密码至少 6 位")
+        if auth_store.get_user_by_username(username) is not None:
+            raise HTTPException(409, "用户名已存在")
+        try:
+            uid = auth_store.create_user(username, req.password)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        token = auth_store.create_session(uid)
+        user = auth_store.get_user(uid)
+        return {"ok": True, "token": token, "user": user}
 
     @app.post("/api/auth/login")
     def auth_login(req: AuthRequest):
@@ -1064,6 +1145,128 @@ def create_app(
     def api_me(user: dict = Depends(get_current_user)):
         usage = auth_store.get_user_usage(user["id"])
         return {"ok": True, "user": user, "usage": usage}
+
+    # ══════════════════════════════════════════════════════════════════
+    # 能力：文件上传 / 下载 / 联网搜索 / 图文识别 / 管理员后台
+    # ══════════════════════════════════════════════════════════════════
+    @app.post("/api/upload")
+    async def api_upload(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+        """上传文件（白名单 + MIME/扩展双验 + 大小限制 + UUID 重命名）。"""
+        try:
+            content = await file.read()
+        except Exception:  # noqa: BLE001
+            raise HTTPException(400, "读取上传文件失败")
+        try:
+            meta = upload_store.save(
+                user["id"], file.filename or "upload", content, file.content_type or ""
+            )
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        try:
+            auth_store.add_capability_usage(user["id"], "upload", meta["size"], "bytes", meta["name"])
+        except Exception:  # noqa: BLE001 - 计量失败不影响上传
+            pass
+        return {"ok": True, "file": meta}
+
+    @app.get("/api/files/{file_id}")
+    def api_get_file(file_id: str, user: dict = Depends(get_current_user)):
+        """下载已上传文件（属主校验，越权一律 404）。"""
+        path = upload_store.resolve(file_id)
+        meta = upload_store.get_meta(file_id)
+        if path is None or meta is None or meta.get("user_id") != user["id"]:
+            raise HTTPException(404, "文件不存在或无权访问")
+        return FileResponse(
+            path,
+            media_type=meta.get("content_type") or "application/octet-stream",
+            filename=meta.get("name"),
+        )
+
+    @app.post("/api/search")
+    def api_search(req: SearchRequest, user: dict = Depends(get_current_user)):
+        """真实联网搜索（DuckDuckGo），无网络/无库时结构化降级。"""
+        results, degraded = search_service.search(req.query, max_results=req.limit)
+        if results:
+            try:
+                auth_store.add_capability_usage(
+                    user["id"], "search", len(results), "calls", req.query[:200]
+                )
+            except Exception:  # noqa: BLE001
+                pass
+        return {"ok": True, "results": results, "degraded": degraded}
+
+    @app.post("/api/vision")
+    def api_vision(req: VisionRequest, user: dict = Depends(get_current_user)):
+        """图文识别：图片 URL 或已上传图片文件 → 结构化文字描述。"""
+        if vision_processor is None:
+            return {
+                "ok": True,
+                "caption": "视觉识别不可用：未配置 vision 模型密钥（如 GROQ_API_KEY）",
+                "raw": "",
+                "usage": {},
+                "degraded": True,
+            }
+        image_input: Optional[str] = None
+        if req.file_id:
+            path = upload_store.resolve(req.file_id)
+            meta = upload_store.get_meta(req.file_id)
+            if path is None or meta is None or meta.get("user_id") != user["id"]:
+                raise HTTPException(404, "文件不存在或无权访问")
+            image_input = str(path)
+        elif req.image_url:
+            image_input = req.image_url
+        if not image_input:
+            raise HTTPException(400, "请提供 image_url 或 file_id")
+        try:
+            result = vision_processor.process(image_input, prompt=req.prompt)
+        except Exception as e:  # noqa: BLE001 - 视觉调用失败也降级，绝不 500
+            logger.warning("视觉识别调用失败：%s", e, exc_info=True)
+            return {
+                "ok": True,
+                "caption": f"视觉识别失败：{e}",
+                "raw": "",
+                "usage": {},
+                "degraded": True,
+            }
+        backend = getattr(vision_processor, "_llm", None)
+        usage = dict(getattr(backend, "last_usage", {}) or {})
+        try:
+            auth_store.add_capability_usage(user["id"], "vision", 1, "calls", req.prompt[:200])
+            pt = int(usage.get("prompt_tokens", 0) or 0)
+            ct = int(usage.get("completion_tokens", 0) or 0)
+            if pt or ct:
+                auth_store.add_token_usage(user["id"], pt, ct)
+        except Exception:  # noqa: BLE001
+            pass
+        return {"ok": True, "caption": result.get("caption", ""), "raw": result.get("raw", ""), "usage": usage}
+
+    @app.get("/api/admin/users")
+    def admin_list_users(admin: dict = Depends(require_admin)):
+        """管理员：用户列表。"""
+        return {"ok": True, "users": auth_store.list_users()}
+
+    @app.post("/api/admin/users/{user_id}/ban")
+    def admin_ban(user_id: int, req: AdminSetBannedRequest, admin: dict = Depends(require_admin)):
+        if not auth_store.set_user_banned(user_id, req.banned):
+            raise HTTPException(404, "用户不存在")
+        return {"ok": True}
+
+    @app.post("/api/admin/users/{user_id}/unban")
+    def admin_unban(user_id: int, admin: dict = Depends(require_admin)):
+        if not auth_store.set_user_banned(user_id, False):
+            raise HTTPException(404, "用户不存在")
+        return {"ok": True}
+
+    @app.post("/api/admin/users/{user_id}/password")
+    def admin_reset_password(user_id: int, req: AdminResetPasswordRequest, admin: dict = Depends(require_admin)):
+        if not auth_store.set_user_password(user_id, req.password):
+            raise HTTPException(404, "用户不存在")
+        return {"ok": True}
+
+    @app.put("/api/admin/users/{user_id}/quota")
+    def admin_set_quota(user_id: int, req: AdminSetQuotaRequest, admin: dict = Depends(require_admin)):
+        if not auth_store.set_user_quota(user_id, req.quota):
+            raise HTTPException(404, "用户不存在")
+        return {"ok": True}
 
     @app.get("/api/conversations")
     def list_convs(user: dict = Depends(get_current_user)):
@@ -1105,8 +1308,32 @@ def create_app(
 
         mgr = _get_llm_manager()
         prompt = req.message.strip()
-        if not prompt:
+        if not prompt and not req.file_id and not req.image_url:
             raise HTTPException(400, "message is required")
+
+        # 视觉 caption 抽取（图片 URL / 图片文件共用；失败降级为可读文案）
+        def _vision_caption(image_input: str) -> str:
+            if vision_processor is None:
+                return "[视觉识别不可用：未配置 vision 模型密钥（如 GROQ_API_KEY）]"
+            try:
+                result = vision_processor.process(
+                    image_input, prompt="请详细描述这张图片，并提取图中可见的文字。"
+                )
+                caption = result.get("caption", "")
+                backend = getattr(vision_processor, "_llm", None)
+                usage = dict(getattr(backend, "last_usage", {}) or {})
+                try:
+                    auth_store.add_capability_usage(user["id"], "vision", 1, "calls", "")
+                    pt = int(usage.get("prompt_tokens", 0) or 0)
+                    ct = int(usage.get("completion_tokens", 0) or 0)
+                    if pt or ct:
+                        auth_store.add_token_usage(user["id"], pt, ct)
+                except Exception:  # noqa: BLE001
+                    pass
+                return caption
+            except Exception as e:  # noqa: BLE001
+                logger.warning("聊天视觉识别失败：%s", e)
+                return f"[视觉识别失败：{e}]"
 
         # 历史来源：优先数据库持久化会话，否则用前端内存态 history（兼容）
         conv_id = req.conversation_id
@@ -1125,8 +1352,53 @@ def create_app(
                     auth_store.add_message(conv_id, "user", prompt, 0, 0)
                 except Exception:  # noqa: BLE001
                     pass
+
+            final_prompt = prompt or "请分析我上传的文件/图片。"
+            sources: list[dict] = []
+            context_blocks: list[str] = []
+
+            # ① 联网搜索：注入搜索结果上下文 + 下发 sources 事件
+            if req.web_search and prompt:
+                results, degraded = search_service.search(prompt, max_results=5)
+                if results:
+                    sources = [
+                        {"title": r.get("title", ""), "url": r.get("url", "")}
+                        for r in results
+                        if r.get("url")
+                    ]
+                    ctx_lines = [
+                        f"[{i + 1}] {r.get('title', '')}\n{r.get('url', '')}\n{r.get('snippet', '')}"
+                        for i, r in enumerate(results)
+                    ]
+                    context_blocks.append("【联网搜索结果】\n" + "\n\n".join(ctx_lines))
+                    try:
+                        auth_store.add_capability_usage(
+                            user["id"], "search", len(results), "calls", req.message[:200]
+                        )
+                    except Exception:  # noqa: BLE001
+                        pass
+
+            # ② 文件 / 图片：注入视觉 caption 或文件文本
+            if req.file_id:
+                path = upload_store.resolve(req.file_id)
+                meta = upload_store.get_meta(req.file_id)
+                if path is not None and meta is not None and meta.get("user_id") == user["id"]:
+                    ext = meta.get("ext", "")
+                    if ext in _IMAGE_EXTS:
+                        context_blocks.append("【图片识别结果】\n" + _vision_caption(str(path)))
+                    else:
+                        context_blocks.append("【文件内容】\n" + _read_file_text(str(path), ext))
+            elif req.image_url:
+                context_blocks.append("【图片识别结果】\n" + _vision_caption(req.image_url))
+
+            if context_blocks:
+                final_prompt = final_prompt + "\n\n" + "\n\n".join(context_blocks)
+
+            if sources:
+                yield f"data: {_json.dumps({'sources': sources}, ensure_ascii=False)}\n\n"
+
             try:
-                answer = await mgr.complete(prompt, system=req.system, history=history_ctx)
+                answer = await mgr.complete(final_prompt, system=req.system, history=history_ctx)
                 usage = dict(getattr(mgr, "last_usage", {}) or {})
             except Exception as e:  # noqa: BLE001
                 answer = f"[模型调用失败] {e}"

@@ -1,0 +1,54 @@
+classDiagram
+    class UploadStore {
+        +ALLOWED_EXTENSIONS : set[str]
+        +ALLOWED_MIME : dict[str, str]
+        +__init__(base_dir: str = None)
+        +save(user_id, filename, content: bytes, content_type) dict
+        +resolve(file_id) Optional[Path]
+        +get_meta(file_id) Optional[dict]
+        +delete(file_id) bool
+    }
+
+    class WebSearchService {
+        -_provider : str
+        -_max_results : int
+        -_timeout : int
+        +available() bool
+        +search(query, max_results=None) tuple[list[dict], bool]
+    }
+
+    class VisionBackend {
+        -_backends : list[dict]
+        +chat_sync(prompt="", messages=None, system="") str
+    }
+
+    class VisionProcessor {
+        +DEFAULT_SYSTEM : str
+        +__init__(llm_engine=None)
+        +process(image_input, prompt="", system="") dict
+    }
+
+    class auth_store {
+        +init_db()
+        +migrate_schema()
+        +create_user(username, password, is_admin=False) int
+        +verify_user(username, password) Optional[dict]
+        +is_session_valid(token) Optional[int]
+        +get_session_user(token) Optional[dict]
+        +list_users() list[dict]
+        +set_user_banned(user_id, banned) bool
+        +set_user_password(user_id, password) bool
+        +set_user_quota(user_id, quota_json) bool
+        +is_user_banned(user_id) bool
+        +add_token_usage(user_id, pt, ct)
+        +add_capability_usage(user_id, kind, amount, unit="", detail="")
+        +get_capability_usage(user_id, kind=None) dict
+    }
+
+    class deps {
+        +get_current_user(request) dict
+        +require_admin(user) dict
+    }
+
+    VisionBackend ..> VisionProcessor : 注入（llm_engine 适配）
+    deps ..> auth_store : 调用

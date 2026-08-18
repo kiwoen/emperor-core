@@ -31,6 +31,10 @@
 - 管理员账号在应用启动时由 ``EMPEROR_ADMIN_USER`` / ``EMPEROR_ADMIN_PASS``
   （回退到 ``EMPEROR_API_TOKEN`` 值）种入，见 ``jarvis/court_api.py``。
 - ``/health`` 始终放行，保证 Docker / 云平台健康检查探针可用。
+
+多用户开放注册说明：``/api/auth/register`` 已在默认 ``public_paths`` 中放行
+（无需改动逻辑）；是否真正开放注册由 ``court_api.py`` 内读取
+``EMPEROR_OPEN_REGISTRATION`` 开关决定（关闭时返回 403）。
 """
 from __future__ import annotations
 

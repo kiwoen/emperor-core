@@ -31,3 +31,9 @@ python-dotenv>=1.0.0
 # ── LLM 网关（保留：让"填个 API Key 就能接真模型"无需重建镜像）──
 # 代码中 `import litellm` 均在函数内部，删掉这行服务依然可离线 mock 运行。
 litellm>=1.40.0
+
+# ── 多用户能力扩展（联网搜索 / 文件上传 / 图文识别）────────────────
+# 注意：pillow/PyPDF2 在 requirements.txt 已存在，这里补齐容器运行时的最小集。
+duckduckgo-search>=6.0.0
+pillow>=10.0.0
+PyPDF2>=3.0.0

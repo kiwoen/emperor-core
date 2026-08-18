@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import secrets
 import sqlite3
@@ -53,6 +54,8 @@ def init_db() -> None:
                 pw_hash      TEXT NOT NULL,
                 pw_salt      TEXT NOT NULL,
                 is_admin     INTEGER NOT NULL DEFAULT 0,
+                banned       INTEGER NOT NULL DEFAULT 0,
+                quota        TEXT,
                 created_at   REAL NOT NULL,
                 last_active  REAL NOT NULL
             );
@@ -89,12 +92,56 @@ def init_db() -> None:
                 at          REAL NOT NULL,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
+            CREATE TABLE IF NOT EXISTS capability_usage (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id     INTEGER NOT NULL,
+                kind        TEXT NOT NULL,
+                amount      REAL NOT NULL DEFAULT 0,
+                unit        TEXT NOT NULL DEFAULT '',
+                detail      TEXT NOT NULL DEFAULT '',
+                at          REAL NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
             CREATE INDEX IF NOT EXISTS idx_conv_user ON conversations(user_id);
             CREATE INDEX IF NOT EXISTS idx_msg_conv ON messages(conversation_id);
             CREATE INDEX IF NOT EXISTS idx_sess_user ON sessions(user_id);
             CREATE INDEX IF NOT EXISTS idx_ledger_user ON token_ledger(user_id);
+            CREATE INDEX IF NOT EXISTS idx_cap_user ON capability_usage(user_id);
             """
         )
+        c.commit()
+    # 幂等迁移：老库补 banned/quota 列 + capability_usage 表（在新库上同样是 no-op）
+    migrate_schema()
+
+
+def migrate_schema() -> None:
+    """幂等升级数据库结构（可在老库上安全重复调用）。
+
+    1. 为 ``users`` 表补充 ``banned`` / ``quota`` 列（若不存在）；
+    2. 建 ``capability_usage`` 表，用于统一计量 search/upload/vision 等非 token 类能力用量。
+    """
+    with _lock:
+        c = _get_conn()
+        cols = {r[1] for r in c.execute("PRAGMA table_info(users)").fetchall()}
+        if "banned" not in cols:
+            c.execute("ALTER TABLE users ADD COLUMN banned INTEGER NOT NULL DEFAULT 0")
+        if "quota" not in cols:
+            c.execute("ALTER TABLE users ADD COLUMN quota TEXT")
+        c.execute(
+            """
+            CREATE TABLE IF NOT EXISTS capability_usage (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id     INTEGER NOT NULL,
+                kind        TEXT NOT NULL,
+                amount      REAL NOT NULL DEFAULT 0,
+                unit        TEXT NOT NULL DEFAULT '',
+                detail      TEXT NOT NULL DEFAULT '',
+                at          REAL NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+            """
+        )
+        c.execute("CREATE INDEX IF NOT EXISTS idx_cap_user ON capability_usage(user_id)")
         c.commit()
 
 
@@ -140,6 +187,9 @@ def verify_user(username: str, password: str) -> Optional[dict]:
         salt = bytes.fromhex(row["pw_salt"])
         if _hash_password(password, salt) != row["pw_hash"]:
             return None
+        # 封禁用户禁止登录
+        if "banned" in row.keys() and row["banned"]:
+            return None
         c.execute("UPDATE users SET last_active=? WHERE id=?", (_now(), row["id"]))
         c.commit()
         return _row_to_user(row)
@@ -151,11 +201,25 @@ def get_user(user_id: int) -> Optional[dict]:
         return _row_to_user(row) if row else None
 
 
+def _parse_quota(raw: Any) -> Optional[dict]:
+    """把库中存储的 quota JSON 文本解析为 dict；空 / 非法一律返回 None（=不限额）。"""
+    if raw in (None, ""):
+        return None
+    try:
+        parsed = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
 def _row_to_user(row) -> dict:
+    keys = row.keys()
     return {
         "id": row["id"],
         "username": row["username"],
         "is_admin": bool(row["is_admin"]),
+        "banned": bool(row["banned"]) if "banned" in keys else False,
+        "quota": _parse_quota(row["quota"]) if "quota" in keys else None,
         "created_at": row["created_at"],
         "last_active": row["last_active"],
     }
@@ -218,7 +282,13 @@ def is_session_valid(token: str) -> Optional[int]:
 
 def get_session_user(token: str) -> Optional[dict]:
     uid = is_session_valid(token)
-    return get_user(uid) if uid else None
+    if not uid:
+        return None
+    user = get_user(uid)
+    # 封禁用户的会话立即失效（get_current_user 依赖此返回 None → 401）
+    if user is None or user.get("banned"):
+        return None
+    return user
 
 
 def delete_session(token: str) -> None:
@@ -375,3 +445,86 @@ def get_user_by_username(username: str) -> Optional[dict]:
     with _lock:
         row = _get_conn().execute("SELECT * FROM users WHERE username=?", (username.strip(),)).fetchone()
         return _row_to_user(row) if row else None
+
+
+# ── 管理员辅助 ──
+def list_users() -> list[dict]:
+    """返回全部用户（按注册顺序），供管理员后台展示。"""
+    with _lock:
+        rows = _get_conn().execute("SELECT * FROM users ORDER BY id ASC").fetchall()
+    return [_row_to_user(r) for r in rows]
+
+
+def set_user_banned(user_id: int, banned: bool) -> bool:
+    """封禁 / 解封用户。返回是否命中（用户存在）。"""
+    with _lock:
+        c = _get_conn()
+        n = c.execute(
+            "UPDATE users SET banned=? WHERE id=?", (1 if banned else 0, user_id)
+        ).rowcount
+        c.commit()
+    return n > 0
+
+
+def set_user_password(user_id: int, password: str) -> bool:
+    """管理员重置用户密码（pbkdf2 加盐哈希）。"""
+    if not password:
+        return False
+    salt = secrets.token_bytes(16)
+    pw_hash = _hash_password(password, salt)
+    with _lock:
+        c = _get_conn()
+        n = c.execute(
+            "UPDATE users SET pw_hash=?, pw_salt=? WHERE id=?",
+            (pw_hash, salt.hex(), user_id),
+        ).rowcount
+        c.commit()
+    return n > 0
+
+
+def set_user_quota(user_id: int, quota_json: Optional[dict]) -> bool:
+    """设置用户配额（None / 空 = 不限额，仅落库，本轮不实现拦截规则）。"""
+    raw = json.dumps(quota_json, ensure_ascii=False) if quota_json is not None else None
+    with _lock:
+        c = _get_conn()
+        n = c.execute("UPDATE users SET quota=? WHERE id=?", (raw, user_id)).rowcount
+        c.commit()
+    return n > 0
+
+
+def is_user_banned(user_id: int) -> bool:
+    with _lock:
+        row = _get_conn().execute("SELECT banned FROM users WHERE id=?", (user_id,)).fetchone()
+    return bool(row["banned"]) if row else False
+
+
+# ── 能力用量计量（search / upload / vision 等非 token 类）──
+def add_capability_usage(user_id: int, kind: str, amount: float = 0, unit: str = "", detail: str = "") -> None:
+    """记录一次能力调用（幂等、轻量；计量失败绝不影响主流程）。"""
+    with _lock:
+        c = _get_conn()
+        c.execute(
+            "INSERT INTO capability_usage (user_id, kind, amount, unit, detail, at) "
+            "VALUES (?,?,?,?,?,?)",
+            (user_id, kind, float(amount or 0), unit or "", detail or "", _now()),
+        )
+        c.commit()
+
+
+def get_capability_usage(user_id: int, kind: Optional[str] = None) -> dict:
+    """按 kind 聚合用量：{kind: {total, calls}}；kind 为空则返回全部。"""
+    with _lock:
+        c = _get_conn()
+        if kind:
+            rows = c.execute(
+                "SELECT kind, COALESCE(SUM(amount),0) AS total, COUNT(*) AS calls "
+                "FROM capability_usage WHERE user_id=? AND kind=? GROUP BY kind",
+                (user_id, kind),
+            ).fetchall()
+        else:
+            rows = c.execute(
+                "SELECT kind, COALESCE(SUM(amount),0) AS total, COUNT(*) AS calls "
+                "FROM capability_usage WHERE user_id=? GROUP BY kind",
+                (user_id,),
+            ).fetchall()
+    return {r["kind"]: {"total": r["total"], "calls": r["calls"]} for r in rows}

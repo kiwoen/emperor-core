@@ -159,6 +159,47 @@ def generate_chat_html(api_base: str = "http://127.0.0.1:8000") -> str:
   .auth-submit{width:100%;background:var(--accent);color:#fff;border-radius:11px;padding:11px;font-weight:600;font-size:14px;margin-top:4px}
   .auth-submit:hover{filter:brightness(1.05)}
   .auth-err{color:var(--danger);font-size:12px;min-height:16px;margin-top:8px;text-align:center}
+
+  /* ── Composer 工具条 / 上传 / 联网开关 ── */
+  .composer-tools{display:flex;align-items:center;gap:8px;max-width:780px;margin:0 auto 8px;padding:0 4px}
+  .chip-btn{background:var(--bg-elev);border:1px solid var(--border);color:var(--text-dim);border-radius:999px;padding:5px 12px;font-size:12px}
+  .chip-btn.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+  .file-chip{display:inline-flex;align-items:center;gap:4px;background:var(--bg-elev);border:1px solid var(--border);
+    border-radius:999px;padding:5px 12px;font-size:12px;color:var(--text);max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .composer .attach{flex:0 0 38px;width:38px;height:38px;border-radius:11px;border:1px solid var(--border);
+    background:var(--bg-input);color:var(--text);font-size:17px;display:flex;align-items:center;justify-content:center}
+  .composer .attach:hover{border-color:var(--accent);color:var(--accent)}
+
+  /* ── 文件卡片 / 图片缩略图 / 来源链接 ── */
+  .msg.user .body.has-attach{background:transparent;padding:0}
+  .msg.user .bubble{background:var(--user-bubble);padding:10px 14px;border-radius:14px;width:fit-content;max-width:100%;margin-top:8px}
+  .file-card{display:flex;align-items:center;gap:10px;background:var(--bg-elev);border:1px solid var(--border);
+    border-radius:12px;padding:8px 10px;max-width:340px;box-shadow:var(--shadow)}
+  .file-card .thumb{width:56px;height:56px;border-radius:8px;object-fit:cover;border:1px solid var(--border);flex:0 0 56px}
+  .file-card .file-ico{width:40px;height:40px;font-size:26px;display:flex;align-items:center;justify-content:center;flex:0 0 40px}
+  .file-meta{min-width:0}
+  .file-meta .fname{font-size:13px;font-weight:600;word-break:break-all}
+  .file-meta .fsize{font-size:11px;color:var(--text-dim)}
+  .sources{margin-top:10px;display:flex;flex-direction:column;gap:4px}
+  .sources .st{font-size:11px;color:var(--text-dim);margin-bottom:2px}
+  .sources .src{font-size:12px}
+  .sources .src a{color:var(--info);text-decoration:none;word-break:break-all}
+  .sources .src a:hover{text-decoration:underline}
+
+  /* ── 管理员面板 ── */
+  .admincard{width:560px;max-width:94vw;max-height:80vh;display:flex;flex-direction:column;background:var(--bg);
+    border:1px solid var(--border);border-radius:18px;padding:22px;box-shadow:0 12px 40px rgba(0,0,0,.2)}
+  .admincard h3{margin:0 0 14px;font-size:17px;display:flex;align-items:center;justify-content:space-between}
+  .admincard .close{background:none;border:none;color:var(--text-dim);font-size:20px}
+  .admin-list{overflow:auto;display:flex;flex-direction:column;gap:8px}
+  .arow{display:flex;align-items:center;gap:10px;background:var(--bg-input);border:1px solid var(--border);border-radius:12px;padding:10px 12px}
+  .ainfo{flex:1;min-width:0}
+  .ainfo b{font-size:14px}
+  .ainfo .asub{font-size:11px;color:var(--text-dim)}
+  .aacts{display:flex;gap:6px}
+  .aacts button{font-size:12px;border:1px solid var(--border);border-radius:8px;padding:5px 9px;color:var(--text);background:var(--bg-elev)}
+  .aacts button:hover{border-color:var(--accent);color:var(--accent)}
+  .aacts button.danger:hover{border-color:var(--danger);color:var(--danger)}
 </style>
 </head>
 <body>
@@ -197,6 +238,7 @@ def generate_chat_html(api_base: str = "http://127.0.0.1:8000") -> str:
       <div class="spacer"></div>
       <button class="tbtn primary" onclick="runRounds()">⚡ 运行进化轮次</button>
       <button class="tbtn" onclick="toggleInsight()">📈 进化看板</button>
+      <button class="tbtn" id="adminBtn" style="display:none" onclick="toggleAdmin()">🛡️ 用户管理</button>
       <button class="tbtn" id="themeBtn" onclick="toggleTheme()">🌙</button>
     </div>
     <div class="chat" id="chat">
@@ -214,7 +256,13 @@ def generate_chat_html(api_base: str = "http://127.0.0.1:8000") -> str:
       </div>
     </div>
     <div class="composer">
+      <div class="composer-tools">
+        <button class="chip-btn" id="webToggle" onclick="toggleWeb()" title="开启后基于实时互联网信息回答">🌐 联网搜索</button>
+        <span class="file-chip" id="fileChip" style="display:none"></span>
+      </div>
       <div class="box">
+        <input type="file" id="fileInput" accept=".jpg,.jpeg,.png,.webp,.txt,.md,.pdf" style="display:none" onchange="onFilePicked(event)" />
+        <button class="attach" id="attachBtn" onclick="document.getElementById('fileInput').click()" title="上传文件（图片/文档）">📎</button>
         <textarea id="input" rows="1" placeholder="给 Emperor Core 发消息…（Enter 发送，Shift+Enter 换行）" oninput="autoGrow()" onkeydown="onKey(event)"></textarea>
         <button class="send" id="sendBtn" onclick="send()">↑</button>
       </div>
@@ -241,15 +289,28 @@ def generate_chat_html(api_base: str = "http://127.0.0.1:8000") -> str:
   </div>
 </aside>
 
-<!-- Login modal -->
+<!-- Login / Register modal -->
 <div class="overlay" id="overlay" style="display:none">
   <div class="authcard">
+    <div class="tabs">
+      <button id="tabLogin" class="on" onclick="switchTab('login')">登录</button>
+      <button id="tabReg" onclick="switchTab('register')">注册</button>
+    </div>
     <h2 id="authTitle">登录</h2>
-    <div class="sub">单用户部署 · 使用你的管理员账号登录</div>
+    <div class="sub" id="authSub">使用你的账号登录 Emperor Core</div>
     <div class="field"><label>用户名</label><input id="authUser" autocomplete="username" placeholder="用户名" /></div>
-    <div class="field"><label>密码</label><input id="authPass" type="password" autocomplete="current-password" placeholder="管理员密码" /></div>
-    <button class="auth-submit" onclick="submitAuth()">进入</button>
+    <div class="field"><label>密码</label><input id="authPass" type="password" autocomplete="current-password" placeholder="密码" /></div>
+    <div class="field" id="authConfirmField" style="display:none"><label>确认密码</label><input id="authConfirm" type="password" placeholder="再次输入密码" /></div>
+    <button class="auth-submit" id="authSubmitBtn" onclick="submitAuth()">进入</button>
     <div class="auth-err" id="authErr"></div>
+  </div>
+</div>
+
+<!-- Admin panel modal -->
+<div class="overlay" id="adminOverlay" style="display:none">
+  <div class="admincard">
+    <h3>🛡️ 用户管理 <button class="close" onclick="toggleAdmin()">×</button></h3>
+    <div class="admin-list" id="adminList"><div class="empty">加载中…</div></div>
   </div>
 </div>
 
@@ -260,7 +321,7 @@ const SYS_PROMPT = "你是 Emperor Core —— 一个会自我进化的 AI 助�
 const URL_TOKEN = new URLSearchParams(location.search).get('token');
 let TOKEN = localStorage.getItem('ec_token') || URL_TOKEN || '';
 let Q = TOKEN ? ('?token='+encodeURIComponent(TOKEN)) : '';
-const state = { user:null, usage:{}, currentConv:null, busy:false, evoRunning:false };
+const state = { user:null, usage:{}, currentConv:null, busy:false, evoRunning:false, webSearch:false, pendingFile:null };
 
 function setToken(t){ TOKEN=t; Q = t ? ('?token='+encodeURIComponent(t)) : ''; localStorage.setItem('ec_token', t); }
 function authHeaders(){ return TOKEN ? {'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json'} : {'Content-Type':'application/json'}; }
@@ -293,6 +354,8 @@ function onKey(e){ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(
 function scrollChat(){ const c=document.getElementById('chat'); c.scrollTop=c.scrollHeight; }
 function fmtTime(ts){ if(!ts) return '—'; const d=new Date(ts*1000); return d.toLocaleString(); }
 function fmtNum(n){ n=Number(n||0); return n>=1000 ? (n/1000).toFixed(1)+'k' : ''+n; }
+function fmtSize(n){ n=Number(n||0); if(n<1024) return n+' B'; if(n<1048576) return (n/1024).toFixed(1)+' KB'; return (n/1048576).toFixed(1)+' MB'; }
+function isImageExt(ext){ return ['.jpg','.jpeg','.png','.webp'].indexOf(ext)>=0; }
 
 function mdLite(text){
   let out=''; const re=/```(?:[a-zA-Z0-9]*)\n([\s\S]*?)```/g; let last=0; let m;
@@ -307,19 +370,38 @@ function mdLite(text){
 }
 
 /* ── Auth modal ── */
+let authMode = 'login';
 function showLogin(){ document.getElementById('overlay').style.display='flex'; }
 function closeLogin(){ document.getElementById('overlay').style.display='none'; }
+function switchTab(mode){
+  authMode = mode;
+  const isReg = mode==='register';
+  document.getElementById('tabLogin').classList.toggle('on', !isReg);
+  document.getElementById('tabReg').classList.toggle('on', isReg);
+  document.getElementById('authTitle').textContent = isReg ? '注册' : '登录';
+  document.getElementById('authSub').textContent = isReg ? '创建新账号，注册成功后自动登录' : '使用你的账号登录 Emperor Core';
+  document.getElementById('authConfirmField').style.display = isReg ? 'flex' : 'none';
+  document.getElementById('authPass').placeholder = isReg ? '设置密码（至少 6 位）' : '密码';
+  document.getElementById('authSubmitBtn').textContent = isReg ? '注册并进入' : '进入';
+  document.getElementById('authErr').textContent = '';
+}
 async function submitAuth(){
   const u=document.getElementById('authUser').value.trim();
   const p=document.getElementById('authPass').value;
   const err=document.getElementById('authErr');
   if(!u||!p){ err.textContent='请输入用户名和密码'; return; }
+  if(authMode==='register'){
+    if(p.length<6){ err.textContent='密码至少 6 位'; return; }
+    const c=document.getElementById('authConfirm').value;
+    if(p!==c){ err.textContent='两次输入的密码不一致'; return; }
+  }
+  const path = authMode==='register' ? '/api/auth/register' : '/api/auth/login';
   try{
-    const res = await fetch(API+'/api/auth/login'+Q, {method:'POST',
+    const res = await fetch(API+path+Q, {method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({username:u, password:p})});
     const j = await res.json().catch(()=>({}));
-    if(!res.ok){ err.textContent = j.detail || ('登录失败：'+res.status); return; }
+    if(!res.ok){ err.textContent = j.detail || ((authMode==='register'?'注册':'登录')+'失败：'+res.status); return; }
     if(j.token){ setToken(j.token); }
     closeLogin(); await boot();
   }catch(e){ err.textContent='网络错误：'+e; }
@@ -338,6 +420,7 @@ function renderUser(){
   document.getElementById('uav').textContent=(u.username||'U').slice(0,1).toUpperCase();
   document.getElementById('uname').textContent=u.username||'—';
   document.getElementById('ubadge').style.display = u.is_admin ? 'inline-block' : 'none';
+  const ab=document.getElementById('adminBtn'); if(ab) ab.style.display = u.is_admin ? 'inline-block' : 'none';
   const us=state.usage||{};
   document.getElementById('utok').textContent = fmtNum(us.total_tokens||0);
   document.getElementById('uconv').textContent = us.conversations||0;
@@ -427,23 +510,96 @@ function addMsg(role, content, streaming=true){
   return body;
 }
 
+/* 用户消息（可带文件卡片 / 图片缩略图）*/
+function addUserMsg(text, file){
+  const box=document.getElementById('messages');
+  const w=document.getElementById('welcome'); if(w) w.remove();
+  const d=document.createElement('div'); d.className='msg user';
+  let bodyHtml='';
+  if(file){
+    const isImg=isImageExt(file.ext);
+    bodyHtml += '<div class="file-card">' +
+      (isImg ? '<img class="thumb" src="'+API+'/api/files/'+file.id+Q+'" alt="'+esc(file.name)+'" />'
+             : '<div class="file-ico">📄</div>') +
+      '<div class="file-meta"><div class="fname">'+esc(file.name)+'</div>'+
+      '<div class="fsize">'+fmtSize(file.size)+' · '+String(file.ext||'').replace('.','').toUpperCase()+'</div></div></div>';
+  }
+  if(text){ bodyHtml += '<div class="bubble">'+esc(text)+'</div>'; }
+  d.innerHTML='<div class="av">你</div><div class="body'+(file?' has-attach':'')+'">'+bodyHtml+'</div>';
+  box.appendChild(d); scrollChat();
+  return d;
+}
+
+/* 来源链接（解析 SSE sources 事件）*/
+function renderSources(body, sources){
+  if(!sources || !sources.length) return;
+  const el=document.createElement('div'); el.className='sources';
+  el.innerHTML='<div class="st">🔗 来源</div>' +
+    sources.map(s=>'<div class="src"><a href="'+esc(s.url)+'" target="_blank" rel="noopener">'+esc(s.title||s.url)+'</a></div>').join('');
+  body.appendChild(el);
+}
+
+/* 联网搜索开关 */
+function toggleWeb(){
+  state.webSearch = !state.webSearch;
+  const b=document.getElementById('webToggle');
+  b.classList.toggle('on', state.webSearch);
+  b.textContent = state.webSearch ? '🌐 已开启联网' : '🌐 联网搜索';
+}
+
+/* 文件上传 */
+async function onFilePicked(e){
+  const f = e.target.files && e.target.files[0];
+  e.target.value='';
+  if(!f) return;
+  if(!state.user){ showLogin(); return; }
+  const chip=document.getElementById('fileChip');
+  chip.style.display='inline-flex'; chip.textContent='📎 上传中…';
+  try{
+    const fd=new FormData(); fd.append('file', f);
+    const res=await fetch(API+'/api/upload'+Q, {method:'POST',
+      headers: TOKEN ? {'Authorization':'Bearer '+TOKEN} : {}, body:fd});
+    const j=await res.json().catch(()=>({}));
+    if(res.status===401){ showLogin(); chip.style.display='none'; return; }
+    if(!res.ok){ chip.textContent='❌ '+(j.detail||('上传失败：'+res.status)); setTimeout(()=>chip.style.display='none',4000); return; }
+    state.pendingFile = j.file;
+    chip.textContent='📎 '+j.file.name;
+  }catch(e){ chip.textContent='❌ 上传失败：'+e; }
+}
+
 async function send(){
-  const ta=document.getElementById('input'); const text=ta.value.trim(); if(!text||state.busy) return;
+  const ta=document.getElementById('input'); const text=ta.value.trim();
+  const file = state.pendingFile;
+  if((!text && !file) || state.busy) return;
   if(!state.user){ showLogin(); return; }
   if(!state.currentConv){ // 自动建会话
-    try{ const j=(await (await apiPost('/api/conversations',{title:text.slice(0,30)||'新对话'})).json()); state.currentConv=j.id; await loadConversations(); }
+    const title = text ? text.slice(0,30) : (file ? file.name.slice(0,30) : '新对话');
+    try{ const j=(await (await apiPost('/api/conversations',{title:title})).json()); state.currentConv=j.id; await loadConversations(); }
     catch(e){ return; }
   }
-  addMsg('user', esc(text));
+  addUserMsg(text, file);
   ta.value=''; autoGrow();
+  const isImg = file && isImageExt(file.ext);
   const body=addMsg('assistant', '', true);
+  if(isImg){ body.innerHTML='<div class="typing"><span></span><span></span><span></span></div><div style="font-size:12px;color:var(--text-dim);margin-top:6px">🖼️ 正在识别图片…</div>'; }
   state.busy=true; document.getElementById('sendBtn').disabled=true;
-  let acc='';
+  let acc=''; let lastSources=null;
+  const payload = {
+    message: text,
+    conversation_id: state.currentConv,
+    system: SYS_PROMPT,
+    web_search: state.webSearch,
+    file_id: file ? file.id : null,
+    image_url: null,
+  };
+  // 清空待发送附件
+  state.pendingFile=null; document.getElementById('fileChip').style.display='none';
   try{
     const res = await fetch(API+'/api/chat'+Q, {method:'POST', headers:authHeaders(),
-      body: JSON.stringify({message:text, conversation_id: state.currentConv, system: SYS_PROMPT})});
+      body: JSON.stringify(payload)});
     if(res.status===401){ showLogin(); throw new Error('unauthorized'); }
-    const reader=res.body.getReader(); const dec=new TextDecoder(); let buf=''; let lastUsage=null;
+    if(!res.ok){ const j=await res.json().catch(()=>({})); throw new Error(j.detail||('HTTP '+res.status)); }
+    const reader=res.body.getReader(); const dec=new TextDecoder(); let buf='';
     while(true){
       const {done,value}=await reader.read(); if(done) break;
       buf+=dec.decode(value,{stream:true});
@@ -454,13 +610,13 @@ async function send(){
           const p=line.slice(6).trim();
           if(p==='[DONE]') continue;
           try{ const j=JSON.parse(p);
-            if(j.delta){ acc+=j.delta; body.innerHTML=mdLite(acc); scrollChat(); }
-            if(j.usage){ lastUsage=j.usage; }
+            if(j.sources){ lastSources=j.sources; }
+            if(j.delta){ acc+=j.delta; body.innerHTML=mdLite(acc); if(lastSources) renderSources(body,lastSources); scrollChat(); }
           }catch(e){}
         }
       }
     }
-    if(!acc) body.textContent='（无回复）';
+    if(!acc){ body.innerHTML='（无回复）'; if(lastSources) renderSources(body,lastSources); }
     // 刷新用量 + 会话列表（updated_at 变化）
     await refreshMe(); await loadConversations();
   }catch(e){ body.textContent='请求失败：'+e; }
@@ -469,6 +625,46 @@ async function send(){
 
 async function refreshMe(){
   try{ const j=(await (await apiGet('/api/me')).json()); state.user=j.user; state.usage=j.usage||{}; renderUser(); }catch(e){}
+}
+
+/* ── Admin panel ── */
+async function toggleAdmin(){
+  const ov=document.getElementById('adminOverlay');
+  const show = ov.style.display==='none' || !ov.style.display;
+  ov.style.display = show ? 'flex' : 'none';
+  if(show) await loadAdminUsers();
+}
+async function loadAdminUsers(){
+  const el=document.getElementById('adminList');
+  try{
+    const j=await (await apiGet('/api/admin/users')).json();
+    const users=j.users||[];
+    el.innerHTML = users.length ? users.map(u=>
+      '<div class="arow"><div class="ainfo"><b>'+esc(u.username)+'</b>'+
+      (u.is_admin?' <span class="badge">ADMIN</span>':'')+
+      (u.banned?' <span style="color:var(--danger);font-size:11px">已封禁</span>':'')+
+      '<div class="asub">ID '+u.id+' · 配额 '+(u.quota?esc(JSON.stringify(u.quota)):'不限额')+'</div></div>'+
+      '<div class="aacts">'+
+      (u.banned ? '<button onclick="adminUnban('+u.id+')">解封</button>'
+                : '<button class="danger" onclick="adminBan('+u.id+')">封禁</button>')+
+      '<button onclick="adminResetPw('+u.id+')">重置密码</button>'+
+      '<button onclick="adminSetQuota('+u.id+')">配额</button>'+
+      '</div></div>'
+    ).join('') : '<div class="empty">暂无用户</div>';
+  }catch(e){ el.innerHTML='<div class="empty">加载失败：'+e+'</div>'; }
+}
+async function adminBan(id){ try{ await apiPost('/api/admin/users/'+id+'/ban',{banned:true}); await loadAdminUsers(); }catch(e){ alert('封禁失败：'+e); } }
+async function adminUnban(id){ try{ await apiPost('/api/admin/users/'+id+'/unban'); await loadAdminUsers(); }catch(e){ alert('解封失败：'+e); } }
+async function adminResetPw(id){
+  const p=prompt('为该用户设置新密码（至少 6 位）：'); if(p===null) return;
+  if(p.length<6){ alert('密码至少 6 位'); return; }
+  try{ await apiPost('/api/admin/users/'+id+'/password',{password:p}); alert('密码已重置'); }catch(e){ alert('重置失败：'+e); }
+}
+async function adminSetQuota(id){
+  const q=prompt('输入配额 JSON（留空=不限额），例如 {"max_conversations":100}'); if(q===null) return;
+  let quota=null;
+  if(q.trim()){ try{ quota=JSON.parse(q); }catch(e){ alert('JSON 格式错误'); return; } }
+  try{ await apiPut('/api/admin/users/'+id+'/quota',{quota:quota}); await loadAdminUsers(); }catch(e){ alert('设置失败：'+e); }
 }
 
 /* ── Run evolution rounds (async + progress polling) ── */
