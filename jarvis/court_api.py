@@ -1358,10 +1358,34 @@ def create_app(
             context_blocks: list[str] = []
             web_search_degraded = False
             web_search_reason = ""
+            search_query_used = ""
 
-            # ① 联网搜索：注入搜索结果上下文 + 下发 sources/degraded 事件
+            # ① 联网搜索：改写 query → 搜索 → 注入结果上下文 + 下发 sources/degraded 事件
             if req.web_search and prompt:
-                results, degraded, reason = search_service.search(prompt, max_results=5)
+                # 1) 查询改写：长 prompt 用 LLM 改成干净搜索词，短 prompt 直接用
+                #    用户口语化提问（如"我要求的AI领域"）会污染搜索引擎分词，
+                #    导致搜出一堆无关结果 → LLM 机械复述 = "答非所问"。
+                search_query = prompt.strip()
+                if len(search_query) > 8:
+                    try:
+                        rewrite_resp = await mgr.complete(
+                            "用户的口语化提问：\n"
+                            f"{prompt}\n\n"
+                            "请改写成一个简洁、适合搜索引擎的中文关键词查询（≤15字）。\n"
+                            "要求：去掉口语化表达（'我'/'你'/'帮'/'吗'/'请'/'的'/'能'等），"
+                            "聚焦核心信息需求，保留关键实体。\n"
+                            "只输出改写后的查询词，不要任何标点符号、引号或解释。",
+                            system="你是查询改写助手，只输出改写后的查询词本身。",
+                        )
+                        new_q = (rewrite_resp or "").strip().strip('"').strip("'").strip("【】").strip("「」").strip()
+                        if "\n" not in new_q and 2 <= len(new_q) <= 20 and not new_q.startswith(("用户", "请", "原", "提问")):
+                            search_query = new_q
+                    except Exception:
+                        pass  # 改写失败 → 用原 prompt
+                search_query_used = search_query
+
+                # 2) 搜索
+                results, degraded, reason = search_service.search(search_query, max_results=5)
                 if results:
                     sources = [
                         {"title": r.get("title", ""), "url": r.get("url", "")}
@@ -1372,7 +1396,18 @@ def create_app(
                         f"[{i + 1}] {r.get('title', '')}\n{r.get('url', '')}\n{r.get('snippet', '')}"
                         for i, r in enumerate(results)
                     ]
-                    context_blocks.append("【联网搜索结果】\n" + "\n\n".join(ctx_lines))
+                    context_blocks.append(
+                        "【联网搜索】\n"
+                        f"用户原问题：{prompt}\n"
+                        f"已用查询词「{search_query}」检索到 {len(results)} 条结果。\n"
+                        "⚠️ 重要约束：\n"
+                        "1. 先逐条判断每条结果是否真正与用户问题相关；"
+                        "若不相关，直接忽略，不要为凑数而复述。\n"
+                        "2. 若全部结果都不相关，请明确告知用户「未能从联网搜索中找到相关信息」，"
+                        "并建议用户换更具体的关键词；不要勉强回答、不要编造。\n"
+                        "3. 基于相关信息做有深度的综合分析和总结，不要直接复述原文。\n\n"
+                        "结果列表：\n" + "\n\n".join(ctx_lines)
+                    )
                     try:
                         auth_store.add_capability_usage(
                             user["id"], "search", len(results), "calls", req.message[:200]

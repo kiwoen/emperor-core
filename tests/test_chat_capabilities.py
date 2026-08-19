@@ -5,6 +5,9 @@
 * /api/vision 未登录 → 401
 * /api/chat web_search:true → SSE 含 sources 事件
 * /api/chat web_search 失败 → LLM prompt 含硬约束 + SSE 含 search_degraded 事件
+* /api/chat web_search 长 prompt → LLM 改写 query 后再搜（避免口语化污染）
+* /api/chat web_search 短 prompt → 不改写，直接用原 prompt 搜
+* /api/chat web_search 改写失败 → fallback 原 prompt 搜
 * /api/chat file_id(txt) → 文件文本注入 LLM prompt
 * /api/chat file_id 属主隔离 → 他人文件文本不被注入
 """
@@ -164,3 +167,93 @@ class TestChatFileInjection:
         assert llm.prompts, "LLM 未被调用"
         # B 不是文件属主 → 文件内容不应注入其 prompt
         assert "超级机密" not in llm.prompts[-1]
+
+
+class TestChatSearchRewrite:
+    """联网搜索的 query 改写（避免口语化污染搜索引擎分词）。"""
+
+    def _mock_search_returning(self, results):
+        """构造一个 mock search，捕获被调用的 query。"""
+        state = {"called_with": None}
+        def fake(self, query, max_results=None):
+            state["called_with"] = query
+            return results, False, ""
+        return fake, state
+
+    def test_long_prompt_triggers_rewrite_and_shortens_query(self, client_and_llm, monkeypatch):
+        """长口语 prompt 触发改写：搜索 query ≠ 原 prompt，注入 prompt 含「判断相关性」硬约束。"""
+        client, llm = client_and_llm
+        token = _register(client, "searcher_rewrite")
+        fake, state = self._mock_search_returning(
+            [{"title": "t", "url": "https://x.com", "snippet": "s"}]
+        )
+        monkeypatch.setattr(WebSearchService, "search", fake)
+        # 改写 LLM 调用返回干净 query
+        original_complete = llm.complete
+        async def rewrite_then_answer(prompt, system=None, history=None):
+            self.prompts = getattr(self, "prompts", llm.prompts)
+            if "口语化" in prompt:
+                return "AI领域新闻"  # 干净 query
+            return await original_complete(prompt, system=system, history=history)
+        llm.complete = rewrite_then_answer
+
+        r = client.post(
+            "/api/chat",
+            json={"message": "我要求的AI领域最近有哪些新事件", "web_search": True},
+            headers=_auth(token),
+        )
+        assert r.status_code == 200
+        # 搜索 query 已被改写
+        assert state["called_with"] == "AI领域新闻"
+        assert state["called_with"] != "我要求的AI领域最近有哪些新事件"
+        # 注入 prompt 含「用户原问题」+「判断相关性」硬约束
+        last = llm.prompts[-1]
+        assert "用户原问题" in last
+        assert "我要求的AI领域" in last
+        assert ("判断" in last and "相关" in last)
+        assert "AI领域新闻" in last  # 改写后 query 也写入
+
+    def test_short_prompt_no_rewrite(self, client_and_llm, monkeypatch):
+        """短 prompt（≤8 字符）跳过改写，直接搜原 prompt。"""
+        client, llm = client_and_llm
+        token = _register(client, "searcher_short")
+        fake, state = self._mock_search_returning(
+            [{"title": "t", "url": "https://x.com", "snippet": "s"}]
+        )
+        monkeypatch.setattr(WebSearchService, "search", fake)
+        # 如果意外触发改写，会在 prompt 里出现「口语化」，断言它没出现
+        r = client.post(
+            "/api/chat",
+            json={"message": "严海清", "web_search": True},
+            headers=_auth(token),
+        )
+        assert r.status_code == 200
+        assert state["called_with"] == "严海清"
+        # 只有 1 次 LLM 调用（生成回答），没有改写调用
+        assert len(llm.prompts) == 1
+        assert "口语化" not in llm.prompts[0]
+
+    def test_rewrite_failure_falls_back_to_original_prompt(self, client_and_llm, monkeypatch):
+        """改写调用抛异常时，fallback 到原 prompt 搜索（不阻断主流程）。"""
+        client, llm = client_and_llm
+        token = _register(client, "searcher_fail")
+        fake, state = self._mock_search_returning(
+            [{"title": "t", "url": "https://x.com", "snippet": "s"}]
+        )
+        monkeypatch.setattr(WebSearchService, "search", fake)
+        # 第一次 LLM 调用（改写）抛异常
+        original_complete = llm.complete
+        async def fail_rewrite(prompt, system=None, history=None):
+            if "口语化" in prompt:
+                raise RuntimeError("LLM 临时不可用")
+            return await original_complete(prompt, system=system, history=history)
+        llm.complete = fail_rewrite
+
+        r = client.post(
+            "/api/chat",
+            json={"message": "我要求的AI领域新闻", "web_search": True},
+            headers=_auth(token),
+        )
+        assert r.status_code == 200
+        # fallback：搜索用的就是原 prompt
+        assert state["called_with"] == "我要求的AI领域新闻"
