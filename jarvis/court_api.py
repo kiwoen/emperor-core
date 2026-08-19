@@ -1183,8 +1183,8 @@ def create_app(
 
     @app.post("/api/search")
     def api_search(req: SearchRequest, user: dict = Depends(get_current_user)):
-        """真实联网搜索（DuckDuckGo），无网络/无库时结构化降级。"""
-        results, degraded = search_service.search(req.query, max_results=req.limit)
+        """真实联网搜索（DuckDuckGo 多 backend 容错），无网络/无库时结构化降级。"""
+        results, degraded, reason = search_service.search(req.query, max_results=req.limit)
         if results:
             try:
                 auth_store.add_capability_usage(
@@ -1192,7 +1192,7 @@ def create_app(
                 )
             except Exception:  # noqa: BLE001
                 pass
-        return {"ok": True, "results": results, "degraded": degraded}
+        return {"ok": True, "results": results, "degraded": degraded, "reason": reason}
 
     @app.post("/api/vision")
     def api_vision(req: VisionRequest, user: dict = Depends(get_current_user)):
@@ -1356,10 +1356,12 @@ def create_app(
             final_prompt = prompt or "请分析我上传的文件/图片。"
             sources: list[dict] = []
             context_blocks: list[str] = []
+            web_search_degraded = False
+            web_search_reason = ""
 
-            # ① 联网搜索：注入搜索结果上下文 + 下发 sources 事件
+            # ① 联网搜索：注入搜索结果上下文 + 下发 sources/degraded 事件
             if req.web_search and prompt:
-                results, degraded = search_service.search(prompt, max_results=5)
+                results, degraded, reason = search_service.search(prompt, max_results=5)
                 if results:
                     sources = [
                         {"title": r.get("title", ""), "url": r.get("url", "")}
@@ -1377,6 +1379,18 @@ def create_app(
                         )
                     except Exception:  # noqa: BLE001
                         pass
+                else:
+                    # 搜索失败：给 LLM 明确硬约束 + 给前端 degraded 事件，
+                    # 避免 LLM 在没有真实来源的情况下自由发挥（编论文/编链接）。
+                    web_search_degraded = True
+                    web_search_reason = reason or "搜索服务暂不可用"
+                    context_blocks.append(
+                        "【联网搜索不可用】\n"
+                        f"原因：{web_search_reason}。\n"
+                        "⚠️ 严格约束：本次回答不得编造任何 URL、论文标题、新闻出处、人名/公司名/年份等事实。"
+                        "若仅依据已有知识无法给出准确答案，请明确告知用户「该信息无法通过联网核实」，"
+                        "并建议用户提供更具体的关键词或换用其他信息源。"
+                    )
 
             # ② 文件 / 图片：注入视觉 caption 或文件文本
             if req.file_id:
@@ -1396,6 +1410,18 @@ def create_app(
 
             if sources:
                 yield f"data: {_json.dumps({'sources': sources}, ensure_ascii=False)}\n\n"
+            if web_search_degraded:
+                yield (
+                    "data: "
+                    + _json.dumps(
+                        {
+                            "search_degraded": True,
+                            "reason": web_search_reason,
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n\n"
+                )
 
             try:
                 answer = await mgr.complete(final_prompt, system=req.system, history=history_ctx)

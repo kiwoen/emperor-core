@@ -185,6 +185,10 @@ def generate_chat_html(api_base: str = "http://127.0.0.1:8000") -> str:
   .sources .src{font-size:12px}
   .sources .src a{color:var(--info);text-decoration:none;word-break:break-all}
   .sources .src a:hover{text-decoration:underline}
+  .search-degraded{margin-top:8px;padding:8px 10px;background:rgba(245,158,11,.08);border-left:3px solid #f59e0b;border-radius:4px;font-size:12px;color:var(--text-dim)}
+  .search-degraded b{color:#f59e0b;display:block;margin-bottom:2px}
+  .search-degraded .reason{font-family:monospace;font-size:11px;color:var(--text-dim);opacity:.85;margin:2px 0 4px}
+  .search-degraded .hint{font-size:11px;opacity:.7}
 
   /* ── 管理员面板 ── */
   .admincard{width:560px;max-width:94vw;max-height:80vh;display:flex;flex-direction:column;background:var(--bg);
@@ -539,6 +543,16 @@ function renderSources(body, sources){
   body.appendChild(el);
 }
 
+/* 联网搜索降级提示（SSE search_degraded 事件）*/
+function renderSearchDegraded(reason){
+  const node=document.createElement('div'); node.className='search-degraded';
+  const r = (reason||'').replace(/[<>&]/g, c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+  node.innerHTML='<b>⚠️ 联网搜索不可用</b><div class="reason">'+esc(r)+'</div>'+
+    '<div class="hint">模型将仅依据已有知识回答，不会伪造来源。</div>';
+  searchDegraded={reason:reason,_node:node};
+  return node.outerHTML;
+}
+
 /* 联网搜索开关 */
 function toggleWeb(){
   state.webSearch = !state.webSearch;
@@ -583,7 +597,7 @@ async function send(){
   const body=addMsg('assistant', '', true);
   if(isImg){ body.innerHTML='<div class="typing"><span></span><span></span><span></span></div><div style="font-size:12px;color:var(--text-dim);margin-top:6px">🖼️ 正在识别图片…</div>'; }
   state.busy=true; document.getElementById('sendBtn').disabled=true;
-  let acc=''; let lastSources=null;
+  let acc=''; let lastSources=null; let searchDegraded=null;
   const payload = {
     message: text,
     conversation_id: state.currentConv,
@@ -611,7 +625,12 @@ async function send(){
           if(p==='[DONE]') continue;
           try{ const j=JSON.parse(p);
             if(j.sources){ lastSources=j.sources; }
-            if(j.delta){ acc+=j.delta; body.innerHTML=mdLite(acc); if(lastSources) renderSources(body,lastSources); scrollChat(); }
+            if(j.search_degraded){
+              searchDegraded = j;
+              body.innerHTML=mdLite(acc) + renderSearchDegraded(j.reason||'');
+              scrollChat(); continue;
+            }
+            if(j.delta){ acc+=j.delta; body.innerHTML=mdLite(acc); if(lastSources) renderSources(body,lastSources); if(searchDegraded) body.appendChild(searchDegraded._node); scrollChat(); }
           }catch(e){}
         }
       }

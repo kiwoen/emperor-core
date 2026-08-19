@@ -4,6 +4,7 @@
 * /api/vision 无 GROQ_API_KEY → 200 可读降级（非 500）
 * /api/vision 未登录 → 401
 * /api/chat web_search:true → SSE 含 sources 事件
+* /api/chat web_search 失败 → LLM prompt 含硬约束 + SSE 含 search_degraded 事件
 * /api/chat file_id(txt) → 文件文本注入 LLM prompt
 * /api/chat file_id 属主隔离 → 他人文件文本不被注入
 """
@@ -84,6 +85,7 @@ class TestChatSearchIntegration:
             lambda self, query, max_results=None: (
                 [{"title": "来源标题", "url": "https://example.com/a", "snippet": "摘要"}],
                 False,
+                "",
             ),
         )
         r = client.post(
@@ -94,6 +96,35 @@ class TestChatSearchIntegration:
         assert "sources" in body
         assert "https://example.com/a" in body
         assert "来源标题" in body
+
+    def test_chat_web_search_degraded_injects_constraint_and_event(self, client_and_llm, monkeypatch):
+        """搜索降级时：LLM 必须收到「不许编来源」硬约束；前端 SSE 必须收到 search_degraded 事件。"""
+        client, llm = client_and_llm
+        token = _register(client, "searcher2")
+        monkeypatch.setattr(
+            WebSearchService,
+            "search",
+            lambda self, query, max_results=None: (
+                [],
+                True,
+                "auto: network unreachable; html: network unreachable",
+            ),
+        )
+        r = client.post(
+            "/api/chat", json={"message": "严海清是谁", "web_search": True}, headers=_auth(token)
+        )
+        assert r.status_code == 200
+        body = r.text
+        # SSE 含 search_degraded 事件 + 失败原因
+        assert "search_degraded" in body
+        assert "auto: network" in body
+        # LLM 收到的 prompt 必须包含「不得编造」的硬约束
+        assert llm.prompts, "LLM 未被调用"
+        prompt = llm.prompts[-1]
+        assert "联网搜索不可用" in prompt or "联网搜索结果" in prompt
+        assert "不得编造" in prompt
+        assert "URL" in prompt or "链接" in prompt
+        assert "严海清" in prompt  # 用户原问题也要拼进 prompt
 
 
 class TestChatFileInjection:

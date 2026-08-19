@@ -2,7 +2,7 @@
 
 覆盖：
 * mock DDGS：正常返回结构化 [{title,url,snippet}]
-* import 失败 / 网络异常 → 返回 ([], degraded=True) 不抛
+* import 失败 / 网络异常 → 返回 ([], degraded=True, reason="...") 不抛
 * /api/search：未登录 401；正常 200；降级 200
 """
 
@@ -33,7 +33,7 @@ def _make_fake_duckduckgo(results=None, raise_on_text=False):
         def __exit__(self, *a):
             return False
 
-        def text(self, query, max_results=5):
+        def text(self, query, max_results=5, backend="auto", timeout=10):
             if raise_on_text:
                 raise RuntimeError("network unreachable")
             return list(results)
@@ -50,8 +50,9 @@ class TestWebSearchService:
             _make_fake_duckduckgo([{"title": "标题", "href": "https://example.com", "body": "摘要"}]),
         )
         svc = WebSearchService(provider="duckduckgo", max_results=5, timeout=1)
-        results, degraded = svc.search("测试")
+        results, degraded, reason = svc.search("测试")
         assert degraded is False
+        assert reason == ""
         assert results == [{"title": "标题", "url": "https://example.com", "snippet": "摘要"}]
 
     def test_search_normalizes_url_field(self, monkeypatch):
@@ -61,23 +62,59 @@ class TestWebSearchService:
             _make_fake_duckduckgo([{"title": "t", "url": "https://x.com", "body": "s"}]),
         )
         svc = WebSearchService(provider="duckduckgo", max_results=5, timeout=1)
-        results, degraded = svc.search("q")
+        results, degraded, _ = svc.search("q")
         assert degraded is False
         assert results[0]["url"] == "https://x.com"
 
     def test_search_degraded_on_import_error(self, monkeypatch):
         monkeypatch.delitem(sys.modules, "duckduckgo_search", raising=False)
         svc = WebSearchService(provider="duckduckgo", max_results=5, timeout=1)
-        results, degraded = svc.search("q")
+        results, degraded, reason = svc.search("q")
         assert results == []
         assert degraded is True
+        assert "不可用" in reason or "失败" in reason or "duckduckgo" in reason.lower()
 
     def test_search_degraded_on_network_error(self, monkeypatch):
         monkeypatch.setitem(sys.modules, "duckduckgo_search", _make_fake_duckduckgo(raise_on_text=True))
-        svc = WebSearchService(provider="duckduckgo", max_results=5, timeout=1)
-        results, degraded = svc.search("q")
+        svc = WebSearchService(provider="duckduckgo", max_results=5, timeout=1, backends="auto")
+        results, degraded, reason = svc.search("q")
         assert results == []
         assert degraded is True
+        assert reason
+
+    def test_search_degraded_url_filter_drops_empty(self, monkeypatch):
+        """结果中 url 为空的项会被过滤掉，全空结果等同降级。"""
+        monkeypatch.setitem(
+            sys.modules,
+            "duckduckgo_search",
+            _make_fake_duckduckgo([{"title": "t", "body": "s"}]),  # 无 url/href
+        )
+        svc = WebSearchService(provider="duckduckgo", max_results=5, timeout=1, backends="auto")
+        results, degraded, _ = svc.search("q")
+        assert results == []
+        assert degraded is True
+
+    def test_search_falls_through_backends(self, monkeypatch):
+        """第一个 backend 失败应自动切到下个。"""
+        mod = types.ModuleType("duckduckgo_search")
+
+        class _DDGS:
+            def __init__(self, *a, **k):
+                pass
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                return False
+            def text(self, query, max_results=5, backend="auto", timeout=10):
+                if backend == "auto":
+                    raise RuntimeError("auto down")
+                return [{"title": "t", "href": "https://x.com", "body": "s"}]
+        mod.DDGS = _DDGS
+        monkeypatch.setitem(sys.modules, "duckduckgo_search", mod)
+        svc = WebSearchService(provider="duckduckgo", max_results=5, timeout=1, backends="auto,html")
+        results, degraded, _ = svc.search("q")
+        assert degraded is False
+        assert results[0]["url"] == "https://x.com"
 
     def test_available_false_when_lib_missing(self, monkeypatch):
         monkeypatch.delitem(sys.modules, "duckduckgo_search", raising=False)
@@ -90,7 +127,7 @@ class TestWebSearchService:
 
     def test_empty_query_returns_empty_not_degraded(self):
         svc = WebSearchService(provider="duckduckgo", max_results=5, timeout=1)
-        results, degraded = svc.search("   ")
+        results, degraded, _ = svc.search("   ")
         assert results == []
         assert degraded is False
 
@@ -135,6 +172,7 @@ class TestSearchAPI:
             lambda self, query, max_results=None: (
                 [{"title": "t", "url": "https://x.com", "snippet": "s"}],
                 False,
+                "",
             ),
         )
         r = client.post("/api/search", json={"query": "hello"}, headers=_auth(token))
@@ -142,6 +180,7 @@ class TestSearchAPI:
         data = r.json()
         assert data["ok"] is True
         assert data["degraded"] is False
+        assert data["reason"] == ""
         assert data["results"][0]["url"] == "https://x.com"
 
     def test_search_degraded(self, client, monkeypatch):
@@ -149,7 +188,7 @@ class TestSearchAPI:
         monkeypatch.setattr(
             WebSearchService,
             "search",
-            lambda self, query, max_results=None: ([], True),
+            lambda self, query, max_results=None: ([], True, "auto: network unreachable"),
         )
         r = client.post("/api/search", json={"query": "hello"}, headers=_auth(token))
         assert r.status_code == 200
@@ -157,3 +196,4 @@ class TestSearchAPI:
         assert data["ok"] is True
         assert data["degraded"] is True
         assert data["results"] == []
+        assert "network" in data["reason"].lower() or "auto" in data["reason"]
