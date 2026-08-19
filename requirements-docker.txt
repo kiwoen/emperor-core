@@ -35,5 +35,8 @@ litellm>=1.40.0
 # ── 多用户能力扩展（联网搜索 / 文件上传 / 图文识别）────────────────
 # 注意：pillow/PyPDF2 在 requirements.txt 已存在，这里补齐容器运行时的最小集。
 duckduckgo-search>=6.0.0
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
 pillow>=10.0.0
 PyPDF2>=3.0.0

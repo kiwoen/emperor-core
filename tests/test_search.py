@@ -197,3 +197,102 @@ class TestSearchAPI:
         assert data["degraded"] is True
         assert data["results"] == []
         assert "network" in data["reason"].lower() or "auto" in data["reason"]
+
+
+# ══════════════════════════════════════════════════════════════════
+# 必应 / 搜狗 爬虫引擎测试
+# ══════════════════════════════════════════════════════════════════
+
+import requests as _requests  # noqa: E402
+
+
+class _FakeResp:
+    def __init__(self, text: str):
+        self.text = text
+
+    def raise_for_status(self):
+        pass
+
+
+BING_HTML = """<html><body>
+<li class="b_algo">
+  <h2><a href="https://baike.baidu.com/item/量子计算">量子计算</a></h2>
+  <div class="b_caption"><p>量子计算摘要文本</p></div>
+</li>
+<li class="b_algo">
+  <h2><a href="https://example.com/second">第二个结果</a></h2>
+  <p class="b_lineclamp">第二段摘要</p>
+</li>
+</body></html>"""
+
+SOGOU_HTML = """<html><body>
+<div class="vrwrap">
+  <h3><a href="/link?url=xyz" data-url="https://www.sogou.com/result1">搜狗结果一</a></h3>
+  <div class="ft">搜狗摘要一</div>
+</div>
+</body></html>"""
+
+
+class TestBingSogou:
+    def test_bing_parses_results(self, monkeypatch):
+        monkeypatch.setattr(_requests, "get", lambda *a, **k: _FakeResp(BING_HTML))
+        svc = WebSearchService(provider="bing", max_results=5, timeout=1)
+        results, degraded, reason = svc.search("量子计算")
+        assert degraded is False
+        assert reason == ""
+        assert len(results) == 2
+        assert results[0]["url"] == "https://baike.baidu.com/item/量子计算"
+        assert results[0]["title"] == "量子计算"
+        assert "量子计算摘要" in results[0]["snippet"]
+        assert results[1]["url"] == "https://example.com/second"
+
+    def test_sogou_parses_results(self, monkeypatch):
+        monkeypatch.setattr(_requests, "get", lambda *a, **k: _FakeResp(SOGOU_HTML))
+        svc = WebSearchService(provider="sogou", max_results=5, timeout=1)
+        results, degraded, _ = svc.search("测试")
+        assert degraded is False
+        assert len(results) == 1
+        # 有 data-url 属性取真实 url
+        assert results[0]["url"] == "https://www.sogou.com/result1"
+        assert results[0]["title"] == "搜狗结果一"
+
+    def test_bing_network_error_degrades(self, monkeypatch):
+        def _boom(*a, **k):
+            raise OSError("connection refused")
+
+        monkeypatch.setattr(_requests, "get", _boom)
+        svc = WebSearchService(provider="bing", max_results=5, timeout=1)
+        results, degraded, reason = svc.search("q")
+        assert results == []
+        assert degraded is True
+        assert "bing" in reason.lower()
+
+    def test_auto_falls_back_to_sogou_when_bing_fails(self, monkeypatch):
+        """auto 级联：必应失败应自动切到搜狗。"""
+        called = {"engine": []}
+
+        def _fake_get(url, *a, **k):
+            if "bing" in url:
+                called["engine"].append("bing")
+                raise OSError("bing blocked")
+            if "sogou" in url:
+                called["engine"].append("sogou")
+                return _FakeResp(SOGOU_HTML)
+            return _FakeResp("")
+
+        monkeypatch.setattr(_requests, "get", _fake_get)
+        svc = WebSearchService(provider="auto", max_results=5, timeout=1)
+        monkeypatch.setenv("SEARCH_ENGINES", "bing,sogou")
+        results, degraded, _ = svc.search("q")
+        assert degraded is False
+        assert len(results) == 1
+        assert results[0]["url"] == "https://www.sogou.com/result1"
+        assert "bing" in called["engine"] and "sogou" in called["engine"]
+
+    def test_available_true_for_bing(self):
+        svc = WebSearchService(provider="bing")
+        assert svc.available() is True
+
+    def test_available_false_for_unknown_provider(self):
+        svc = WebSearchService(provider="unknown-engine")
+        assert svc.available() is False
