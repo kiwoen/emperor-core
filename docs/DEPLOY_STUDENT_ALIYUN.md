@@ -141,6 +141,72 @@ docker compose ps
 
 ---
 
+## 5.1 更新已部署实例（代码有新提交后必做）
+
+> ⚠️ **推到 GitHub ≠ 线上生效。** 容器跑的是镜像里的代码，不重建就永远是旧版。
+
+**服务器上一条命令搞定**（幂等，可重复执行）：
+
+```bash
+cd /srv/emperor-core && git fetch origin master && \
+  git show origin/master:scripts/remote_deploy.sh | bash -s
+```
+
+该脚本会：记录当前 commit → `git fetch` + `reset --hard`（不碰未跟踪的 `.env`）→
+`docker compose up -d --build` → 轮询 `/health` 最多 2 分钟 →
+**失败自动回滚到上一个 commit 并重建** → 清理 dangling 镜像。
+
+也可以从**本机**一条命令远程执行（无需先登录）：
+
+```bash
+ssh root@<公网IP> 'cd /srv/emperor-core && git fetch origin master && \
+  git show origin/master:scripts/remote_deploy.sh | bash -s'
+```
+
+验证线上确实是新版（以前端 UI 为例，新版必含 `marked`）：
+
+```bash
+curl -s http://<公网IP>:8000/dashboard | grep -c marked.min.js   # ≥1 即为新版
+```
+
+---
+
+## 5.2 自动部署（push 即上线，推荐）
+
+配好后每次 push 到 `master` 会自动更新云端，彻底避免「GitHub 是新的、线上是旧的」。
+
+工作流：`.github/workflows/deploy.yml`（仅用原生 `ssh`，不引入第三方 action）。
+
+在 GitHub 仓库 **Settings → Secrets and variables → Actions → New repository secret** 添加：
+
+| Secret | 必填 | 说明 |
+|---|---|---|
+| `DEPLOY_HOST` | ✅ | 服务器公网 IP，如 `8.154.37.210` |
+| `DEPLOY_SSH_KEY` | 二选一（推荐） | SSH 私钥**全文**，含 `-----BEGIN/END-----` 行 |
+| `DEPLOY_PASSWORD` | 二选一 | root 密码（未配 `DEPLOY_SSH_KEY` 时使用） |
+| `DEPLOY_USER` | ➖ | 默认 `root` |
+| `DEPLOY_SSH_PORT` | ➖ | 默认 `22` |
+| `DEPLOY_APP_PORT` | ➖ | 默认 `8000` |
+
+**生成专用部署密钥**（比放 root 密码安全，推荐）：
+
+```bash
+# 本机执行
+ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/emperor_deploy -N ""
+ssh-copy-id -i ~/.ssh/emperor_deploy.pub root@<公网IP>   # 公钥装到服务器
+cat ~/.ssh/emperor_deploy                                 # 私钥全文 → 存为 DEPLOY_SSH_KEY
+```
+
+行为说明：
+
+- 未配置 `DEPLOY_HOST` → 工作流**自动跳过**（不报红），fork 与本地实验不受影响。
+- `paths-ignore` 忽略纯文档改动（`**/*.md`、`docs/**`），避免改 README 也重建镜像。
+- 并发策略 `cancel-in-progress: false`：部署排队而非中断，不会留半成品状态。
+- 部署后会从 GitHub Runner 侧再校验一次公网 `/health`，双重确认。
+- 需要保留失败现场排障时：Actions 页手动触发 **Run workflow** 并勾选 `no_rollback`。
+
+---
+
 ## 6. 设置访问令牌（强烈建议）
 
 8000 端口直接暴露公网，建议至少加一层 Token 鉴权（我们已实现，由 `EMPEROR_API_TOKEN` 控制）。

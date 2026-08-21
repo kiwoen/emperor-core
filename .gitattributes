@@ -1,0 +1,15 @@
+# 强制 shell 脚本与 CI 配置使用 LF。
+# 否则从 Windows 提交的 .sh 会带 CRLF，在 Linux 服务器上报
+# "bad interpreter: /usr/bin/env bash^M" 而无法执行。
+*.sh        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+Dockerfile  text eol=lf
+.env.example text eol=lf
+
+# 二进制/数据文件不做行尾转换
+*.png       binary
+*.jpg       binary
+*.ico       binary
+*.gz        binary
+*.zip       binary
