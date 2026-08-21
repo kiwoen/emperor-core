@@ -15,8 +15,12 @@ def generate_chat_html(api_base: str = "http://127.0.0.1:8000") -> str:
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Emperor Core · 自进化对话</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link id="hljs-theme" rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js"></script>
+  <title>Emperor Core · 自进化对话</title>
 <style>
   :root{
     --bg:#ffffff; --bg-side:#f7f7f8; --bg-elev:#ffffff; --bg-input:#f4f4f5;
@@ -204,10 +208,55 @@ def generate_chat_html(api_base: str = "http://127.0.0.1:8000") -> str:
   .aacts button{font-size:12px;border:1px solid var(--border);border-radius:8px;padding:5px 9px;color:var(--text);background:var(--bg-elev)}
   .aacts button:hover{border-color:var(--accent);color:var(--accent)}
   .aacts button.danger:hover{border-color:var(--danger);color:var(--danger)}
+
+  /* ── 视觉打磨：动效 / 代码块 / 代码模式 / 响应式 ── */
+  .msg{ animation: msgIn .26s ease both; }
+  @keyframes msgIn{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;} }
+  .messages{ animation: fadeIn .3s ease both; }
+  @keyframes fadeIn{ from{opacity:0;} to{opacity:1;} }
+  .welcome h1{ background:linear-gradient(135deg,var(--accent),#4a90d9); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  .composer .box:focus-within{ border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .msg .body{ min-height:1em; }
+
+  /* 代码块（Codex 风格） */
+  .ec-pre{ position:relative; margin:10px 0; }
+  .code-bar{ display:flex; align-items:center; justify-content:space-between; background:#161b22; color:#8b949e;
+    font-size:11px; padding:5px 12px; border:1px solid #2d333b; border-bottom:none; border-radius:9px 9px 0 0; }
+  .code-lang{ text-transform:uppercase; letter-spacing:.6px; font-weight:600; }
+  .code-copy{ background:#21262d; border:1px solid #30363d; color:#c9d1d9; border-radius:6px; padding:3px 11px; font-size:11px; cursor:pointer; }
+  .code-copy:hover{ border-color:var(--accent); color:var(--accent); }
+  .msg pre{ margin:0; border-radius:0 0 9px 9px; border:1px solid #2d333b; border-top:none; }
+  html[data-theme="light"] .code-bar{ background:#f0f0f3; color:#57606a; border-color:#d8dde3; }
+  html[data-theme="light"] .code-copy{ background:#fff; border-color:#d8dde3; color:#333; }
+  html[data-theme="light"] .msg pre{ border-color:#d8dde3; }
+
+  /* 代码模式（Codex 式编码视图） */
+  body.code-mode .messages{ font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; max-width:940px; }
+  body.code-mode .msg .body{ font-size:13.5px; line-height:1.7; }
+  body.code-mode .ec-pre{ margin:14px 0; }
+  body.code-mode .code-bar{ font-size:12px; padding:7px 14px; }
+  body.code-mode .msg.user .body{ background:transparent; border:1px dashed var(--border); }
+
+  @media (prefers-reduced-motion: reduce){ .msg,.messages{ animation:none; } }
+
+  /* 移动端：侧栏抽屉化 */
+  .menu-btn{ display:none; }
+  .scrim-side{ position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:45; display:none; }
+  .scrim-side.open{ display:block; }
+  @media (max-width: 760px){
+    body{ padding:0; }
+    .sidebar{ position:fixed; left:0; top:0; bottom:0; z-index:50; transform:translateX(-100%); transition:transform .25s ease; box-shadow:0 0 40px rgba(0,0,0,.3); }
+    .sidebar.open{ transform:translateX(0); }
+    .menu-btn{ display:inline-flex; }
+    .insight{ width:100%; }
+    .messages{ padding:18px 14px 8px; }
+    .composer{ padding:12px 14px 16px; }
+  }
 </style>
 </head>
 <body>
 <div class="app">
+  <div class="scrim-side" id="scrimSide" onclick="document.querySelector('.sidebar').classList.remove('open'); this.classList.remove('open')"></div>
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="brand">
@@ -229,7 +278,7 @@ def generate_chat_html(api_base: str = "http://127.0.0.1:8000") -> str:
       <button class="logout" onclick="logout()">退出登录</button>
     </div>
 
-    <button class="newchat" onclick="newChat()">＋ 新对话</button>
+    <button class="newchat" onclick="newChat(); closeSidebarMobile()">＋ 新对话</button>
     <div class="sect-title">会话</div>
     <div class="convlist" id="convlist"><div class="empty">加载中…</div></div>
     <div class="side-foot">学习曲线已记录 <b id="st-rounds">0</b> 轮 · 数据持久化于数据卷</div>
@@ -238,11 +287,13 @@ def generate_chat_html(api_base: str = "http://127.0.0.1:8000") -> str:
   <!-- Main -->
   <section class="main">
     <div class="topbar">
+      <button class="tbtn menu-btn" onclick="document.querySelector('.sidebar').classList.toggle('open'); document.getElementById('scrimSide').classList.toggle('open')" title="菜单">☰</button>
       <div class="model-badge" id="modelBadge"><span class="mock"></span><span id="modelName">连接中…</span></div>
       <div class="spacer"></div>
       <button class="tbtn primary" onclick="runRounds()">⚡ 运行进化轮次</button>
       <button class="tbtn" onclick="toggleInsight()">📈 进化看板</button>
       <button class="tbtn" id="adminBtn" style="display:none" onclick="toggleAdmin()">🛡️ 用户管理</button>
+      <button class="tbtn" id="codeBtn" onclick="toggleCodeMode()" title="Codex 式代码模式">💻 代码模式</button>
       <button class="tbtn" id="themeBtn" onclick="toggleTheme()">🌙</button>
     </div>
     <div class="chat" id="chat">
@@ -346,9 +397,23 @@ function applyTheme(t){
   document.documentElement.setAttribute('data-theme', t);
   document.getElementById('themeBtn').textContent = t==='light' ? '☀️' : '🌙';
   try{ localStorage.setItem('ec-theme', t); }catch(e){}
+  applyHljsTheme(t);
+}
+function applyHljsTheme(t){
+  const el=document.getElementById('hljs-theme');
+  if(el) el.href = t==='light'
+    ? 'https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github.min.css'
+    : 'https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css';
 }
 (function(){ let t='light'; try{ t=localStorage.getItem('ec-theme')||'light'; }catch(e){} applyTheme(t); })();
 function toggleTheme(){ const cur=document.documentElement.getAttribute('data-theme'); applyTheme(cur==='light'?'dark':'light'); }
+function toggleCodeMode(){
+  const on=document.body.classList.toggle('code-mode');
+  const b=document.getElementById('codeBtn');
+  if(b){ b.classList.toggle('primary', on); b.textContent = on ? '💻 代码模式·开' : '💻 代码模式'; }
+  try{ localStorage.setItem('ec-code-mode', on?'1':'0'); }catch(e){}
+}
+(function(){ try{ if(localStorage.getItem('ec-code-mode')==='1'){ document.body.classList.add('code-mode'); const b=document.getElementById('codeBtn'); if(b){ b.classList.add('primary'); b.textContent='💻 代码模式·开'; } } }catch(e){} })();
 
 /* ── Utilities ── */
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -361,6 +426,7 @@ function fmtNum(n){ n=Number(n||0); return n>=1000 ? (n/1000).toFixed(1)+'k' : '
 function fmtSize(n){ n=Number(n||0); if(n<1024) return n+' B'; if(n<1048576) return (n/1024).toFixed(1)+' KB'; return (n/1048576).toFixed(1)+' MB'; }
 function isImageExt(ext){ return ['.jpg','.jpeg','.png','.webp'].indexOf(ext)>=0; }
 
+// 轻量 Markdown 回退（CDN 不可用时）
 function mdLite(text){
   let out=''; const re=/```(?:[a-zA-Z0-9]*)\n([\s\S]*?)```/g; let last=0; let m;
   while((m=re.exec(text))!==null){
@@ -371,6 +437,30 @@ function mdLite(text){
   out += esc(text.slice(last));
   out = out.replace(/`([^`]+)`/g,'<code>$1</code>');
   return out;
+}
+// 真实 Markdown 渲染：marked + highlight.js，带 DOMPurify 防 XSS
+function renderMarkdown(text){
+  let html;
+  if(window.marked){ try{ html = marked.parse(text, {breaks:true, gfm:true}); }catch(e){ html = mdLite(text); } }
+  else { html = mdLite(text); }
+  if(window.DOMPurify){ try{ html = DOMPurify.sanitize(html, {ADD_ATTR:['target']}); }catch(e){} }
+  return html;
+}
+// 为代码块加语言标签 + 复制按钮，并启用语法高亮
+function enhanceCodeBlocks(root){
+  if(!root) return;
+  root.querySelectorAll('pre code').forEach(function(code){
+    if(code.dataset.ecEnhanced) return; code.dataset.ecEnhanced='1';
+    const pre = code.parentElement;
+    let lang=''; const m=(code.className||'').match(/language-([\w-]+)/); if(m) lang=m[1];
+    if(window.hljs){ try{ code.classList.add('hljs'); window.hljs.highlightElement(code); }catch(e){} }
+    const bar=document.createElement('div'); bar.className='code-bar';
+    bar.innerHTML='<span class="code-lang">'+(lang||'code')+'</span>';
+    const btn=document.createElement('button'); btn.className='code-copy'; btn.type='button'; btn.textContent='复制';
+    btn.onclick=function(){ navigator.clipboard.writeText(code.innerText).then(function(){ btn.textContent='已复制 ✓'; setTimeout(function(){btn.textContent='复制';},1500); }).catch(function(){ btn.textContent='失败'; }); };
+    bar.appendChild(btn);
+    pre.classList.add('ec-pre'); pre.insertBefore(bar, pre.firstChild);
+  });
 }
 
 /* ── Auth modal ── */
@@ -439,7 +529,7 @@ async function loadConversations(){
     const el = document.getElementById('convlist');
     if(!list.length){ el.innerHTML='<div class="empty">暂无会话，点「新对话」开始</div>'; return; }
     el.innerHTML = list.map(c=>
-      '<div class="conv'+(c.id===state.currentConv?' active':'')+'" onclick="switchConv('+c.id+')">'+
+      '<div class="conv'+(c.id===state.currentConv?' active':'')+'" onclick="switchConv('+c.id+'); closeSidebarMobile()">'+
       '<span class="ctitle">'+esc(c.title||'新对话')+'</span>'+
       '<span class="cact"><button title="重命名" onclick="event.stopPropagation();renameConv('+c.id+')">✎</button>'+
       '<button class="del" title="删除" onclick="event.stopPropagation();deleteConv('+c.id+')">🗑</button></span></div>'
@@ -510,7 +600,7 @@ function addMsg(role, content, streaming=true){
   box.appendChild(d); scrollChat();
   const body=d.querySelector('.body');
   if(role==='assistant' && streaming){ body.innerHTML='<div class="typing"><span></span><span></span><span></span></div>'; }
-  else { body.innerHTML=mdLite(content); }
+  else { body.innerHTML=renderMarkdown(content); enhanceCodeBlocks(body); }
   return body;
 }
 
@@ -627,15 +717,16 @@ async function send(){
             if(j.sources){ lastSources=j.sources; }
             if(j.search_degraded){
               searchDegraded = j;
-              body.innerHTML=mdLite(acc) + renderSearchDegraded(j.reason||'');
+              body.innerHTML=renderMarkdown(acc) + renderSearchDegraded(j.reason||'');
               scrollChat(); continue;
             }
-            if(j.delta){ acc+=j.delta; body.innerHTML=mdLite(acc); if(lastSources) renderSources(body,lastSources); if(searchDegraded) body.appendChild(searchDegraded._node); scrollChat(); }
+            if(j.delta){ acc+=j.delta; body.innerHTML=renderMarkdown(acc); if(lastSources) renderSources(body,lastSources); if(searchDegraded) body.appendChild(searchDegraded._node); scrollChat(); }
           }catch(e){}
         }
       }
     }
     if(!acc){ body.innerHTML='（无回复）'; if(lastSources) renderSources(body,lastSources); }
+    else { enhanceCodeBlocks(body); }
     // 刷新用量 + 会话列表（updated_at 变化）
     await refreshMe(); await loadConversations();
   }catch(e){ body.textContent='请求失败：'+e; }
@@ -720,6 +811,7 @@ async function pollEvolution(btn){
 }
 
 /* ── Insight panel ── */
+function closeSidebarMobile(){ const s=document.querySelector('.sidebar'); const sc=document.getElementById('scrimSide'); if(s) s.classList.remove('open'); if(sc) sc.classList.remove('open'); }
 function toggleInsight(){ document.getElementById('insight').classList.toggle('open'); document.getElementById('scrim').classList.toggle('open'); refreshInsight(); }
 function drawCurve(points){
   const el=document.getElementById('curve');

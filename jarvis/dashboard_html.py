@@ -94,7 +94,10 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     background: var(--bg);
     background-image:
       radial-gradient(ellipse at 20% 50%, rgba(108,140,255,0.06) 0%, transparent 60%),
-      radial-gradient(ellipse at 80% 20%, rgba(74,222,128,0.04) 0%, transparent 50%);
+      radial-gradient(ellipse at 80% 20%, rgba(74,222,128,0.04) 0%, transparent 50%),
+      linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
+    background-size: auto, auto, 28px 28px, 28px 28px;
     color: var(--text);
     min-height: 100vh;
     padding: 32px 24px;
@@ -123,6 +126,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     padding: 20px 24px; transition: border-color 0.3s;
   }
   .card:hover { border-color: rgba(255,255,255,0.12); }
+  @media (prefers-reduced-motion: reduce){ * { animation: none !important; transition: none !important; } }
   .card-label { font-size: 0.72rem; text-transform: uppercase; color: var(--text-dim);
     letter-spacing: 1px; margin-bottom: 8px; display: flex; justify-content: space-between; }
   .card-label .badge-mini { font-size: 0.65rem; padding: 2px 8px; border-radius: 10px;
