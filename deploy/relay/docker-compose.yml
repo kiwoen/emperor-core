@@ -1,0 +1,54 @@
+# New API relay — minimal single-service deployment (SQLite).
+#
+# Image : calciumion/new-api:latest
+# Repo  : https://github.com/QuantumNous/new-api
+#
+# SQLite is the DEFAULT when SQL_DSN is unset, so Docker MUST mount /data.
+# One-command start:
+#     cp .env.example .env      # then edit SESSION_SECRET
+#     docker compose up -d
+# Then open http://<host>:3000 and create the root admin in the web panel.
+#
+# (An optional Postgres + Redis stack is shown at the bottom for production
+#  scale — the SQLite variant above is all you need to get started.)
+
+services:
+  new-api:
+    image: calciumion/new-api:latest
+    container_name: new-api
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      # REQUIRED for stable login sessions — set a long random string.
+      SESSION_SECRET: ${SESSION_SECRET:-change-me-to-a-long-random-string}
+      TZ: ${TZ:-Asia/Shanghai}
+      MEMORY_CACHE_ENABLED: "true"
+      ERROR_LOG_ENABLED: "true"
+      BATCH_UPDATE_ENABLED: "true"
+      NODE_NAME: ${NODE_NAME:-emperor-relay}
+      # SQLite is the default when SQL_DSN is unset; /data is mounted below.
+      # Optional external DB / cache (leave unset to use the default SQLite):
+      # SQL_DSN: "postgres://user:pass@host:5432/newapi"
+      # REDIS_CONN_STRING: "redis://host:6379/0"
+    volumes:
+      - ./data:/data
+
+# ───────────────────────────────────────────────────────────────
+# Optional full stack (production): uncomment to use Postgres + Redis
+# instead of the default SQLite. Replace the `environment` SQL_DSN above.
+# ───────────────────────────────────────────────────────────────
+#   db:
+#     image: postgres:16-alpine
+#     restart: always
+#     environment:
+#       POSTGRES_USER: newapi
+#       POSTGRES_PASSWORD: newapi_pass
+#       POSTGRES_DB: newapi
+#     volumes:
+#       - ./pgdata:/var/lib/postgresql/data
+#   redis:
+#     image: redis:7-alpine
+#     restart: always
+#     volumes:
+#       - ./redisdata:/data

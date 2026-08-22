@@ -518,6 +518,11 @@ def create_app(
             "/",
             "/dashboard",
             "/dashboard/legacy",
+            # Read-only model registry endpoints — safe to expose without a
+            # session so the dashboard / external tools can list models and
+            # run benchmarks unauthenticated.
+            "/api/models",
+            "/api/models/benchmark",
         ),
     )
 

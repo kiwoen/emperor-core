@@ -16,6 +16,7 @@ from typing import Any, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from jarvis.cost_tracker import CostTracker
+    from jarvis.multi_model_executor import LLMExecutor
 
 logger = logging.getLogger("jarvis.multi_model")
 
@@ -171,6 +172,8 @@ class ParallelResult:
     success: bool = True
     error: str = ""
     cost_estimate: float = 0.0
+    tokens_in: int = 0  # prompt tokens consumed (0 => router estimates)
+    tokens_out: int = 0  # completion tokens produced
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -197,6 +200,7 @@ class MultiModelRouter:
         self,
         model_registry: dict[str, ModelConfig] | None = None,
         cost_tracker: Optional[CostTracker] = None,
+        executor: "Optional[LLMExecutor]" = None,
     ) -> None:
         self._models: dict[str, ModelConfig] = (
             dict(model_registry) if model_registry is not None else dict(_DEFAULT_MODELS)
@@ -210,10 +214,19 @@ class MultiModelRouter:
         else:
             from jarvis.cost_tracker import CostTracker
             self.cost_tracker: CostTracker = CostTracker()
+        # ── Executor selection ──
+        # Injectable for tests; otherwise auto-select a real backend when one is
+        # reachable, else the offline mock executor.
+        if executor is not None:
+            self._executor: LLMExecutor = executor
+        else:
+            from jarvis.multi_model_executor import select_default_executor
+            self._executor = select_default_executor()
         logger.info(
-            "MultiModelRouter initialized — %d models across %d tiers",
+            "MultiModelRouter initialized — %d models across %d tiers (executor=%s)",
             len(self._models),
             len({m.tier for m in self._models.values()}),
+            type(self._executor).__name__,
         )
 
     # ── Registry access ──────────────────────────────────────────
@@ -391,14 +404,26 @@ class MultiModelRouter:
 
     # ── Parallel invocation ──────────────────────────────────────
 
-    def _simulate_call(
+    def _cached_latency(self, model_id: str) -> float:
+        """Last-known latency estimate for a model (or 0 if unknown)."""
+        model = self._models.get(model_id)
+        if model is None:
+            return 0.0
+        return self._latency_cache.get(model_id, model.latency_ms_estimate)
+
+    def _execute_one(
         self,
         messages: list[dict],
         model_id: str,
+        cached_latency: float,
     ) -> ParallelResult:
-        """Simulate a model call (returns canned response for testing).
+        """Run a single model invocation through the configured executor.
 
-        In production, this would be replaced with actual API calls.
+        Owns the accounting (latency cache, call counters, cost tracking) so the
+        executor stays a pure ``(messages, model, cached_latency) -> result``
+        callable. On a genuine "backend unavailable" error from a real executor
+        we fall back to the (offline) mock for that one call; any other error is
+        returned as a failed result without fabricating output.
         """
         model = self._models.get(model_id)
         if model is None:
@@ -409,53 +434,36 @@ class MultiModelRouter:
                 error=f"Unknown model: {model_id}",
             )
 
-        t0 = time.time()
-        base_latency = self._latency_cache.get(model_id, model.latency_ms_estimate)
+        try:
+            result = self._executor(messages, model, cached_latency)
+        except RuntimeError as exc:
+            if "backend unavailable" in str(exc):
+                logger.warning(
+                    "Real executor unavailable (%s); using offline mock fallback.",
+                    exc,
+                )
+                from jarvis.multi_model_executor import OfflineMockExecutor
 
-        # Simulate model response based on capabilities
-        prompt_text = str(messages[-1].get("content", "")) if messages else ""
-        time.sleep(min(base_latency / 10000, 0.02))  # tiny delay for realism
+                result = OfflineMockExecutor()(messages, model, cached_latency)
+            else:
+                raise
 
-        elapsed = (time.time() - t0) * 1000
-        # Use cached value + simulated jitter
-        simulated_latency = base_latency + (hash(prompt_text) % 200)
-
-        # Update latency cache
-        self._latency_cache[model_id] = simulated_latency
-
-        # Estimate cost
-        prompt_chars = len(prompt_text)
-        est_input_tokens = max(prompt_chars // 4, 1)
-        est_output_tokens = 200
-        cost = (
-            (est_input_tokens / 1000) * model.cost_per_1k_input
-            + (est_output_tokens / 1000) * model.cost_per_1k_output
-        )
-
+        # ── Account the call (router is the source of truth) ──
+        self._latency_cache[model_id] = result.latency_ms
         self.total_calls += 1
         self.calls_by_model[model_id] = self.calls_by_model.get(model_id, 0) + 1
 
-        # ── Cost Tracking ──
+        prompt_text = str(messages[-1].get("content", "")) if messages else ""
+        tokens_in = result.tokens_in or max(len(prompt_text) // 4, 1)
+        tokens_out = result.tokens_out or 200
         self.cost_tracker.record(
             model_name=model_id,
-            tokens_in=est_input_tokens,
-            tokens_out=est_output_tokens,
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
             task_id="",
             operation="invoke",
         )
-
-        reasoning_note = ""
-        if model.supports_reasoning:
-            reasoning_note = " [reasoning enabled]"
-
-        return ParallelResult(
-            model_id=model_id,
-            tier=model.tier,
-            output=f"[{model.display_name}] Response to: {prompt_text[:80]}...{reasoning_note}",
-            latency_ms=round(simulated_latency, 2),
-            success=True,
-            cost_estimate=round(cost, 6),
-        )
+        return result
 
     def invoke_parallel(
         self,
@@ -479,11 +487,23 @@ class MultiModelRouter:
                 return [best]
             model_id = best.model_id
 
+        if model_id not in self._models:
+            return [
+                ParallelResult(
+                    model_id=model_id,
+                    tier="",
+                    success=False,
+                    error=f"Unknown model: {model_id}",
+                )
+            ]
+
         results: list[ParallelResult] = [None] * n  # type: ignore
 
         with ThreadPoolExecutor(max_workers=min(n, 10)) as executor:
             futures = {
-                executor.submit(self._simulate_call, messages, model_id): i
+                executor.submit(
+                    self._execute_one, messages, model_id, self._cached_latency(model_id)
+                ): i
                 for i in range(n)
             }
             for future in as_completed(futures):
@@ -523,11 +543,16 @@ class MultiModelRouter:
                     model_ids.append(m.model_id)
                     seen_tiers.add(m.tier)
 
+        if not model_ids:
+            return []
+
         results: list[ParallelResult] = [None] * len(model_ids)  # type: ignore
 
-        with ThreadPoolExecutor(max_workers=min(len(model_ids), 10)) as executor:
+        with ThreadPoolExecutor(max_workers=min(max(len(model_ids), 1), 10)) as executor:
             futures = {
-                executor.submit(self._simulate_call, messages, mid): i
+                executor.submit(
+                    self._execute_one, messages, mid, self._cached_latency(mid)
+                ): i
                 for i, mid in enumerate(model_ids)
             }
             for future in as_completed(futures):
