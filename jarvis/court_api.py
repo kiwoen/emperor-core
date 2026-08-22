@@ -1377,7 +1377,7 @@ def create_app(
                             "只输出改写后的查询词，不要任何标点符号、引号或解释。",
                             system="你是查询改写助手，只输出改写后的查询词本身。",
                         )
-                        new_q = (rewrite_resp or "").strip().strip('"').strip("'").strip("【】").strip("「」").strip()
+                        new_q = (rewrite_resp or "").strip().strip('"\'【】「」“”‘’')
                         if "\n" not in new_q and 2 <= len(new_q) <= 20 and not new_q.startswith(("用户", "请", "原", "提问")):
                             search_query = new_q
                     except Exception:

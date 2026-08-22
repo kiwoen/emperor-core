@@ -716,7 +716,6 @@ async function send(){
           try{ const j=JSON.parse(p);
             if(j.sources){ lastSources=j.sources; }
             if(j.search_degraded){
-              searchDegraded = j;
               body.innerHTML=renderMarkdown(acc) + renderSearchDegraded(j.reason||'');
               scrollChat(); continue;
             }

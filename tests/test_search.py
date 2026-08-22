@@ -76,7 +76,7 @@ class TestWebSearchService:
 
     def test_search_degraded_on_network_error(self, monkeypatch):
         monkeypatch.setitem(sys.modules, "duckduckgo_search", _make_fake_duckduckgo(raise_on_text=True))
-        svc = WebSearchService(provider="duckduckgo", max_results=5, timeout=1, backends="auto")
+        svc = WebSearchService(provider="duckduckgo", max_results=5, timeout=1)
         results, degraded, reason = svc.search("q")
         assert results == []
         assert degraded is True
@@ -89,7 +89,7 @@ class TestWebSearchService:
             "duckduckgo_search",
             _make_fake_duckduckgo([{"title": "t", "body": "s"}]),  # 无 url/href
         )
-        svc = WebSearchService(provider="duckduckgo", max_results=5, timeout=1, backends="auto")
+        svc = WebSearchService(provider="duckduckgo", max_results=5, timeout=1)
         results, degraded, _ = svc.search("q")
         assert results == []
         assert degraded is True
@@ -111,7 +111,7 @@ class TestWebSearchService:
                 return [{"title": "t", "href": "https://x.com", "body": "s"}]
         mod.DDGS = _DDGS
         monkeypatch.setitem(sys.modules, "duckduckgo_search", mod)
-        svc = WebSearchService(provider="duckduckgo", max_results=5, timeout=1, backends="auto,html")
+        svc = WebSearchService(provider="duckduckgo", max_results=5, timeout=1)
         results, degraded, _ = svc.search("q")
         assert degraded is False
         assert results[0]["url"] == "https://x.com"

@@ -17,8 +17,6 @@ env 变量
 - ``SEARCH_ENGINES``    : auto 模式下的引擎顺序，逗号分隔，默认 ``bing,sogou,duckduckgo``
 - ``SEARCH_TIMEOUT``    : 单次请求超时秒数，默认 8
 - ``SEARCH_MAX_RESULTS``: 默认结果条数，默认 5
-- ``SEARCH_BACKENDS``   : DuckDuckGo 引擎的 backend 顺序，默认 ``auto,html,lite``
-- ``SEARCH_BACKEND_COOLDOWN``: 失败引擎冷却秒数，默认 30
 - ``SEARCH_USER_AGENT`` : 爬虫 UA（默认内置 Chrome UA）
 
 实现备注（实测结论）
@@ -33,7 +31,6 @@ from __future__ import annotations
 
 import logging
 import os
-import time
 from typing import Any, Optional
 
 logger = logging.getLogger("jarvis.capabilities.search")
@@ -65,21 +62,11 @@ class WebSearchService:
         provider: str = "",
         max_results: int = 0,
         timeout: int = 0,
-        backends: str = "",
     ) -> None:
         self._provider = (provider or os.getenv("SEARCH_PROVIDER", "auto")).strip().lower()
         self._max_results = max_results or _safe_int(os.getenv("SEARCH_MAX_RESULTS", "5"), 5)
         self._timeout = timeout or _safe_int(os.getenv("SEARCH_TIMEOUT", "8"), 8)
         self._user_agent = os.getenv("SEARCH_USER_AGENT", _DEFAULT_UA)
-
-        # DuckDuckGo backend 级联顺序
-        env_backends = (backends or os.getenv("SEARCH_BACKENDS", "auto,html,lite")).strip()
-        requested = [b.strip().lower() for b in env_backends.split(",") if b.strip()]
-        self._ddg_backends = [b for b in requested if b in _DDG_BACKENDS] or list(_DDG_BACKENDS)
-
-        # 失败引擎冷却（避免连续失败拖死主流程）
-        self._cooldown: dict[str, float] = {}
-        self._cooldown_seconds = _safe_int(os.getenv("SEARCH_BACKEND_COOLDOWN", "30"), 30)
 
     # ── 引擎顺序 ──────────────────────────────────────────────
     def _engine_order(self) -> list[str]:
@@ -112,14 +99,6 @@ class WebSearchService:
             return False
         return True
 
-    # ── 冷却管理 ──────────────────────────────────────────────
-    def _in_cooldown(self, key: str) -> bool:
-        until = self._cooldown.get(key, 0.0)
-        return bool(until and until > time.time())
-
-    def _mark_cooldown(self, key: str) -> None:
-        self._cooldown[key] = time.time() + self._cooldown_seconds
-
     # ── 主入口 ────────────────────────────────────────────────
     def search(self, query: str, max_results: Optional[int] = None) -> tuple[list[dict], bool, str]:
         """执行一次搜索，返回 ``(results, degraded, reason)``。
@@ -137,10 +116,6 @@ class WebSearchService:
 
         errors: list[str] = []
         for engine in engines:
-            key = f"engine:{engine}"
-            if self._in_cooldown(key):
-                errors.append(f"{engine}: 冷却中")
-                continue
             try:
                 if engine == "bing":
                     results = self._search_bing(query, limit)
@@ -154,7 +129,6 @@ class WebSearchService:
             except Exception as e:  # noqa: BLE001
                 errors.append(f"{engine}: {e}")
                 logger.warning("搜索引擎 %s 失败：%s", engine, e)
-                self._mark_cooldown(key)
 
         return [], True, "全部引擎失败：" + "；".join(errors)
 
@@ -223,12 +197,12 @@ class WebSearchService:
 
     # ── DuckDuckGo（duckduckgo-search，最后兜底）───────────────
     def _search_ddg(self, query: str, limit: int) -> list[dict]:
-        from duckduckgo_search import DDGS
+        try:
+            from duckduckgo_search import DDGS
+        except Exception:  # noqa: BLE001
+            return []
 
-        for backend in self._ddg_backends:
-            key = f"ddg:{backend}"
-            if self._in_cooldown(key):
-                continue
+        for backend in _DDG_BACKENDS:
             try:
                 with DDGS() as ddgs:
                     raw = list(
@@ -236,7 +210,6 @@ class WebSearchService:
                     )
             except Exception as e:  # noqa: BLE001
                 logger.warning("DDGS backend=%s 失败：%s", backend, e)
-                self._mark_cooldown(key)
                 continue
             results = [
                 {
