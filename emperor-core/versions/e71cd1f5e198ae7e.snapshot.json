@@ -1,0 +1,22 @@
+{
+  "id": "e71cd1f5e198ae7e",
+  "timestamp": 1786451256.3658903,
+  "description": "auto: emperor-init",
+  "components": {
+    "plugins": {
+      "name": "plugins",
+      "data": {},
+      "checksum": "44136fa355b3678a"
+    },
+    "templates": {
+      "name": "templates",
+      "data": {},
+      "checksum": "44136fa355b3678a"
+    }
+  },
+  "metadata": {
+    "auto": true,
+    "trigger": "emperor-init"
+  },
+  "format_version": 1
+}

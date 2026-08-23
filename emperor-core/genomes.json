@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "metadata": {
+    "cycle": 0,
+    "active_count": 8,
+    "shadow_count": 0,
+    "total_genomes": 8
+  },
+  "genomes": [
+    {
+      "name": "turing",
+      "domain": "math",
+      "temperature": 0.7,
+      "confidence_baseline": 0.75,
+      "exploration_rate": 1.0,
+      "conservatism": 0.05,
+      "prompt_mutation_rate": 1.0,
+      "specialization_weight": 1.95,
+      "generation": 0,
+      "parent": ""
+    },
+    {
+      "name": "curie",
+      "domain": "science",
+      "temperature": 0.7,
+      "confidence_baseline": 0.75,
+      "exploration_rate": 0.05,
+      "conservatism": 1.0,
+      "prompt_mutation_rate": 0.05,
+      "specialization_weight": 0.55,
+      "generation": 0,
+      "parent": ""
+    },
+    {
+      "name": "hinton",
+      "domain": "code",
+      "temperature": 0.7,
+      "confidence_baseline": 0.75,
+      "exploration_rate": 0.5,
+      "conservatism": 0.5,
+      "prompt_mutation_rate": 0.5,
+      "specialization_weight": 1.0,
+      "generation": 0,
+      "parent": ""
+    },
+    {
+      "name": "hippocrates",
+      "domain": "medicine",
+      "temperature": 0.7,
+      "confidence_baseline": 0.75,
+      "exploration_rate": 1.0,
+      "conservatism": 0.5,
+      "prompt_mutation_rate": 0.05,
+      "specialization_weight": 1.35,
+      "generation": 0,
+      "parent": ""
+    },
+    {
+      "name": "confucius",
+      "domain": "language",
+      "temperature": 0.7,
+      "confidence_baseline": 0.75,
+      "exploration_rate": 0.05,
+      "conservatism": 0.05,
+      "prompt_mutation_rate": 1.0,
+      "specialization_weight": 0.85,
+      "generation": 0,
+      "parent": ""
+    },
+    {
+      "name": "tesla",
+      "domain": "engineering",
+      "temperature": 0.7,
+      "confidence_baseline": 0.75,
+      "exploration_rate": 0.5,
+      "conservatism": 1.0,
+      "prompt_mutation_rate": 0.5,
+      "specialization_weight": 0.6,
+      "generation": 0,
+      "parent": ""
+    },
+    {
+      "name": "franklin",
+      "domain": "research",
+      "temperature": 0.7,
+      "confidence_baseline": 0.75,
+      "exploration_rate": 1.0,
+      "conservatism": 0.05,
+      "prompt_mutation_rate": 1.0,
+      "specialization_weight": 1.95,
+      "generation": 0,
+      "parent": ""
+    },
+    {
+      "name": "lovelace",
+      "domain": "general",
+      "temperature": 0.7,
+      "confidence_baseline": 0.75,
+      "exploration_rate": 0.05,
+      "conservatism": 1.0,
+      "prompt_mutation_rate": 0.05,
+      "specialization_weight": 0.55,
+      "generation": 0,
+      "parent": ""
+    }
+  ]
+}

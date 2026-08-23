@@ -1,0 +1,39 @@
+# ===== emperor-core Obsidian Vault .gitignore =====
+# 安全：绝不提交密钥
+.env
+*.env
+.env.local
+
+# 运行时数据库（含业务数据）
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Python 缓存 / 构建产物
+__pycache__/
+*.pyc
+.pytest_cache/
+build/
+develop-eggs/
+eggs/
+.eggs/
+*.egg-info/
+*.egg
+
+# 日志
+*.log
+
+# 编辑器 / 系统
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# 临时吸收目录（C 盘残留，无价值）
+emperor-absorb-*/
+
+# 旧损坏 git 残留
+.git.broken/

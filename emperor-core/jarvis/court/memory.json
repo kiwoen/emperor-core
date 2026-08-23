@@ -1,0 +1,495 @@
+{
+ "version": 1,
+ "saved_at": 1787052310.3389084,
+ "decay_factor": 0.95,
+ "max_entries": 500,
+ "max_per_group": null,
+ "entries": [
+  {
+   "id": "77fb8b1fe856f507",
+   "domain": "math",
+   "minister_name": "math_alpha",
+   "intent": "计算 1234 + 5678",
+   "intent_keywords": [
+    "计算"
+   ],
+   "success": true,
+   "confidence": 1.0,
+   "execution_time_ms": 1.0,
+   "timestamp": 1787052310.2663121,
+   "merit": 100.0,
+   "weight": 1.0,
+   "tags": []
+  },
+  {
+   "id": "31dcad4d43676ab9",
+   "domain": "math",
+   "minister_name": "math_alpha",
+   "intent": "计算 12 * 12",
+   "intent_keywords": [
+    "计算"
+   ],
+   "success": false,
+   "confidence": 0.0,
+   "execution_time_ms": 1.0,
+   "timestamp": 1787052310.2664907,
+   "merit": 0.0,
+   "weight": 1.0,
+   "tags": []
+  },
+  {
+   "id": "e7670d6f65016b9d",
+   "domain": "code",
+   "minister_name": "code_beta",
+   "intent": "用 Python 写一个快速排序函数",
+   "intent_keywords": [
+    "python",
+    "用",
+    "写一",
+    "一个",
+    "个快",
+    "快速",
+    "速排",
+    "排序",
+    "序函",
+    "函数"
+   ],
+   "success": true,
+   "confidence": 1.0,
+   "execution_time_ms": 1.0,
+   "timestamp": 1787052310.2666268,
+   "merit": 100.0,
+   "weight": 1.0,
+   "tags": []
+  },
+  {
+   "id": "72108121d4046aaa",
+   "domain": "code",
+   "minister_name": "code_beta",
+   "intent": "写一个函数计算斐波那契数列的第 n 项",
+   "intent_keywords": [
+    "写一",
+    "一个",
+    "个函",
+    "函数",
+    "数计",
+    "计算",
+    "算斐",
+    "斐波",
+    "波那",
+    "那契",
+    "契数",
+    "数列",
+    "列的",
+    "的第",
+    "项"
+   ],
+   "success": false,
+   "confidence": 0.0,
+   "execution_time_ms": 1.0,
+   "timestamp": 1787052310.266743,
+   "merit": 0.0,
+   "weight": 1.0,
+   "tags": []
+  },
+  {
+   "id": "6b5daf73cd8336ee",
+   "domain": "math",
+   "minister_name": "reason_gamma",
+   "intent": "计算 1234 + 5678",
+   "intent_keywords": [
+    "计算"
+   ],
+   "success": true,
+   "confidence": 1.0,
+   "execution_time_ms": 1.0,
+   "timestamp": 1787052310.2668898,
+   "merit": 100.0,
+   "weight": 1.0,
+   "tags": []
+  },
+  {
+   "id": "2b4ef9c8b0209237",
+   "domain": "retrieval",
+   "minister_name": "retr_delta",
+   "intent": "查 Python 3.12 的新特性",
+   "intent_keywords": [
+    "python",
+    "查",
+    "的新",
+    "新特",
+    "特性"
+   ],
+   "success": true,
+   "confidence": 1.0,
+   "execution_time_ms": 1.0,
+   "timestamp": 1787052310.2670178,
+   "merit": 100.0,
+   "weight": 1.0,
+   "tags": []
+  },
+  {
+   "id": "b193563ab20c6a45",
+   "domain": "factual",
+   "minister_name": "gen_epsilon",
+   "intent": "法国的首都是哪里？",
+   "intent_keywords": [
+    "法国",
+    "国的",
+    "的首",
+    "首都",
+    "都是",
+    "是哪",
+    "哪里"
+   ],
+   "success": true,
+   "confidence": 1.0,
+   "execution_time_ms": 1.0,
+   "timestamp": 1787052310.267118,
+   "merit": 100.0,
+   "weight": 1.0,
+   "tags": []
+  },
+  {
+   "id": "63d28bb1e369adef",
+   "domain": "factual",
+   "minister_name": "gen_epsilon",
+   "intent": "1 加 1 等于几？",
+   "intent_keywords": [
+    "加",
+    "等于几"
+   ],
+   "success": true,
+   "confidence": 1.0,
+   "execution_time_ms": 1.0,
+   "timestamp": 1787052310.2672174,
+   "merit": 100.0,
+   "weight": 1.0,
+   "tags": []
+  },
+  {
+   "id": "3c9da201c79c6df0",
+   "domain": "math",
+   "minister_name": "math_alpha",
+   "intent": "计算 1234 + 5678",
+   "intent_keywords": [
+    "计算"
+   ],
+   "success": false,
+   "confidence": 0.0,
+   "execution_time_ms": 1.0,
+   "timestamp": 1787052310.2878838,
+   "merit": 0.0,
+   "weight": 1.0,
+   "tags": []
+  },
+  {
+   "id": "77272eebf201e51c",
+   "domain": "math",
+   "minister_name": "math_alpha",
+   "intent": "计算 12 * 12",
+   "intent_keywords": [
+    "计算"
+   ],
+   "success": true,
+   "confidence": 1.0,
+   "execution_time_ms": 1.0,
+   "timestamp": 1787052310.2880435,
+   "merit": 100.0,
+   "weight": 1.0,
+   "tags": []
+  },
+  {
+   "id": "f1912be1ec564e16",
+   "domain": "code",
+   "minister_name": "code_beta",
+   "intent": "用 Python 写一个快速排序函数",
+   "intent_keywords": [
+    "python",
+    "用",
+    "写一",
+    "一个",
+    "个快",
+    "快速",
+    "速排",
+    "排序",
+    "序函",
+    "函数"
+   ],
+   "success": true,
+   "confidence": 1.0,
+   "execution_time_ms": 1.0,
+   "timestamp": 1787052310.2881837,
+   "merit": 100.0,
+   "weight": 1.0,
+   "tags": []
+  },
+  {
+   "id": "8e9f6df55e6018f6",
+   "domain": "code",
+   "minister_name": "code_beta",
+   "intent": "写一个函数计算斐波那契数列的第 n 项",
+   "intent_keywords": [
+    "写一",
+    "一个",
+    "个函",
+    "函数",
+    "数计",
+    "计算",
+    "算斐",
+    "斐波",
+    "波那",
+    "那契",
+    "契数",
+    "数列",
+    "列的",
+    "的第",
+    "项"
+   ],
+   "success": true,
+   "confidence": 1.0,
+   "execution_time_ms": 1.0,
+   "timestamp": 1787052310.2883048,
+   "merit": 100.0,
+   "weight": 1.0,
+   "tags": []
+  },
+  {
+   "id": "aa2de62b2781a78c",
+   "domain": "math",
+   "minister_name": "reason_gamma",
+   "intent": "计算 1234 + 5678",
+   "intent_keywords": [
+    "计算"
+   ],
+   "success": true,
+   "confidence": 1.0,
+   "execution_time_ms": 1.0,
+   "timestamp": 1787052310.288434,
+   "merit": 100.0,
+   "weight": 1.0,
+   "tags": []
+  },
+  {
+   "id": "324574d68ddef600",
+   "domain": "retrieval",
+   "minister_name": "retr_delta",
+   "intent": "查 Python 3.12 的新特性",
+   "intent_keywords": [
+    "python",
+    "查",
+    "的新",
+    "新特",
+    "特性"
+   ],
+   "success": true,
+   "confidence": 1.0,
+   "execution_time_ms": 1.0,
+   "timestamp": 1787052310.2885535,
+   "merit": 100.0,
+   "weight": 1.0,
+   "tags": []
+  },
+  {
+   "id": "c428bd52769b27d1",
+   "domain": "factual",
+   "minister_name": "gen_epsilon",
+   "intent": "法国的首都是哪里？",
+   "intent_keywords": [
+    "法国",
+    "国的",
+    "的首",
+    "首都",
+    "都是",
+    "是哪",
+    "哪里"
+   ],
+   "success": true,
+   "confidence": 1.0,
+   "execution_time_ms": 1.0,
+   "timestamp": 1787052310.2886503,
+   "merit": 100.0,
+   "weight": 1.0,
+   "tags": []
+  },
+  {
+   "id": "cff37f5de921e935",
+   "domain": "factual",
+   "minister_name": "gen_epsilon",
+   "intent": "1 加 1 等于几？",
+   "intent_keywords": [
+    "加",
+    "等于几"
+   ],
+   "success": false,
+   "confidence": 0.0,
+   "execution_time_ms": 1.0,
+   "timestamp": 1787052310.2888105,
+   "merit": 0.0,
+   "weight": 1.0,
+   "tags": []
+  },
+  {
+   "id": "ccad162924216ad1",
+   "domain": "math",
+   "minister_name": "math_alpha",
+   "intent": "计算 1234 + 5678",
+   "intent_keywords": [
+    "计算"
+   ],
+   "success": false,
+   "confidence": 0.0,
+   "execution_time_ms": 1.0,
+   "timestamp": 1787052310.3096478,
+   "merit": 0.0,
+   "weight": 1.0,
+   "tags": []
+  },
+  {
+   "id": "86fd25e1badfe303",
+   "domain": "math",
+   "minister_name": "math_alpha",
+   "intent": "计算 12 * 12",
+   "intent_keywords": [
+    "计算"
+   ],
+   "success": true,
+   "confidence": 1.0,
+   "execution_time_ms": 1.0,
+   "timestamp": 1787052310.3098028,
+   "merit": 100.0,
+   "weight": 1.0,
+   "tags": []
+  },
+  {
+   "id": "6634e06d63cd7c7d",
+   "domain": "code",
+   "minister_name": "code_beta",
+   "intent": "用 Python 写一个快速排序函数",
+   "intent_keywords": [
+    "python",
+    "用",
+    "写一",
+    "一个",
+    "个快",
+    "快速",
+    "速排",
+    "排序",
+    "序函",
+    "函数"
+   ],
+   "success": true,
+   "confidence": 1.0,
+   "execution_time_ms": 1.0,
+   "timestamp": 1787052310.3099391,
+   "merit": 100.0,
+   "weight": 1.0,
+   "tags": []
+  },
+  {
+   "id": "cd469a9b587b0765",
+   "domain": "code",
+   "minister_name": "code_beta",
+   "intent": "写一个函数计算斐波那契数列的第 n 项",
+   "intent_keywords": [
+    "写一",
+    "一个",
+    "个函",
+    "函数",
+    "数计",
+    "计算",
+    "算斐",
+    "斐波",
+    "波那",
+    "那契",
+    "契数",
+    "数列",
+    "列的",
+    "的第",
+    "项"
+   ],
+   "success": true,
+   "confidence": 1.0,
+   "execution_time_ms": 1.0,
+   "timestamp": 1787052310.3100502,
+   "merit": 100.0,
+   "weight": 1.0,
+   "tags": []
+  },
+  {
+   "id": "a6afa54469740424",
+   "domain": "math",
+   "minister_name": "reason_gamma",
+   "intent": "计算 1234 + 5678",
+   "intent_keywords": [
+    "计算"
+   ],
+   "success": true,
+   "confidence": 1.0,
+   "execution_time_ms": 1.0,
+   "timestamp": 1787052310.3101745,
+   "merit": 100.0,
+   "weight": 1.0,
+   "tags": []
+  },
+  {
+   "id": "41747e634cc7688b",
+   "domain": "retrieval",
+   "minister_name": "retr_delta",
+   "intent": "查 Python 3.12 的新特性",
+   "intent_keywords": [
+    "python",
+    "查",
+    "的新",
+    "新特",
+    "特性"
+   ],
+   "success": true,
+   "confidence": 1.0,
+   "execution_time_ms": 1.0,
+   "timestamp": 1787052310.3102913,
+   "merit": 100.0,
+   "weight": 1.0,
+   "tags": []
+  },
+  {
+   "id": "bbe625f251c87a2e",
+   "domain": "factual",
+   "minister_name": "gen_epsilon",
+   "intent": "法国的首都是哪里？",
+   "intent_keywords": [
+    "法国",
+    "国的",
+    "的首",
+    "首都",
+    "都是",
+    "是哪",
+    "哪里"
+   ],
+   "success": true,
+   "confidence": 1.0,
+   "execution_time_ms": 1.0,
+   "timestamp": 1787052310.3103926,
+   "merit": 100.0,
+   "weight": 1.0,
+   "tags": []
+  },
+  {
+   "id": "2f4da43ce3b74b13",
+   "domain": "factual",
+   "minister_name": "gen_epsilon",
+   "intent": "1 加 1 等于几？",
+   "intent_keywords": [
+    "加",
+    "等于几"
+   ],
+   "success": true,
+   "confidence": 1.0,
+   "execution_time_ms": 1.0,
+   "timestamp": 1787052310.3105059,
+   "merit": 100.0,
+   "weight": 1.0,
+   "tags": []
+  }
+ ]
+}

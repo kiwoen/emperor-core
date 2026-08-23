@@ -1,0 +1,726 @@
+{
+  "updated_at": "2026-08-15T18:04:48.509127",
+  "count": 72,
+  "records": [
+    {
+      "timestamp": 1786195677.4579122,
+      "model_name": "deepseek-chat",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.00022162,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-08T21:27:57.457912"
+    },
+    {
+      "timestamp": 1786195677.4579122,
+      "model_name": "gpt-4o",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.002015,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-08T21:27:57.457912"
+    },
+    {
+      "timestamp": 1786195677.4579122,
+      "model_name": "claude-haiku",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.0008048,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-08T21:27:57.457912"
+    },
+    {
+      "timestamp": 1786195677.4579122,
+      "model_name": "gpt-4o-mini",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.0001209,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-08T21:27:57.457912"
+    },
+    {
+      "timestamp": 1786195677.4584467,
+      "model_name": "claude-sonnet",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.003018,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-08T21:27:57.458447"
+    },
+    {
+      "timestamp": 1786195677.4584467,
+      "model_name": "deepseek-reasoner",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.0004413,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-08T21:27:57.458447"
+    },
+    {
+      "timestamp": 1786195677.458965,
+      "model_name": "claude-opus",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.01509,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-08T21:27:57.458965"
+    },
+    {
+      "timestamp": 1786195677.7973065,
+      "model_name": "deepseek-reasoner",
+      "tokens_in": 1,
+      "tokens_out": 200,
+      "cost_usd": 0.00043855,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-08T21:27:57.797307"
+    },
+    {
+      "timestamp": 1786195677.7973065,
+      "model_name": "deepseek-chat",
+      "tokens_in": 1,
+      "tokens_out": 200,
+      "cost_usd": 0.00022027,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-08T21:27:57.797307"
+    },
+    {
+      "timestamp": 1786198837.0812035,
+      "model_name": "gpt-4o-mini",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.0001209,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-08T22:20:37.081203"
+    },
+    {
+      "timestamp": 1786198837.0817518,
+      "model_name": "deepseek-chat",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.00022162,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-08T22:20:37.081752"
+    },
+    {
+      "timestamp": 1786198837.0822887,
+      "model_name": "claude-haiku",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.0008048,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-08T22:20:37.082289"
+    },
+    {
+      "timestamp": 1786198837.0822887,
+      "model_name": "gpt-4o",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.002015,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-08T22:20:37.082289"
+    },
+    {
+      "timestamp": 1786198837.0828724,
+      "model_name": "claude-sonnet",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.003018,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-08T22:20:37.082872"
+    },
+    {
+      "timestamp": 1786198837.0828724,
+      "model_name": "deepseek-reasoner",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.0004413,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-08T22:20:37.082872"
+    },
+    {
+      "timestamp": 1786198837.083403,
+      "model_name": "claude-opus",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.01509,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-08T22:20:37.083403"
+    },
+    {
+      "timestamp": 1786198838.463157,
+      "model_name": "deepseek-reasoner",
+      "tokens_in": 1,
+      "tokens_out": 200,
+      "cost_usd": 0.00043855,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-08T22:20:38.463157"
+    },
+    {
+      "timestamp": 1786198838.463157,
+      "model_name": "deepseek-chat",
+      "tokens_in": 1,
+      "tokens_out": 200,
+      "cost_usd": 0.00022027,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-08T22:20:38.463157"
+    },
+    {
+      "timestamp": 1786369749.8623042,
+      "model_name": "gpt-4o-mini",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.0001209,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-10T21:49:09.862304"
+    },
+    {
+      "timestamp": 1786369749.8634934,
+      "model_name": "deepseek-chat",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.00022162,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-10T21:49:09.863493"
+    },
+    {
+      "timestamp": 1786369749.8638396,
+      "model_name": "claude-haiku",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.0008048,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-10T21:49:09.863840"
+    },
+    {
+      "timestamp": 1786369749.864373,
+      "model_name": "gpt-4o",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.002015,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-10T21:49:09.864373"
+    },
+    {
+      "timestamp": 1786369749.8649127,
+      "model_name": "deepseek-reasoner",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.0004413,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-10T21:49:09.864913"
+    },
+    {
+      "timestamp": 1786369749.8654652,
+      "model_name": "claude-sonnet",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.003018,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-10T21:49:09.865465"
+    },
+    {
+      "timestamp": 1786369749.8655214,
+      "model_name": "claude-opus",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.01509,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-10T21:49:09.865521"
+    },
+    {
+      "timestamp": 1786369752.3649902,
+      "model_name": "deepseek-chat",
+      "tokens_in": 1,
+      "tokens_out": 200,
+      "cost_usd": 0.00022027,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-10T21:49:12.364990"
+    },
+    {
+      "timestamp": 1786369752.365485,
+      "model_name": "deepseek-reasoner",
+      "tokens_in": 1,
+      "tokens_out": 200,
+      "cost_usd": 0.00043855,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-10T21:49:12.365485"
+    },
+    {
+      "timestamp": 1786759355.0821714,
+      "model_name": "gpt-4o-mini",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.0001209,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T10:02:35.082171"
+    },
+    {
+      "timestamp": 1786759355.0822647,
+      "model_name": "deepseek-chat",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.00022162,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T10:02:35.082265"
+    },
+    {
+      "timestamp": 1786759355.0826516,
+      "model_name": "gpt-4o",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.002015,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T10:02:35.082652"
+    },
+    {
+      "timestamp": 1786759355.0827045,
+      "model_name": "claude-haiku",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.0008048,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T10:02:35.082705"
+    },
+    {
+      "timestamp": 1786759355.0827534,
+      "model_name": "deepseek-reasoner",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.0004413,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T10:02:35.082753"
+    },
+    {
+      "timestamp": 1786759355.08317,
+      "model_name": "claude-sonnet",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.003018,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T10:02:35.083170"
+    },
+    {
+      "timestamp": 1786759355.0832224,
+      "model_name": "claude-opus",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.01509,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T10:02:35.083222"
+    },
+    {
+      "timestamp": 1786759357.246828,
+      "model_name": "deepseek-chat",
+      "tokens_in": 1,
+      "tokens_out": 200,
+      "cost_usd": 0.00022027,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T10:02:37.246828"
+    },
+    {
+      "timestamp": 1786759357.2474117,
+      "model_name": "deepseek-reasoner",
+      "tokens_in": 1,
+      "tokens_out": 200,
+      "cost_usd": 0.00043855,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T10:02:37.247412"
+    },
+    {
+      "timestamp": 1786760120.6669066,
+      "model_name": "gpt-4o-mini",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.0001209,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T10:15:20.666907"
+    },
+    {
+      "timestamp": 1786760120.6673973,
+      "model_name": "claude-haiku",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.0008048,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T10:15:20.667397"
+    },
+    {
+      "timestamp": 1786760120.6674545,
+      "model_name": "deepseek-chat",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.00022162,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T10:15:20.667454"
+    },
+    {
+      "timestamp": 1786760120.6679308,
+      "model_name": "claude-sonnet",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.003018,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T10:15:20.667931"
+    },
+    {
+      "timestamp": 1786760120.6679978,
+      "model_name": "deepseek-reasoner",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.0004413,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T10:15:20.667998"
+    },
+    {
+      "timestamp": 1786760120.6680527,
+      "model_name": "gpt-4o",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.002015,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T10:15:20.668053"
+    },
+    {
+      "timestamp": 1786760120.6684306,
+      "model_name": "claude-opus",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.01509,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T10:15:20.668431"
+    },
+    {
+      "timestamp": 1786760123.2640784,
+      "model_name": "deepseek-chat",
+      "tokens_in": 1,
+      "tokens_out": 200,
+      "cost_usd": 0.00022027,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T10:15:23.264078"
+    },
+    {
+      "timestamp": 1786760123.2645395,
+      "model_name": "deepseek-reasoner",
+      "tokens_in": 1,
+      "tokens_out": 200,
+      "cost_usd": 0.00043855,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T10:15:23.264539"
+    },
+    {
+      "timestamp": 1786787290.6016314,
+      "model_name": "gpt-4o-mini",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.0001209,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T17:48:10.601631"
+    },
+    {
+      "timestamp": 1786787290.6021335,
+      "model_name": "claude-haiku",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.0008048,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T17:48:10.602134"
+    },
+    {
+      "timestamp": 1786787290.6021876,
+      "model_name": "gpt-4o",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.002015,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T17:48:10.602188"
+    },
+    {
+      "timestamp": 1786787290.6022406,
+      "model_name": "deepseek-chat",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.00022162,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T17:48:10.602241"
+    },
+    {
+      "timestamp": 1786787290.6026447,
+      "model_name": "claude-sonnet",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.003018,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T17:48:10.602645"
+    },
+    {
+      "timestamp": 1786787290.6026862,
+      "model_name": "deepseek-reasoner",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.0004413,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T17:48:10.602686"
+    },
+    {
+      "timestamp": 1786787290.6031575,
+      "model_name": "claude-opus",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.01509,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T17:48:10.603158"
+    },
+    {
+      "timestamp": 1786787293.5802863,
+      "model_name": "deepseek-reasoner",
+      "tokens_in": 1,
+      "tokens_out": 200,
+      "cost_usd": 0.00043855,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T17:48:13.580286"
+    },
+    {
+      "timestamp": 1786787293.5804062,
+      "model_name": "deepseek-chat",
+      "tokens_in": 1,
+      "tokens_out": 200,
+      "cost_usd": 0.00022027,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T17:48:13.580406"
+    },
+    {
+      "timestamp": 1786787827.4207687,
+      "model_name": "claude-haiku",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.0008048,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T17:57:07.420769"
+    },
+    {
+      "timestamp": 1786787827.420849,
+      "model_name": "deepseek-chat",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.00022162,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T17:57:07.420849"
+    },
+    {
+      "timestamp": 1786787827.4208934,
+      "model_name": "gpt-4o-mini",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.0001209,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T17:57:07.420893"
+    },
+    {
+      "timestamp": 1786787827.420935,
+      "model_name": "gpt-4o",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.002015,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T17:57:07.420935"
+    },
+    {
+      "timestamp": 1786787827.4212825,
+      "model_name": "claude-sonnet",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.003018,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T17:57:07.421283"
+    },
+    {
+      "timestamp": 1786787827.4213276,
+      "model_name": "deepseek-reasoner",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.0004413,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T17:57:07.421328"
+    },
+    {
+      "timestamp": 1786787827.4217954,
+      "model_name": "claude-opus",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.01509,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T17:57:07.421795"
+    },
+    {
+      "timestamp": 1786787829.8169382,
+      "model_name": "deepseek-chat",
+      "tokens_in": 1,
+      "tokens_out": 200,
+      "cost_usd": 0.00022027,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T17:57:09.816938"
+    },
+    {
+      "timestamp": 1786787829.8170195,
+      "model_name": "deepseek-reasoner",
+      "tokens_in": 1,
+      "tokens_out": 200,
+      "cost_usd": 0.00043855,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T17:57:09.817019"
+    },
+    {
+      "timestamp": 1786788285.4856675,
+      "model_name": "deepseek-chat",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.00022162,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T18:04:45.485667"
+    },
+    {
+      "timestamp": 1786788285.4857588,
+      "model_name": "gpt-4o-mini",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.0001209,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T18:04:45.485759"
+    },
+    {
+      "timestamp": 1786788285.4860823,
+      "model_name": "claude-haiku",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.0008048,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T18:04:45.486082"
+    },
+    {
+      "timestamp": 1786788285.4861207,
+      "model_name": "gpt-4o",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.002015,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T18:04:45.486121"
+    },
+    {
+      "timestamp": 1786788285.486588,
+      "model_name": "claude-opus",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.01509,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T18:04:45.486588"
+    },
+    {
+      "timestamp": 1786788285.4866264,
+      "model_name": "deepseek-reasoner",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.0004413,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T18:04:45.486626"
+    },
+    {
+      "timestamp": 1786788285.4866652,
+      "model_name": "claude-sonnet",
+      "tokens_in": 6,
+      "tokens_out": 200,
+      "cost_usd": 0.003018,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T18:04:45.486665"
+    },
+    {
+      "timestamp": 1786788288.507288,
+      "model_name": "deepseek-reasoner",
+      "tokens_in": 1,
+      "tokens_out": 200,
+      "cost_usd": 0.00043855,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T18:04:48.507288"
+    },
+    {
+      "timestamp": 1786788288.507411,
+      "model_name": "deepseek-chat",
+      "tokens_in": 1,
+      "tokens_out": 200,
+      "cost_usd": 0.00022027,
+      "task_id": "",
+      "operation": "invoke",
+      "timestamp_iso": "2026-08-15T18:04:48.507411"
+    }
+  ]
+}

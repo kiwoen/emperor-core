@@ -1,0 +1,119 @@
+{
+  "genomes": [
+    {
+      "confidence_baseline": 0.06638382128376596,
+      "conservatism": 0.5,
+      "domain": "math",
+      "exploration_rate": 0.3,
+      "generation": 0,
+      "name": "math_alpha",
+      "parent": "",
+      "prompt_mutation_rate": 0.1,
+      "specialization_weight": 1.0,
+      "temperature": 0.9
+    },
+    {
+      "confidence_baseline": 0.6052660140998389,
+      "conservatism": 0.5,
+      "domain": "code",
+      "exploration_rate": 0.3,
+      "generation": 0,
+      "name": "code_beta",
+      "parent": "",
+      "prompt_mutation_rate": 0.1,
+      "specialization_weight": 1.0,
+      "temperature": 0.2
+    },
+    {
+      "confidence_baseline": 0.8628285625768307,
+      "conservatism": 0.5,
+      "domain": "reasoning",
+      "exploration_rate": 0.3,
+      "generation": 0,
+      "name": "reason_gamma",
+      "parent": "",
+      "prompt_mutation_rate": 0.1,
+      "specialization_weight": 1.0,
+      "temperature": 0.39999999999999997
+    },
+    {
+      "confidence_baseline": 0.9283551104527316,
+      "conservatism": 0.5,
+      "domain": "retrieval",
+      "exploration_rate": 0.3,
+      "generation": 0,
+      "name": "retr_delta",
+      "parent": "",
+      "prompt_mutation_rate": 0.1,
+      "specialization_weight": 1.0,
+      "temperature": 0.4
+    },
+    {
+      "confidence_baseline": 0.3367185095036913,
+      "conservatism": 0.5,
+      "domain": "general",
+      "exploration_rate": 0.3,
+      "generation": 0,
+      "name": "gen_epsilon",
+      "parent": "",
+      "prompt_mutation_rate": 0.1,
+      "specialization_weight": 1.0,
+      "temperature": 0.8
+    },
+    {
+      "confidence_baseline": 0.7804731460183473,
+      "conservatism": 0.5,
+      "domain": "retrieval",
+      "exploration_rate": 0.3,
+      "generation": 1,
+      "name": "retr_delta_v1",
+      "parent": "retr_delta×reason_gamma",
+      "prompt_mutation_rate": 0.1,
+      "specialization_weight": 1.0,
+      "temperature": 0.8470903774254168
+    },
+    {
+      "confidence_baseline": 0.8309405724388719,
+      "conservatism": 0.5,
+      "domain": "engineering",
+      "exploration_rate": 0.3,
+      "generation": 0,
+      "name": "工部技师",
+      "parent": "",
+      "prompt_mutation_rate": 0.1,
+      "specialization_weight": 1.0,
+      "temperature": 0.31986561369409716
+    },
+    {
+      "confidence_baseline": 0.7275294907497586,
+      "conservatism": 0.5,
+      "domain": "research",
+      "exploration_rate": 0.3,
+      "generation": 0,
+      "name": "翰林学士2",
+      "parent": "",
+      "prompt_mutation_rate": 0.1,
+      "specialization_weight": 1.0,
+      "temperature": 0.5891167008667132
+    },
+    {
+      "confidence_baseline": 0.7740114506504844,
+      "conservatism": 0.5,
+      "domain": "retrieval",
+      "exploration_rate": 0.3,
+      "generation": 1,
+      "name": "retr_delta_v2",
+      "parent": "retr_delta×reason_gamma",
+      "prompt_mutation_rate": 0.1,
+      "specialization_weight": 1.0,
+      "temperature": 0.6468540734030581
+    }
+  ],
+  "metadata": {
+    "active_count": 3,
+    "cycle": 5,
+    "shadow_count": 5,
+    "total_genomes": 9
+  },
+  "version": 1
+}

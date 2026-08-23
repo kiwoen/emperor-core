@@ -1,0 +1,91 @@
+window.TELEMETRY = {
+  "generated_at": "2026-08-14T12:44:24.230237+00:00",
+  "schema_version": "1.0",
+  "circuit": {
+    "state": "closed",
+    "is_open": false,
+    "peak_merit": 60.301928313585506
+  },
+  "evaluation": {
+    "cases": 12,
+    "passed": 11,
+    "failed": 1,
+    "pass_rate": 0.917,
+    "per_domain": {}
+  },
+  "ministers": [
+    {
+      "name": "retr_delta",
+      "domain": "retrieval",
+      "merit": 90.0,
+      "status": 1,
+      "success_streak": 0,
+      "failure_streak": 0
+    },
+    {
+      "name": "code_beta",
+      "domain": "code",
+      "merit": 73.32030287941339,
+      "status": 1,
+      "success_streak": 0,
+      "failure_streak": 0
+    },
+    {
+      "name": "gen_epsilon",
+      "domain": "general",
+      "merit": 73.32030287941339,
+      "status": 1,
+      "success_streak": 0,
+      "failure_streak": 0
+    },
+    {
+      "name": "math_alpha",
+      "domain": "math",
+      "merit": 54.86903580910075,
+      "status": 1,
+      "success_streak": 0,
+      "failure_streak": 0
+    },
+    {
+      "name": "reason_gamma",
+      "domain": "reasoning",
+      "merit": 10.0,
+      "status": 2,
+      "success_streak": 0,
+      "failure_streak": 0
+    }
+  ],
+  "evolution": {
+    "event_count": 2,
+    "promotions": 0,
+    "eliminations": 0,
+    "recent": [
+      {
+        "cycle": 1,
+        "avg_merit": 52.697,
+        "success_rate": 0.5,
+        "active_ministers": 4,
+        "eval_pass_rate": 0.917,
+        "circuit_state": "closed",
+        "halted": false,
+        "writeback": "proposed:absorb-offline-1"
+      },
+      {
+        "cycle": 2,
+        "avg_merit": 60.302,
+        "success_rate": 0.667,
+        "active_ministers": 4,
+        "eval_pass_rate": 0.917,
+        "circuit_state": "closed",
+        "halted": false,
+        "writeback": "proposed:absorb-offline-2"
+      }
+    ]
+  },
+  "cost": {
+    "total": 0.0,
+    "budget": 0.0,
+    "over_budget": false
+  },
+  "health": "degraded"
+};

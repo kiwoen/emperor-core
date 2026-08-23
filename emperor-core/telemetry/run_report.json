@@ -1,0 +1,30 @@
+{
+  "started_at": "2026-08-14T12:44:24.175905+00:00",
+  "finished_at": "2026-08-14T12:44:24.222728+00:00",
+  "mode": "offline",
+  "halted": false,
+  "trip_reason": "",
+  "final_health": "healthy",
+  "cycles": [
+    {
+      "cycle": 1,
+      "avg_merit": 52.697,
+      "success_rate": 0.5,
+      "active_ministers": 4,
+      "eval_pass_rate": 0.917,
+      "circuit_state": "closed",
+      "halted": false,
+      "writeback": "proposed:absorb-offline-1"
+    },
+    {
+      "cycle": 2,
+      "avg_merit": 60.302,
+      "success_rate": 0.667,
+      "active_ministers": 4,
+      "eval_pass_rate": 0.917,
+      "circuit_state": "closed",
+      "halted": false,
+      "writeback": "proposed:absorb-offline-2"
+    }
+  ]
+}
