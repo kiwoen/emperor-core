@@ -1,0 +1,85 @@
+%% 4.1 用户调用计费扣积分路径（推理服务层 + 积分中间件）
+sequenceDiagram
+    autonumber
+    actor User
+    participant API as billing_router<br/>(/api/v1/chat)
+    participant Router as MultiModelRouter
+    participant Billing as BillingMiddleware
+    participant Store as BillingStore<br/>(SQLite)
+    participant Exec as RealLLMExecutor
+    participant Relay as New API 中转站<br/>(平台令牌)
+    participant LC as LearningCollector<br/>(旁路)
+
+    User->>API: POST /chat {model_id, prompt, user_id}
+    API->>Router: route_explicit(model_id, user_id)
+    Router->>Billing: pre_check(user_id, model_id)
+    Billing->>Store: balance(user_id)
+    Store-->>Billing: balance >= cost?
+    alt 余额不足
+        Billing-->>API: reject (structured error)
+        API-->>User: {success:false, error:"insufficient_credits"}
+    else 余额充足
+        Router->>Exec: _execute_one(messages, model_id)
+        Exec->>Relay: POST /v1/chat/completions (EMPEROR_RELAY_KEY)
+        Relay-->>Exec: output + usage{prompt,completion}
+        Exec-->>LC: enqueue(DistillationTrace)  // 旁路，不阻塞
+        Exec-->>Router: ParallelResult(output, usage)
+        Router->>Billing: post_charge(user_id, model_id, usage)
+        Billing->>Billing: credit_cost = (tok_in/1k*rate_in + tok_out/1k*rate_out)
+        Billing->>Store: atomic_decrement(user_id, credit_cost)
+        Billing->>Store: add_record(BillingRecord)
+        Billing-->>Router: BillingRecord
+        Router-->>API: ParallelResult + 扣费元数据
+        API-->>User: {output, credits_charged, balance_left}
+    end
+
+%% 4.2 用户选模型 → 路由路径（动态目录 + 显式优先）
+sequenceDiagram
+    autonumber
+    actor User
+    participant FE as 前端下拉
+    participant API as billing_router
+    participant Catalog as ModelCatalog
+    participant Relay as New API /v1/models
+    participant Router as MultiModelRouter
+    participant RR as RoleRouter(既有 T02)
+    participant CG as ConfidenceGate(既有 T02)
+
+    User->>FE: 打开模型选择
+    FE->>API: GET /api/v1/models
+    API->>Catalog: list_for_user()
+    alt 缓存命中
+        Catalog-->>API: cached ModelEntry[]
+    else 缓存未命中/定时刷新
+        Catalog->>Relay: GET /v1/models (EMPEROR_RELAY_KEY)
+        Relay-->>Catalog: [gpt-4o, claude-opus, ...]
+        Catalog->>Catalog: 合并 ModelRateTable 倍率
+        Catalog-->>API: ModelEntry[]{model_id,display,倍率,tier}
+    end
+    API-->>FE: 模型列表（含倍率）
+    User->>FE: 选择 gpt-4o
+    FE->>API: POST /chat {model_id:"gpt-4o"}
+    API->>Router: route_explicit("gpt-4o")
+    Note over Router,RR: 用户显式选择优先于角色默认
+    Router->>Router: 直接 _execute_one("gpt-4o")
+    Router-->>API: ParallelResult
+    API-->>User: 响应
+    Note over User,CG: 未指定 model_id 时回退 RoleRouter→ConfidenceGate（T02）
+
+%% 4.3 使用中学习采集 → 蒸馏入库路径（隔离边界）
+sequenceDiagram
+    autonumber
+    participant Exec as RealLLMExecutor
+    participant LC as LearningCollector
+    participant DS as DistillationStore
+    participant Cryst as DistillationCrystallizer<br/>(离线/平台学习层)
+    participant Core as emperor-core 自治模块
+    Note over Exec,LC: 实时调用（推理服务层完成响应后）
+    Exec->>LC: enqueue(DistillationTrace)  // fire-and-forget 线程池
+    LC->>DS: record(trace)  // 仅 write-side
+    Note right of LC: 绝不参与 Exec 响应构造\n不调用任何外部模型
+    Note over Cryst,Core: 离线平台学习层（不在用户响应路径）
+    Cryst->>DS: all() 拉取多模型回答
+    Cryst->>Cryst: verify-correct + 审批闸
+    Cryst->>Core: 结晶候选→吸收转化（自治模块）
+    Note over Cryst,Core: 推理时 emperor-core 用自身能力\n不实时借用外部模型替代
