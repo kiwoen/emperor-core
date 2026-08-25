@@ -1,6 +1,6 @@
 ---
 name: "court-memory"
-description: "emperor-core 经验记忆：按 (大臣,领域) 维度持久化派发成败与质量，支持成功率聚合、衰减/裁剪窗口、跨重启累积，驱动历史最被证明的大臣优先派发。触发：记忆、经验、court memory、成功率、经验累积。"
+description: "huanxin-ai 经验记忆：按 (大臣,领域) 维度持久化派发成败与质量，支持成功率聚合、衰减/裁剪窗口、跨重启累积，驱动历史最被证明的大臣优先派发。触发：记忆、经验、court memory、成功率、经验累积。"
 triggers:
   - "记忆"
   - "经验"
@@ -12,7 +12,7 @@ triggers:
 # Court Memory · 经验记忆
 
 ## 系统定位
-emperor-core 的「长期记忆」，让生命体的经验跨重启、跨会话累积，是自我进化闭环的数据底座。
+huanxin-ai 的「长期记忆」，让生命体的经验跨重启、跨会话累积，是自我进化闭环的数据底座。
 - 上游：`minister-dispatch`（`_learn_from_dispatch`）、`self-evolution`
 - 下游：`task-router` 派发排序、`SelfEvolutionEngine` 基因微调
 

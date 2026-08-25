@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-about: Create a report to help us improve Emperor-Core
+about: Create a report to help us improve 幻炘AI
 title: "[BUG] "
 labels: bug, triage
 assignees: ""
@@ -48,8 +48,8 @@ assignees: ""
 |------|------|
 | **操作系统** | <!-- 如 Windows 11 22H2 / Ubuntu 24.04 / macOS 14 --> |
 | **Python 版本** | <!-- 如 3.11.9 --> |
-| **emperor-core 版本** | <!-- 如 2.0.0 --> |
-| **安装方式** | <!-- pip install -e . / pip install emperor-core / Docker --> |
+| **huanxin-ai 版本** | <!-- 如 2.0.0 --> |
+| **安装方式** | <!-- pip install -e . / pip install huanxin-ai / Docker --> |
 | **虚拟环境** | <!-- venv / conda / 无 --> |
 
 ## 补充信息

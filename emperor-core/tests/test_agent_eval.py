@@ -1,5 +1,5 @@
 """
-Tests for jarvis.evaluation.agent_eval — Per-Agent Eval Suite.
+Tests for huanxin.evaluation.agent_eval — Per-Agent Eval Suite.
 
 Covers:
     - SyntheticInputGenerator input generation per agent
@@ -16,7 +16,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 # -- Module under test --
-from jarvis.evaluation.agent_eval import (
+from huanxin.evaluation.agent_eval import (
     AgentEvalSuite,
     SyntheticInputGenerator,
     SyntheticInput,
@@ -218,7 +218,7 @@ class TestAgentEvalSuite:
 
     def test_with_shared_hallucination_guard(self):
         try:
-            from jarvis.hallucination_guard import HallucinationGuard
+            from huanxin.hallucination_guard import HallucinationGuard
             hg = HallucinationGuard()
         except ImportError:
             pytest.skip("HallucinationGuard not available")
@@ -231,7 +231,7 @@ class TestAgentEvalSuite:
 
     def test_with_shared_judge(self):
         try:
-            from jarvis.llm_judge import LLMJudge
+            from huanxin.llm_judge import LLMJudge
             judge = LLMJudge()
         except ImportError:
             pytest.skip("LLMJudge not available")
@@ -356,28 +356,28 @@ class TestNullObjects:
 
 class TestCheckToolCall:
     def test_valid_call_passes(self):
-        from jarvis.tools.validator import ToolCallValidator
+        from huanxin.tools.validator import ToolCallValidator
         v = ToolCallValidator()
         inp = SyntheticInput(label="valid", input_text='tool="search" params={"query":"test","limit":5}')
         ok, msg = _check_tool_call(inp, v)
         assert ok, f"Expected pass, got: {msg}"
 
     def test_missing_required_fails(self):
-        from jarvis.tools.validator import ToolCallValidator
+        from huanxin.tools.validator import ToolCallValidator
         v = ToolCallValidator()
         inp = SyntheticInput(label="invalid", input_text='tool="search" params={"limit":5}')
         ok, msg = _check_tool_call(inp, v)
         assert not ok, "Expected fail for missing required param"
 
     def test_unknown_tool_fails(self):
-        from jarvis.tools.validator import ToolCallValidator
+        from huanxin.tools.validator import ToolCallValidator
         v = ToolCallValidator()
         inp = SyntheticInput(label="unknown", input_text='tool="fly_to_moon" params={}')
         ok, _ = _check_tool_call(inp, v)
         assert not ok
 
     def test_wrong_type_fails(self):
-        from jarvis.tools.validator import ToolCallValidator
+        from huanxin.tools.validator import ToolCallValidator
         v = ToolCallValidator()
         inp = SyntheticInput(label="type_err", input_text='tool="delete" params={"path":123}')
         ok, _ = _check_tool_call(inp, v)

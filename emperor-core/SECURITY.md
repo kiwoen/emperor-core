@@ -70,10 +70,10 @@ pip-audit
 
 以下模块涉及较高安全风险，修改时请格外谨慎：
 
-- `jarvis/emperor.py` — 任务编排与执行入口
-- `jarvis/plugins/` — 动态插件加载机制
-- `jarvis/court/` — 大臣进化与权限模型
-- `jarvis/mcp/` — MCP 协议与跨进程通信
+- `huanxin/emperor.py` — 任务编排与执行入口
+- `huanxin/plugins/` — 动态插件加载机制
+- `huanxin/court/` — 大臣进化与权限模型
+- `huanxin/mcp/` — MCP 协议与跨进程通信
 - 任何涉及文件系统读写或外部命令执行的模块
 
 ## 致谢

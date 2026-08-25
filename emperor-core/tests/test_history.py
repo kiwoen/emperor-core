@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 import os
 
-from jarvis.court.history import CycleRecord, EvolutionHistory
-from jarvis.court.evolution import EvolutionReport
+from huanxin.court.history import CycleRecord, EvolutionHistory
+from huanxin.court.evolution import EvolutionReport
 
 
 def _make_report(cycle=1, active=3, shadow=1, eliminated=0, new=0):
@@ -30,7 +30,7 @@ def _make_snapshot(
     probation=2,
     eliminated=1,
 ):
-    from jarvis.court.inspector import CourtSnapshot, MinisterSnapshot
+    from huanxin.court.inspector import CourtSnapshot, MinisterSnapshot
 
     if ministers is None:
         ministers = [
@@ -275,8 +275,8 @@ class TestHistoryIntegration:
 
     def test_mechanism_records_when_history_provided(self):
         """SurvivalMechanism auto-records when history is passed."""
-        from jarvis.court.evolution import SurvivalMechanism
-        from jarvis.court.merit_board import MeritBoard
+        from huanxin.court.evolution import SurvivalMechanism
+        from huanxin.court.merit_board import MeritBoard
 
         board = MeritBoard()
         history = EvolutionHistory()
@@ -308,8 +308,8 @@ class TestHistoryIntegration:
 
     def test_mechanism_no_history_no_record(self):
         """Without history, SurvivalMechanism does not crash."""
-        from jarvis.court.evolution import SurvivalMechanism
-        from jarvis.court.merit_board import MeritBoard
+        from huanxin.court.evolution import SurvivalMechanism
+        from huanxin.court.merit_board import MeritBoard
 
         sm = SurvivalMechanism(
             merit_board=MeritBoard(),
@@ -322,8 +322,8 @@ class TestHistoryIntegration:
 
     def test_multiple_cycles_accumulate(self):
         """Multiple cycles accumulate in history."""
-        from jarvis.court.evolution import SurvivalMechanism
-        from jarvis.court.merit_board import MeritBoard
+        from huanxin.court.evolution import SurvivalMechanism
+        from huanxin.court.merit_board import MeritBoard
 
         history = EvolutionHistory()
         sm = SurvivalMechanism(
@@ -344,8 +344,8 @@ class TestHistoryIntegration:
 
     def test_history_trend_reflects_evolution(self):
         """Trend data is self-consistent."""
-        from jarvis.court.evolution import SurvivalMechanism
-        from jarvis.court.merit_board import MeritBoard
+        from huanxin.court.evolution import SurvivalMechanism
+        from huanxin.court.merit_board import MeritBoard
 
         history = EvolutionHistory()
         sm = SurvivalMechanism(

@@ -1,4 +1,4 @@
-"""Tests for jarvis/workflow — DAG, nodes, engine, and Emperor integration."""
+"""Tests for huanxin/workflow — DAG, nodes, engine, and Huanxin integration."""
 
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ from typing import Any
 
 import pytest
 
-from jarvis.workflow.dag import DAG
-from jarvis.workflow.nodes import (
+from huanxin.workflow.dag import DAG
+from huanxin.workflow.nodes import (
     ConditionNode,
     ErrorStrategy,
     LoopNode,
@@ -20,7 +20,7 @@ from jarvis.workflow.nodes import (
     ParallelNode,
     TaskNode,
 )
-from jarvis.workflow.engine import WorkflowEngine
+from huanxin.workflow.engine import WorkflowEngine
 
 
 # =====================================================================
@@ -657,14 +657,14 @@ class TestWorkflowEngine:
         result = engine.run()
         assert result["execution_order"] == ["A", "B", "C"]
 
-    # ── Emperor execute_workflow integration ─────────────────────
+    # ── Huanxin execute_workflow integration ─────────────────────
 
     def _make_emperor(self):
-        from jarvis.emperor import Emperor
+        from huanxin.core import Huanxin
         try:
-            return Emperor()
+            return Huanxin()
         except Exception:
-            pytest.skip("Emperor initialization failed (missing dependencies)")
+            pytest.skip("Huanxin initialization failed (missing dependencies)")
 
     def test_emperor_execute_workflow_from_dict(self):
         emp = self._make_emperor()

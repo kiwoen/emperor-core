@@ -1,7 +1,7 @@
 # 主路由 → 大臣派发约定（Routing & Dispatch Convention）
 
-> 把 `jarvis/core/task_router.py` 的 `classify_task_type` / `route_to_minister` /
-> `plan_dispatch` 固化为 emperor-core 的**主路由→大臣派发约定**。
+> 把 `huanxin/core/task_router.py` 的 `classify_task_type` / `route_to_minister` /
+> `plan_dispatch` 固化为 huanxin-ai 的**主路由→大臣派发约定**。
 > 范式来源：技能集群的「主编路由 → 专项技能分发」（见 `storyboard-master-router` 的
 > 决策树 + 互斥优先级 + 常见误用表），迁移为通用任务路由。
 >
@@ -97,7 +97,7 @@ _sort_key = (can_handle评分, profile.quality_score, -failure_count)
    → classify_task_type → "code"
    → route_to_minister(type_aware) → 工部尚书（domain=code, +0.1）
    → WorksMinister._handle 检测「审查」+ 含代码
-   → jarvis.codex.reviewer.CodeReviewer().review(code)
+   → huanxin.codex.reviewer.CodeReviewer().review(code)
    → to_markdown(report) 返回八维加权报告 + 🔴🟡🟢 问题清单 + 诚实 N/A
 ```
 

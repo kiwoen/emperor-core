@@ -1,14 +1,14 @@
 """
-JARVIS Core Tests.
+HUANXIN Core Tests.
 """
 
 import pytest
 import asyncio
 
-from jarvis.core.orchestrator import Orchestrator, IntentParser, DomainRegistry, Domain, Intent
-from jarvis.memory.engine import MemoryEngine
-from jarvis.evolution.controller import EvolutionController
-from jarvis.sandbox import SandboxManager
+from huanxin.core.orchestrator import Orchestrator, IntentParser, DomainRegistry, Domain, Intent
+from huanxin.memory.engine import MemoryEngine
+from huanxin.evolution.controller import EvolutionController
+from huanxin.sandbox import SandboxManager
 
 
 class TestIntentParser:
@@ -61,10 +61,10 @@ class TestMemoryEngine:
 
     @pytest.mark.asyncio
     async def test_store_and_retrieve(self):
-        await self.engine.store("test_key", "Hello JARVIS")
+        await self.engine.store("test_key", "Hello HUANXIN")
         results = await self.engine.retrieve("Hello")
         assert len(results) > 0
-        assert any("JARVIS" in r.content for r in results)
+        assert any("HUANXIN" in r.content for r in results)
 
     @pytest.mark.asyncio
     async def test_add_fact(self):
@@ -117,9 +117,9 @@ class TestSandboxManager:
 
     @pytest.mark.asyncio
     async def test_execute_python(self):
-        result = await self.sandbox.execute_python("print('JARVIS test')")
+        result = await self.sandbox.execute_python("print('HUANXIN test')")
         assert result.exit_code == 0
-        assert "JARVIS test" in result.stdout
+        assert "HUANXIN test" in result.stdout
 
 
 class TestDomainRegistry:

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from jarvis.vcs.git_channel import GitWriteChannel, PROTECTED_BRANCHES
+from huanxin.vcs.git_channel import GitWriteChannel, PROTECTED_BRANCHES
 
 
 class _FakeRunner:
@@ -46,7 +46,7 @@ def _make_channel():
 def test_propose_creates_absorb_branch_and_opens_pr():
     ch, runner, gh = _make_channel()
     result = ch.propose_change(
-        repo="kiwoen/emperor-core",
+        repo="kiwoen/huanxin-ai",
         patch_text="diff --git a/x b/x\n",
         title="auto-absorb: test",
         base="master",
@@ -63,7 +63,7 @@ def test_propose_creates_absorb_branch_and_opens_pr():
 def test_no_push_to_protected_branch():
     ch, runner, gh = _make_channel()
     ch.propose_change(
-        repo="kiwoen/emperor-core",
+        repo="kiwoen/huanxin-ai",
         patch_text="diff --git a/x b/x\n",
         title="t",
         base="master",

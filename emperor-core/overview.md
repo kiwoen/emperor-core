@@ -6,7 +6,7 @@
 - `CourtMemory(max_per_group=None)`：每 (大臣,领域) 留存上限。`record()` 超限时 `prune_oldest_per_group()` 丢弃最旧样本，直接边界化「只增不减」。`save/load` 持久化该配置，`--resume` 复用同一窗口。
 - `CourtMemory.per_minister_domain_quality(recency_decay=1.0)`：按**插入序（非墙钟）**给新鲜样本更高权重（最新=1.0、最旧=d^(n-1)）；`=1.0` 退化为朴素计数，与原逻辑逐位等价。
 - 引擎接线：`memory_recency_decay` / `memory_max_per_group` 透传 → 路由与暖启动在 `<1.0` 时改用加权成功率（暖启动**校准率**加权、**样本量 t** 仍取原始计数决定步长）。
-- 入口：`jarvis/cli.py`、`scripts/run_self_evolve.py` 新增 `--memory-recency-decay` / `--memory-max-per-group`；`configs/self_evolve.yaml` 加选项（默认关 → 零回归）。
+- 入口：`huanxin/cli.py`、`scripts/run_self_evolve.py` 新增 `--memory-recency-decay` / `--memory-max-per-group`；`configs/self_evolve.yaml` 加选项（默认关 → 零回归）。
 
 ## 验证（178 passed）
 - 新增 `tests/test_memory_decay.py`（6 项）：按组裁剪只留最新 N、时间衰减最新全胜+最旧全败→加权率>等权率、默认零回归（不封顶+等权=朴素计数）、save/load 保留上限、引擎内部记忆 cap 生效、配置默认零回归。

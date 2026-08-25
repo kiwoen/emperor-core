@@ -1,5 +1,5 @@
 """
-Tests for jarvis.mcp.circuit_breaker — MCP Circuit Breaker Module.
+Tests for huanxin.mcp.circuit_breaker — MCP Circuit Breaker Module.
 
 Covers:
   - CircuitBreaker: state transitions, sliding window, force_reset, stats
@@ -20,7 +20,7 @@ import pytest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from jarvis.mcp.circuit_breaker import (
+from huanxin.mcp.circuit_breaker import (
     CircuitBreaker,
     CircuitState,
     ResilientMCPClient,
@@ -30,7 +30,7 @@ from jarvis.mcp.circuit_breaker import (
     RetryConfig,
 )
 
-from jarvis.mcp_client import (
+from huanxin.mcp_client import (
     MCPClient,
     MCPServerConfig,
     MCPTool,

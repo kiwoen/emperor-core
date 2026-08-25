@@ -15,8 +15,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-import jarvis.core.llm as core_llm
-from jarvis.core.llm import (
+import huanxin.core.llm as core_llm
+from huanxin.core.llm import (
     LLMConfig,
     LLMManager,
     _resolve_backends_from_env,

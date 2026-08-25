@@ -1,4 +1,4 @@
-"""Tests for jarvis/context_versioning.py — immutable state snapshots with diff & rollback."""
+"""Tests for huanxin/context_versioning.py — immutable state snapshots with diff & rollback."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from jarvis.context_versioning import (
+from huanxin.context_versioning import (
     ComponentState,
     ContextVersioning,
     DiffResult,

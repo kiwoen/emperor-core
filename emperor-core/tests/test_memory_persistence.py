@@ -19,13 +19,13 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from jarvis.court.court import Court, CourtConfig  # noqa: E402
-from jarvis.court.memory import CourtMemory, memory_from_memorial  # noqa: E402
-from jarvis.court.real_executor import RealTaskExecutor  # noqa: E402
-from jarvis.self_evolve import (  # noqa: E402
+from huanxin.court.court import Court, CourtConfig  # noqa: E402
+from huanxin.court.memory import CourtMemory, memory_from_memorial  # noqa: E402
+from huanxin.court.real_executor import RealTaskExecutor  # noqa: E402
+from huanxin.self_evolve import (  # noqa: E402
     RecordingWriteChannel, SelfEvolutionEngine, default_ministers, real_default_tasks,
 )
-from jarvis.self_evolve_config import SelfEvolveConfig  # noqa: E402
+from huanxin.self_evolve_config import SelfEvolveConfig  # noqa: E402
 
 
 # ----------------------------------------------------------------------
@@ -92,8 +92,8 @@ def test_memory_load_corrupt_returns_empty(tmp_path):
 # ----------------------------------------------------------------------
 def _build_engine(cfg: SelfEvolveConfig, memory_path: str, memory, genome_state_path: str):
     """与 scripts/run_self_evolve.py::run_orchestrator 等价的精简构造。"""
-    from jarvis.court.circuit_breaker import CircuitBreaker, CircuitConfig
-    from jarvis.vcs.writeback_gate import WritebackGate
+    from huanxin.court.circuit_breaker import CircuitBreaker, CircuitConfig
+    from huanxin.vcs.writeback_gate import WritebackGate
 
     court = Court(CourtConfig(
         circuit_breaker=CircuitBreaker(CircuitConfig()),

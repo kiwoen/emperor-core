@@ -3,7 +3,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from jarvis.court_api import _scheduler_config, create_app
+from huanxin.court_api import _scheduler_config, create_app
 
 
 # ══════════════════════════════════════════════════════════════════

@@ -1,4 +1,4 @@
-"""Tests for jarvis.tracer — OpenTelemetry-style distributed tracing."""
+"""Tests for huanxin.tracer — OpenTelemetry-style distributed tracing."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import tempfile
 
 import pytest
 
-from jarvis.tracer import (
+from huanxin.tracer import (
     Tracer,
     TraceSpan,
     TraceEvent,
@@ -203,7 +203,7 @@ class TestGlobalSingleton:
     """The global `tracer` singleton works correctly."""
 
     def test_singleton_exists(self):
-        from jarvis.tracer import tracer as t
+        from huanxin.tracer import tracer as t
         assert t is not None
         assert isinstance(t, Tracer)
 

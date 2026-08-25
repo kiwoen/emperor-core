@@ -1,9 +1,9 @@
 """Smoke test script for P0.1 + P0.2 modules."""
 import sys
-from jarvis.governance_agent import (
+from huanxin.governance_agent import (
     GovernanceAgent, GovernanceRule, GovernanceResult, GovernanceStatus, RulePriority,
 )
-from jarvis.bounded_autonomy import (
+from huanxin.bounded_autonomy import (
     ActionZone, ActionSpace, BoundedAutonomyEngine, BoundedAutonomyResult,
 )
 

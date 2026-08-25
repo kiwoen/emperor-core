@@ -22,8 +22,8 @@ import tempfile
 import pytest
 from fastapi.testclient import TestClient
 
-import jarvis.court_api as court_api
-from jarvis.api import auth_store
+import huanxin.court_api as court_api
+from huanxin.api import auth_store
 
 
 class _FakeLLMManager:
@@ -41,7 +41,7 @@ def auth_env(tmp_path, monkeypatch):
     """把 auth_store 指向临时 DB，并重置模块级连接缓存。"""
     data_dir = tmp_path / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("EMPEROR_DATA_DIR", str(data_dir))
+    monkeypatch.setenv("HUANXIN_DATA_DIR", str(data_dir))
     # 重置连接缓存，确保 init_db 用新的临时目录重新打开
     monkeypatch.setattr(auth_store, "_conn", None)
     auth_store.init_db()

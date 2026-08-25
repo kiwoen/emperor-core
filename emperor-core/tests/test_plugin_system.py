@@ -1,4 +1,4 @@
-"""Unit tests for jarvis.plugin_system: PluginManifest, PluginBase, DemoPlugin,
+"""Unit tests for huanxin.plugin_system: PluginManifest, PluginBase, DemoPlugin,
 PluginManager, and HookRegistry.
 """
 
@@ -6,10 +6,10 @@ import sys
 import pytest
 from pathlib import Path
 
-# Ensure jarvis is importable
+# Ensure huanxin is importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from jarvis.plugin_system import (
+from huanxin.plugin_system import (
     PluginManifest,
     PluginBase,
     DemoPlugin,
@@ -124,7 +124,7 @@ def test_manager_load_factory(tmp_path):
     """Load a plugin from a temporary file that exports create_plugin()."""
     plugin_file = tmp_path / "demo_loader.py"
     plugin_file.write_text("""
-from jarvis.plugin_system import DemoPlugin, PluginBase
+from huanxin.plugin_system import DemoPlugin, PluginBase
 
 def create_plugin() -> PluginBase:
     return DemoPlugin()
@@ -150,7 +150,7 @@ def create_plugin() -> PluginBase:
 def test_manager_unload(tmp_path):
     plugin_file = tmp_path / "demo_unloader.py"
     plugin_file.write_text("""
-from jarvis.plugin_system import DemoPlugin, PluginBase
+from huanxin.plugin_system import DemoPlugin, PluginBase
 
 def create_plugin() -> PluginBase:
     return DemoPlugin()
@@ -175,7 +175,7 @@ def create_plugin() -> PluginBase:
 def test_manager_list_plugins_format(tmp_path):
     plugin_file = tmp_path / "demo_loader2.py"
     plugin_file.write_text("""
-from jarvis.plugin_system import DemoPlugin, PluginBase
+from huanxin.plugin_system import DemoPlugin, PluginBase
 
 def create_plugin() -> PluginBase:
     return DemoPlugin()

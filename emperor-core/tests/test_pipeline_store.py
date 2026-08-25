@@ -1,7 +1,7 @@
-"""Tests for jarvis.pipeline_store — in-memory pipeline execution records."""
+"""Tests for huanxin.pipeline_store — in-memory pipeline execution records."""
 
 import pytest
-from jarvis.pipeline_store import PipelineStore, pipeline_store, MAX_RECORDS
+from huanxin.pipeline_store import PipelineStore, pipeline_store, MAX_RECORDS
 
 
 class TestPipelineStore:

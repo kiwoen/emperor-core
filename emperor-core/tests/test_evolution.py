@@ -15,7 +15,7 @@ Covers:
 """
 
 import pytest
-from jarvis.court.evolution import (
+from huanxin.court.evolution import (
     CrossoverMode,
     EliteTurnoverMode,
     EvolutionAction,
@@ -25,7 +25,7 @@ from jarvis.court.evolution import (
     MinisterStatus,
     SurvivalMechanism,
 )
-from jarvis.court.merit_board import MeritBoard
+from huanxin.court.merit_board import MeritBoard
 
 
 # ── Helpers ─────────────────────────────────────────────────────────
@@ -971,7 +971,7 @@ class TestSlidingMeritIntegration:
         """MeritBoard passed → auto-wrapped in SlidingMeritBoard."""
         mb = MeritBoard()
         sm = SurvivalMechanism(merit_board=mb)
-        from jarvis.court.sliding_merit import SlidingMeritBoard as SMB
+        from huanxin.court.sliding_merit import SlidingMeritBoard as SMB
         assert sm.get_sliding_merit_board() is not None
         assert isinstance(sm.get_sliding_merit_board(), SMB)
         assert sm.get_raw_merit_board() is mb
@@ -985,7 +985,7 @@ class TestSlidingMeritIntegration:
 
     def test_preserve_existing_sliding_board(self):
         """Already a SlidingMeritBoard → not double-wrapped."""
-        from jarvis.court.sliding_merit import SlidingMeritBoard as SMB
+        from huanxin.court.sliding_merit import SlidingMeritBoard as SMB
         mb = MeritBoard()
         existing = SMB(mb, window_size=30)
         sm = SurvivalMechanism(merit_board=existing)
@@ -1005,7 +1005,7 @@ class TestSlidingMeritIntegration:
 
     def test_custom_window_mode_exp_decay(self):
         """EXP_DECAY mode propagates."""
-        from jarvis.court.sliding_merit import WindowMode
+        from huanxin.court.sliding_merit import WindowMode
         mb = MeritBoard()
         sm = SurvivalMechanism(
             merit_board=mb,
@@ -1278,7 +1278,7 @@ class TestAutoBreederIntegration:
 
             @staticmethod
             def select(gaps, elites):
-                from jarvis.court.breeding import BreedingCandidate, BreedingStrategy
+                from huanxin.court.breeding import BreedingCandidate, BreedingStrategy
                 return [BreedingCandidate(
                     target_domain="legal",
                     strategy=BreedingStrategy.SPECIALIZE,
@@ -1288,7 +1288,7 @@ class TestAutoBreederIntegration:
                 )]
 
         breeder = sm.get_auto_breeder()
-        from jarvis.court.breeding import StrategySelector
+        from huanxin.court.breeding import StrategySelector
         breeder.strategy_selector = ForceSpecialize()
         breeder._cycles_since_breed = breeder.breeding_cooldown
 

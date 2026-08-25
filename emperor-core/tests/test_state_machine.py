@@ -1,13 +1,13 @@
 """
-Tests for jarvis.state_machine — State Machine execution engine.
+Tests for huanxin.state_machine — State Machine execution engine.
 
 Covers: State/Transition dataclasses, StateMachine CRUD + runtime,
 built-in workflow templates (dispatch_workflow, error_recovery_workflow),
-Emperor integration, and API endpoints.
+Huanxin integration, and API endpoints.
 """
 
 import pytest
-from jarvis.state_machine import (
+from huanxin.state_machine import (
     State,
     Transition,
     StateMachine,
@@ -287,25 +287,25 @@ class TestExecuteWorkflowAPI:
 
 
 # ══════════════════════════════════════════════════════════════════
-# Emperor integration tests
+# Huanxin integration tests
 # ══════════════════════════════════════════════════════════════════
 
 
-class TestEmperorStateMachineIntegration:
-    """Test StateMachine integration into Emperor."""
+class TestHuanxinStateMachineIntegration:
+    """Test StateMachine integration into Huanxin."""
 
     def test_emperor_has_state_machine_property(self):
-        """24. Emperor instance exposes state_machine property."""
-        from jarvis.emperor import Emperor
-        emp = Emperor()
+        """24. Huanxin instance exposes state_machine property."""
+        from huanxin.core import Huanxin
+        emp = Huanxin()
         sm = emp.state_machine
         assert sm is not None
         assert sm.name == "dispatch_workflow"
 
     def test_execute_task_uses_state_machine(self):
         """25. execute_task advances state machine through the pipeline."""
-        from jarvis.emperor import Emperor
-        emp = Emperor()
+        from huanxin.core import Huanxin
+        emp = Huanxin()
         emp.register("test_minister", domain="general")
 
         result = emp.execute_task("What is 2+2?", domain="general")
@@ -328,7 +328,7 @@ class TestWorkflowAPIEndpoints:
 
     def test_list_workflows_endpoint(self):
         """26. GET /api/workflows returns template list."""
-        from jarvis.court_api import create_app
+        from huanxin.court_api import create_app
         from fastapi.testclient import TestClient
 
         app = create_app()
@@ -341,7 +341,7 @@ class TestWorkflowAPIEndpoints:
 
     def test_execute_dispatch_workflow_endpoint(self):
         """27. POST /api/workflows/execute with dispatch_workflow succeeds."""
-        from jarvis.court_api import create_app
+        from huanxin.court_api import create_app
         from fastapi.testclient import TestClient
 
         app = create_app()
@@ -358,7 +358,7 @@ class TestWorkflowAPIEndpoints:
 
     def test_execute_error_recovery_endpoint(self):
         """28. POST /api/workflows/execute with error_recovery_workflow succeeds."""
-        from jarvis.court_api import create_app
+        from huanxin.court_api import create_app
         from fastapi.testclient import TestClient
 
         app = create_app()
@@ -374,7 +374,7 @@ class TestWorkflowAPIEndpoints:
 
     def test_execute_invalid_workflow_returns_400(self):
         """29. POST /api/workflows/execute with unknown name returns 400."""
-        from jarvis.court_api import create_app
+        from huanxin.court_api import create_app
         from fastapi.testclient import TestClient
 
         app = create_app()

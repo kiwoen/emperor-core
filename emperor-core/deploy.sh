@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# emperor-core 一键部署脚本
+# huanxin-ai 一键部署脚本
 # ============================================================
 # 支持平台：Render / Fly.io / Docker 本地
 # 用法:
@@ -17,13 +17,13 @@ YELLOW="\033[33m"
 RED="\033[31m"
 RESET="\033[0m"
 
-log()  { echo -e "${GREEN}[emperor-core]${RESET} $*"; }
+log()  { echo -e "${GREEN}[huanxin-ai]${RESET} $*"; }
 warn() { echo -e "${YELLOW}[WARNING]${RESET} $*"; }
 err()  { echo -e "${RED}[ERROR]${RESET} $*"; exit 1; }
 
 # ── 平台选择 ─────────────────────────────────────────────────
 PLATFORM="${1:-docker}"
-IMAGE="emperor-core:latest"
+IMAGE="huanxin-ai:latest"
 PORT="${PORT:-8000}"
 
 # ── Docker 本地部署 ─────────────────────────────────────────
@@ -32,11 +32,11 @@ deploy_docker() {
     docker build -t "${IMAGE}" .
 
     log "启动容器 (端口 ${PORT})..."
-    docker run -d --name emperor-core \
+    docker run -d --name huanxin-ai \
         -p "${PORT}:8000" \
         -e PYTHONUNBUFFERED=1 \
         -e PYTHONDONTWRITEBYTECODE=1 \
-        -e EMPEROR_MODE=server \
+        -e HUANXIN_MODE=server \
         "${IMAGE}"
 
     log "等待健康检查..."
@@ -49,7 +49,7 @@ deploy_docker() {
         fi
         sleep 1
     done
-    warn "健康检查超时，请查看容器日志: docker logs emperor-core"
+    warn "健康检查超时，请查看容器日志: docker logs huanxin-ai"
 }
 
 # ── Render 部署 ──────────────────────────────────────────────
@@ -81,7 +81,7 @@ deploy_render() {
     log "  - Health Check Path: /health"
     log "  - Port: 8000"
     log ""
-    log "免费套餐已足够运行 emperor-core。"
+    log "免费套餐已足够运行 huanxin-ai。"
     log "============================================"
 }
 
@@ -97,11 +97,11 @@ deploy_fly() {
     fi
 
     log "部署到 Fly.io..."
-    flyctl launch --name emperor-core --region sin --now
+    flyctl launch --name huanxin-ai --region sin --now
 
     log ""
-    log "部署完成后访问: https://emperor-core.fly.dev"
-    log "反馈仪表盘: https://emperor-core.fly.dev/api/feedback/dashboard"
+    log "部署完成后访问: https://huanxin-ai.fly.dev"
+    log "反馈仪表盘: https://huanxin-ai.fly.dev/api/feedback/dashboard"
 }
 
 # ── 沙盒测试 + Demo ─────────────────────────────────────────

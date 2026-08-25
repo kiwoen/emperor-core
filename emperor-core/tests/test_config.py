@@ -1,4 +1,4 @@
-"""Tests for the YAML config system (jarvis/config.py)."""
+"""Tests for the YAML config system (huanxin/config.py)."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ import tempfile
 
 import pytest
 
-from jarvis.config import (
-    EmperorConfig,
+from huanxin.config import (
+    HuanxinConfig,
     DashboardConfig,
     SchedulerConfig,
     EvolutionConfig,
@@ -29,7 +29,7 @@ from jarvis.config import (
 
 class TestDefaultConfig:
     def test_default_config_creates_valid_object(self):
-        cfg = EmperorConfig()
+        cfg = HuanxinConfig()
         assert isinstance(cfg.dashboard, DashboardConfig)
         assert isinstance(cfg.scheduler, SchedulerConfig)
         assert isinstance(cfg.evolution, EvolutionConfig)
@@ -37,7 +37,7 @@ class TestDefaultConfig:
         assert isinstance(cfg.database, DatabaseConfig)
 
     def test_default_dashboard_values(self):
-        cfg = EmperorConfig()
+        cfg = HuanxinConfig()
         assert cfg.dashboard.host == "127.0.0.1"
         assert cfg.dashboard.port == 9020
         assert cfg.dashboard.open_browser is True
@@ -45,21 +45,21 @@ class TestDefaultConfig:
         assert cfg.dashboard.theme == "dark"
 
     def test_default_scheduler_values(self):
-        cfg = EmperorConfig()
+        cfg = HuanxinConfig()
         assert cfg.scheduler.auto_schedule is True
         assert cfg.scheduler.evolve_interval_minutes == 5
         assert cfg.scheduler.task_interval_minutes == 3
         assert cfg.scheduler.task_batch_size == 5
 
     def test_default_evolution_values(self):
-        cfg = EmperorConfig()
+        cfg = HuanxinConfig()
         assert cfg.evolution.merit_delta_range == (-2, 2)
         assert cfg.evolution.stability_delta_range == (-0.02, 0.02)
         assert cfg.evolution.streak_bonus_threshold == 5
         assert cfg.evolution.high_hit_rate_threshold == 0.5
 
     def test_default_capability_values(self):
-        cfg = EmperorConfig()
+        cfg = HuanxinConfig()
         assert "datetime" in cfg.capability.enabled_capabilities
         assert "math" in cfg.capability.enabled_capabilities
         assert "web_search" in cfg.capability.enabled_capabilities
@@ -68,17 +68,17 @@ class TestDefaultConfig:
         assert cfg.capability.web_fetch_max_chars == 2000
 
     def test_default_database_values(self):
-        cfg = EmperorConfig()
-        assert cfg.database.db_path == "jarvis.db"
+        cfg = HuanxinConfig()
+        assert cfg.database.db_path == "huanxin.db"
         assert cfg.database.wal_mode is True
         assert cfg.database.max_history_rows == 10000
 
     def test_default_seed_ministers_count(self):
-        cfg = EmperorConfig()
+        cfg = HuanxinConfig()
         assert len(cfg.seed_ministers) == 8
 
     def test_default_max_ministers(self):
-        cfg = EmperorConfig()
+        cfg = HuanxinConfig()
         assert cfg.max_ministers == 50
 
 
@@ -95,7 +95,7 @@ class TestConfigFileIO:
     def test_save_and_load_roundtrip(self):
         tmp = tempfile.mktemp(suffix=".yaml")
         try:
-            cfg = EmperorConfig()
+            cfg = HuanxinConfig()
             cfg.dashboard.port = 8888
             raw = _config_to_dict(cfg)
             with open(tmp, "w", encoding="utf-8") as f:
@@ -144,41 +144,41 @@ class TestConfigFileIO:
 
 class TestPartialOverride:
     def test_dashboard_override(self):
-        cfg = EmperorConfig()
+        cfg = HuanxinConfig()
         _apply_raw_config(cfg, {"dashboard": {"port": 7777, "theme": "light"}})
         assert cfg.dashboard.port == 7777
         assert cfg.dashboard.theme == "light"
         assert cfg.dashboard.host == "127.0.0.1"  # untouched
 
     def test_scheduler_override(self):
-        cfg = EmperorConfig()
+        cfg = HuanxinConfig()
         _apply_raw_config(cfg, {"scheduler": {"auto_schedule": False}})
         assert cfg.scheduler.auto_schedule is False
         assert cfg.scheduler.evolve_interval_minutes == 5  # untouched
 
     def test_evolution_override(self):
-        cfg = EmperorConfig()
+        cfg = HuanxinConfig()
         _apply_raw_config(cfg, {"evolution": {"merit_delta_range": [-5, 5]}})
         assert cfg.evolution.merit_delta_range == (-5, 5)
 
     def test_capability_override(self):
-        cfg = EmperorConfig()
+        cfg = HuanxinConfig()
         _apply_raw_config(cfg, {"capability": {"enabled_capabilities": ["math"]}})
         assert cfg.capability.enabled_capabilities == ["math"]
 
     def test_database_override(self):
-        cfg = EmperorConfig()
+        cfg = HuanxinConfig()
         _apply_raw_config(cfg, {"database": {"db_path": "prod.db"}})
         assert cfg.database.db_path == "prod.db"
 
     def test_seed_ministers_override(self):
-        cfg = EmperorConfig()
+        cfg = HuanxinConfig()
         custom = [{"name": "alice", "domain": "math"}]
         _apply_raw_config(cfg, {"seed_ministers": custom})
         assert cfg.seed_ministers == custom
 
     def test_max_ministers_override(self):
-        cfg = EmperorConfig()
+        cfg = HuanxinConfig()
         _apply_raw_config(cfg, {"max_ministers": 20})
         assert cfg.max_ministers == 20
 
@@ -190,12 +190,12 @@ class TestPartialOverride:
 
 class TestConfigRoundTrip:
     def test_dict_to_config_roundtrip(self):
-        original = EmperorConfig()
+        original = HuanxinConfig()
         original.dashboard.port = 1234
         original.scheduler.evolve_interval_minutes = 10
 
         raw = _config_to_dict(original)
-        loaded = EmperorConfig()
+        loaded = HuanxinConfig()
         _apply_raw_config(loaded, raw)
 
         assert loaded.dashboard.port == 1234
@@ -206,7 +206,7 @@ class TestConfigRoundTrip:
     def test_full_save_load_roundtrip(self):
         tmp = tempfile.mktemp(suffix=".yaml")
         try:
-            cfg = EmperorConfig()
+            cfg = HuanxinConfig()
             cfg.dashboard.theme = "light"
             cfg.scheduler.auto_schedule = False
             cfg.evolution.streak_bonus_threshold = 3
@@ -240,7 +240,7 @@ class TestConfigRoundTrip:
 class TestNoPyYAML:
     def test_no_yaml_import_in_config_module(self):
         """Verify that config.py does not import PyYAML (uses stdlib json only)."""
-        import jarvis.config as cfg_mod
+        import huanxin.config as cfg_mod
         source = cfg_mod.__file__
         assert source is not None
         with open(source, "r", encoding="utf-8") as f:

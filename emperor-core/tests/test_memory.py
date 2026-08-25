@@ -13,7 +13,7 @@ Covers:
 
 import time
 import pytest
-from jarvis.court.memory import (
+from huanxin.court.memory import (
     CourtMemory,
     MemoryEntry,
     MemorySummary,

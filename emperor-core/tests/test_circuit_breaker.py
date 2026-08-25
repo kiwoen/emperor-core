@@ -14,7 +14,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from jarvis.court.circuit_breaker import (
+from huanxin.court.circuit_breaker import (
     CircuitBreaker,
     CircuitConfig,
     PromotionGate,
@@ -146,7 +146,7 @@ class _StubBoard:
 
 
 def _make_court_with_breaker(cb):
-    from jarvis.court.court import Court, CourtConfig
+    from huanxin.court.court import Court, CourtConfig
     court = Court(CourtConfig(enable_auto_elimination=False))
     court._circuit_breaker = cb
     # 让 avg_merit 读取可控的 stub

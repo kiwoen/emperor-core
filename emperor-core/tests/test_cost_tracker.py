@@ -22,7 +22,7 @@ import time
 import pytest
 from starlette.testclient import TestClient
 
-from jarvis.cost_tracker import CostRecord, CostTracker
+from huanxin.cost_tracker import CostRecord, CostTracker
 
 
 # ──────────────────────────────────────────────
@@ -259,7 +259,7 @@ class TestApiEndpoints:
     @pytest.fixture
     def client(self, populated_tracker):
         """Create a TestClient with the cost_tracker in app.extra."""
-        from jarvis.court_api import create_app
+        from huanxin.court_api import create_app
         app = create_app()
         app.extra["cost_tracker"] = populated_tracker
         return TestClient(app)
@@ -295,7 +295,7 @@ class TestApiEndpoints:
 
     def test_api_summary_no_tracker(self):
         """API should return 503 when cost_tracker not available."""
-        from jarvis.court_api import create_app
+        from huanxin.court_api import create_app
         app = create_app()
         # Don't inject cost_tracker
         client = TestClient(app)

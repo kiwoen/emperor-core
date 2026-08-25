@@ -11,17 +11,17 @@ from __future__ import annotations
 
 import os
 
-from jarvis.audit import AuditLogger
-from jarvis.approval import ApprovalEngine
-from jarvis.court.circuit_breaker import (
+from huanxin.audit import AuditLogger
+from huanxin.approval import ApprovalEngine
+from huanxin.court.circuit_breaker import (
     CircuitBreaker, CircuitConfig, PromotionGate, PromotionGateConfig,
 )
-from jarvis.court.court import Court, CourtConfig
-from jarvis.self_evolve import (
+from huanxin.court.court import Court, CourtConfig
+from huanxin.self_evolve import (
     GenomeDrivenExecutor, RecordingWriteChannel, SelfEvolutionEngine,
     default_ministers,
 )
-from jarvis.vcs.writeback_gate import WritebackGate
+from huanxin.vcs.writeback_gate import WritebackGate
 
 
 def _make_court() -> Court:

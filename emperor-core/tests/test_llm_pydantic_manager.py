@@ -1,9 +1,9 @@
-"""Tests for jarvis.llm multi-backend manager (pydantic stack, emperor entry).
+"""Tests for huanxin.llm multi-backend manager (pydantic stack, emperor entry).
 
 The pydantic ``LLMEngine``/``LLMConfig``/``ModelProvider`` API is pinned by
 ``tests/test_llm.py`` and must stay intact. These tests cover the NET-NEW
-multi-backend ``LLMManager`` in ``jarvis.llm`` and verify it delegates correctly
-to ``jarvis.core.llm.LLMManager`` (shared failover / free-provider registry), so
+multi-backend ``LLMManager`` in ``huanxin.llm`` and verify it delegates correctly
+to ``huanxin.core.llm.LLMManager`` (shared failover / free-provider registry), so
 the emperor entry behaves identically to the domains main chain.
 """
 
@@ -15,9 +15,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-import jarvis.core.llm as core_llm
-import jarvis.llm as llm
-from jarvis.llm import LLMConfig, LLMManager, ModelProvider, build_manager_from_env
+import huanxin.core.llm as core_llm
+import huanxin.llm as llm
+from huanxin.llm import LLMConfig, LLMManager, ModelProvider, build_manager_from_env
 
 
 # ── Helpers ──────────────────────────────────────────────────────────

@@ -5,7 +5,7 @@ Covers:
     - Minister KG query returns empty when no KG is injected
     - Minister KG query returns relevant entities when KG is populated
     - KG context is passed to _try_real_model system prompt
-    - Emperor injects KG into ministers during install
+    - Sovereign injects KG into ministers during install
     - End-to-end: petition with KG-aware deliberation
 """
 
@@ -14,15 +14,15 @@ from __future__ import annotations
 import asyncio
 import pytest
 
-from jarvis.court.minister import (
+from huanxin.court.minister import (
     Edict,
     Memorial,
     Minister,
     MinisterProfile,
     MinisterState,
 )
-from jarvis.court.emperor import Emperor, ImperialCourt
-from jarvis.knowledge.graph import KnowledgeGraph
+from huanxin.court.sovereign import Sovereign, ImperialCourt
+from huanxin.knowledge.graph import KnowledgeGraph
 
 
 # ── Test Minister ────────────────────────────────────────────────────
@@ -156,14 +156,14 @@ class TestKGInPipeline:
         assert len(m.handle_calls) == 1
 
 
-# ── Emperor + KG Integration Tests ───────────────────────────────────
+# ── Sovereign + KG Integration Tests ───────────────────────────────────
 
 
-class TestEmperorKGIntegration:
-    """Tests that Emperor properly injects KG into ministers."""
+class TestSovereignKGIntegration:
+    """Tests that Sovereign properly injects KG into ministers."""
 
     def test_emperor_no_kg(self):
-        """Emperor without KG — ministers don't have KG."""
+        """Sovereign without KG — ministers don't have KG."""
         court = ImperialCourt()  # No KG passed
         court.install_ministers_from_factory()
 
@@ -171,7 +171,7 @@ class TestEmperorKGIntegration:
             assert not minister.has_knowledge_graph
 
     def test_emperor_with_kg(self):
-        """Emperor with KG — all ministers get KG injected."""
+        """Sovereign with KG — all ministers get KG injected."""
         kg = KnowledgeGraph()
         court = ImperialCourt(knowledge_graph=kg)
         court.install_ministers_from_factory()
@@ -192,7 +192,7 @@ class TestEmperorKGIntegration:
 
         asyncio.run(seed())
 
-        emperor = Emperor(knowledge_graph=kg)
+        emperor = Sovereign(knowledge_graph=kg)
         decree = asyncio.run(emperor.receive_petition("分析系统性能瓶颈"))
 
         assert decree.success

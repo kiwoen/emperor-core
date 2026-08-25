@@ -13,7 +13,7 @@ import pathlib
 
 import pytest
 
-from jarvis.eval_bench import (
+from huanxin.eval_bench import (
     DeterministicJudge,
     JudgeUnavailableError,
     LLMBackedJudge,
@@ -21,11 +21,11 @@ from jarvis.eval_bench import (
     get_judge,
     run_suite,
 )
-from jarvis.eval_bench.criteria import EvalCase
-from jarvis.eval_bench.judges import default_correctness
+from huanxin.eval_bench.criteria import EvalCase
+from huanxin.eval_bench.judges import default_correctness
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
-LLM_JUDGE_SRC = REPO_ROOT / "jarvis" / "llm_judge.py"
+LLM_JUDGE_SRC = REPO_ROOT / "huanxin" / "llm_judge.py"
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -111,7 +111,7 @@ def test_llmbacked_judge_no_key_raises_and_warns(caplog):
     with caplog.at_level(logging.WARNING):
         with pytest.raises(JudgeUnavailableError):
             LLMBackedJudge()
-    assert any("EMPEROR_LLM_API_KEY" in r.message for r in caplog.records)
+    assert any("HUANXIN_LLM_API_KEY" in r.message for r in caplog.records)
 
 
 def test_get_judge_llm_no_key_raises():

@@ -5,10 +5,10 @@ from fastapi.testclient import TestClient
 # We need to provide reasonable mocks for the P0 modules in case
 # they can't be imported (missing deps). We'll try real imports first.
 try:
-    from jarvis.court_api import create_app
-    from jarvis.governance_agent import GovernanceAgent, RulePriority
-    from jarvis.bounded_autonomy import BoundedAutonomyEngine
-    from jarvis.failure_recovery import RecoveryEngine, CircuitBreaker
+    from huanxin.court_api import create_app
+    from huanxin.governance_agent import GovernanceAgent, RulePriority
+    from huanxin.bounded_autonomy import BoundedAutonomyEngine
+    from huanxin.failure_recovery import RecoveryEngine, CircuitBreaker
     _MODULES_AVAILABLE = True
 except ImportError:
     _MODULES_AVAILABLE = False

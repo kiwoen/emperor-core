@@ -1,10 +1,10 @@
-"""Tests for jarvis/context_compressor.py — LLM-free context compression engine."""
+"""Tests for huanxin/context_compressor.py — LLM-free context compression engine."""
 
 from __future__ import annotations
 
 import pytest
 
-from jarvis.context_compressor import (
+from huanxin.context_compressor import (
     CompressionResult,
     CompressionStrategy,
     ContextCompressor,

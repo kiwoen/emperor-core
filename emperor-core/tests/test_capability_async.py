@@ -11,8 +11,8 @@ import asyncio
 
 import pytest
 
-from jarvis.capabilities.search import WebSearchService
-from jarvis.capabilities.vision import VisionBackend
+from huanxin.capabilities.search import WebSearchService
+from huanxin.capabilities.vision import VisionBackend
 
 
 @pytest.mark.asyncio
@@ -56,7 +56,7 @@ async def test_asearch_does_not_block_event_loop():
 @pytest.mark.asyncio
 async def test_vision_processor_aprocess_offloads():
     """VisionProcessor.aprocess 在后端支持 achat_sync 时走异步卸载路径。"""
-    from jarvis.multimodal.processor import VisionProcessor
+    from huanxin.multimodal.processor import VisionProcessor
 
     backend = VisionBackend([])  # 降级后端
     vp = VisionProcessor(llm_engine=backend)

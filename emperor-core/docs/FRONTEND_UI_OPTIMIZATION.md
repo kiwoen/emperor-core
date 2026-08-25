@@ -1,10 +1,10 @@
 # 前端 UI 优化 · 对标 ChatGPT / Codex
 
-> 提交：`337b4aa` · 已推送 `github.com/kiwoen/emperor-core` master
-> 改动文件：`jarvis/chat_dashboard.py`、`jarvis/dashboard_html.py`
+> 提交：`337b4aa` · 已推送 `github.com/kiwoen/huanxin-ai` master
+> 改动文件：`huanxin/chat_dashboard.py`、`huanxin/dashboard_html.py`
 > 仅前端 UI，未改动任何后端 API 契约。
 
-## 一、聊天控制台（ChatGPT / Codex 风格）`jarvis/chat_dashboard.py`
+## 一、聊天控制台（ChatGPT / Codex 风格）`huanxin/chat_dashboard.py`
 
 ### 1. 真实 Markdown 渲染 + 代码语法高亮
 - 引入 `marked`（GFM + 软换行）渲染助手回复，支持标题 / 列表 / 表格 / 引用 / 行内代码等。
@@ -26,13 +26,13 @@
 - 顶部栏新增移动端 ☰ 菜单按钮，侧栏在窄屏抽屉化（scrim 遮罩）。
 - 全站尊重 `prefers-reduced-motion`。
 
-## 二、自进化看板 `jarvis/dashboard_html.py`
+## 二、自进化看板 `huanxin/dashboard_html.py`
 - body 叠加细网格背景（28px 间距，极低透明度），更现代的数据看板质感。
 - 新增 `prefers-reduced-motion` 兜底，关闭动画/过渡，照顾晕动敏感用户。
 - 未改动任何数据与渲染逻辑。
 
 ## 三、验证
-- `python -c "import jarvis.chat_dashboard, jarvis.dashboard_html; ...generate..."` 通过，
+- `python -c "import huanxin.chat_dashboard, huanxin.dashboard_html; ...generate..."` 通过，
   生成 HTML 结构闭合、关键功能 token 齐全（marked/highlight/dompurify/toggleCodeMode/code-mode/scrim-side 等）。
 
 ## 四、云端同步（关键）
@@ -43,7 +43,7 @@
 | 方式 | 命令 / 触发 | 说明 |
 |---|---|---|
 | 自动（推荐） | push 到 master | `.github/workflows/deploy.yml` 自动 SSH 部署，含健康检查 + 失败回滚 |
-| 手动 | `bash scripts/remote_deploy.sh` | 在服务器 `/srv/emperor-core` 执行，幂等可重复跑 |
+| 手动 | `bash scripts/remote_deploy.sh` | 在服务器 `/srv/huanxin-ai` 执行，幂等可重复跑 |
 
 首次启用自动部署需在仓库 **Settings → Secrets and variables → Actions** 配置
 `DEPLOY_HOST` + （`DEPLOY_SSH_KEY` 或 `DEPLOY_PASSWORD`）。详见

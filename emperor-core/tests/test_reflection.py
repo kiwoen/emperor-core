@@ -13,7 +13,7 @@ Covers:
 """
 
 import pytest
-from jarvis.court.reflection import (
+from huanxin.court.reflection import (
     ConsensusPhase,
     ConsensusResult,
     Critique,
@@ -22,7 +22,7 @@ from jarvis.court.reflection import (
     SynthesisDraft,
     Vote,
 )
-from jarvis.court.merit_board import MeritBoard
+from huanxin.court.merit_board import MeritBoard
 
 
 # ── Helpers for creating mock memorials ────────────────────────────

@@ -1,6 +1,6 @@
 """系统健康检查测试"""
 import pytest
-from jarvis.health import (
+from huanxin.health import (
     get_uptime_seconds,
     get_system_health,
     get_memory_info,

@@ -6,7 +6,7 @@
     python scripts/run_self_evolve.py --config configs/self_evolve.yaml
     python scripts/run_self_evolve.py --approval --auto-approve  # 接入人类审批门(离线自动批)
     python scripts/run_self_evolve.py --audit                   # 写入不可篡改审计库
-    python scripts/run_self_evolve.py --live --repo kiwoen/emperor-core   # 真实 PR
+    python scripts/run_self_evolve.py --live --repo kiwoen/huanxin-ai   # 真实 PR
 
 默认离线：执行用确定性基因驱动执行器（无需 LLM key、不连网），写回用
 RecordingWriteChannel（只记录 PR 意图，绝不碰真实 git）。整条
@@ -17,7 +17,7 @@ RecordingWriteChannel（只记录 PR 意图，绝不碰真实 git）。整条
 运行后在 ``--out`` 目录产出：
   - ``run_report.json``  每轮功勋/成功率/评测/熔断/写回的完整记录
   - ``telemetry.json`` / ``telemetry.js`` / ``dashboard.html``  可观测看板
-  - （若 --resume 或正常结束）``jarvis/court/genome_state.json`` 基因检查点
+  - （若 --resume 或正常结束）``huanxin/court/genome_state.json`` 基因检查点
 """
 
 from __future__ import annotations
@@ -29,16 +29,16 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from jarvis.court.circuit_breaker import (  # noqa: E402
+from huanxin.court.circuit_breaker import (  # noqa: E402
     CircuitBreaker, CircuitConfig, PromotionGate, PromotionGateConfig,
 )
-from jarvis.court.court import Court, CourtConfig  # noqa: E402
-from jarvis.self_evolve import (  # noqa: E402
+from huanxin.court.court import Court, CourtConfig  # noqa: E402
+from huanxin.self_evolve import (  # noqa: E402
     GenomeDrivenExecutor, RecordingWriteChannel, SelfEvolutionEngine,
     SimulatedTask, default_ministers, default_tasks, real_default_tasks,
 )
-from jarvis.self_evolve_config import SelfEvolveConfig, load_config  # noqa: E402
-from jarvis.telemetry import MinisterTelemetry, collect, write_js, write_json  # noqa: E402
+from huanxin.self_evolve_config import SelfEvolveConfig, load_config  # noqa: E402
+from huanxin.telemetry import MinisterTelemetry, collect, write_js, write_json  # noqa: E402
 
 
 def _build_court(cfg: SelfEvolveConfig) -> Court:
@@ -63,12 +63,12 @@ def _wire_optional_guards():
     """装配护栏与路由（离线安全；任一不可用则降级为 None）。"""
     router = guardrail = None
     try:
-        from jarvis.model_router import SmartRouter
+        from huanxin.model_router import SmartRouter
         router = SmartRouter()
     except Exception:  # pragma: no cover - 可选组件
         print("⚠️  SmartRouter 不可用，路由观测跳过")
     try:
-        from jarvis.guardrail_chain import GuardrailChain
+        from huanxin.guardrail_chain import GuardrailChain
         guardrail = GuardrailChain()   # 无重型守卫 → shadow 模式降级
     except Exception:  # pragma: no cover
         print("⚠️  GuardrailChain 不可用，护栏观测跳过")
@@ -110,7 +110,7 @@ def _build_write_channel(mode: str, live: bool, repo: str):
         if mode == "none":
             return None
     if live or mode == "live":
-        from jarvis.vcs.git_channel import GitWriteChannel
+        from huanxin.vcs.git_channel import GitWriteChannel
         print(f"🔴 LIVE 模式：将真实向 {repo} 开 PR（绝不直推 master）")
         return GitWriteChannel()
     # 默认：离线记录
@@ -127,7 +127,7 @@ def _build_executor(cfg: SelfEvolveConfig, memory=None):
     mode = (cfg.executor or "auto").strip().lower()
     if mode == "sim":
         return GenomeDrivenExecutor(seed=cfg.seed), False
-    from jarvis.court.real_executor import RealTaskExecutor
+    from huanxin.court.real_executor import RealTaskExecutor
     return RealTaskExecutor(seed=cfg.seed, memory=memory), True
 
 
@@ -169,7 +169,7 @@ def run_orchestrator(cfg: SelfEvolveConfig, out_dir: str = "telemetry",
     # 经验记忆（Phase 12：自我学习跨重启累积，executor 与 engine 共享同一实例）
     memory = None
     if cfg.use_memory:
-        from jarvis.court.memory import CourtMemory
+        from huanxin.court.memory import CourtMemory
         memory = CourtMemory()
 
     # 真实任务执行器 + 任务集（Phase 11：真实执行 + 自我学习）
@@ -190,20 +190,20 @@ def run_orchestrator(cfg: SelfEvolveConfig, out_dir: str = "telemetry",
     # 人类审批门（接入既有 ApprovalEngine）
     approval_engine = None
     if cfg.use_approval_engine:
-        from jarvis.approval import ApprovalEngine
+        from huanxin.approval import ApprovalEngine
         approval_engine = ApprovalEngine("approval.db")
         print(f"🔐 已接入人类审批门（auto_approve={cfg.auto_approve}）")
 
     # 不可篡改审计
     audit_logger = None
     if cfg.use_audit:
-        from jarvis.audit import AuditLogger
+        from huanxin.audit import AuditLogger
         audit_logger = AuditLogger("audit.db")
         print("📜 已接入不可篡改审计库 audit.db")
 
     # 评测闸
     wg = cfg.write_gate or {}
-    from jarvis.vcs.writeback_gate import WritebackGate
+    from huanxin.vcs.writeback_gate import WritebackGate
     write_gate = WritebackGate(
         min_pass_rate=float(wg.get("min_pass_rate", 0.0)),
         forbid_regression=bool(wg.get("forbid_regression", False)),
@@ -212,7 +212,7 @@ def run_orchestrator(cfg: SelfEvolveConfig, out_dir: str = "telemetry",
     # 金标准安全闸（Phase 9：fail-closed，写回前最后一道硬约束）
     safety_gate = None
     if cfg.use_safety_gate:
-        from jarvis.court.safety_gate import default_safety_gate
+        from huanxin.court.safety_gate import default_safety_gate
         core = cfg.core_ministers if cfg.core_ministers else ("math_alpha", "reason_gamma")
         safety_gate = default_safety_gate(
             quality_floor=cfg.quality_floor,
@@ -265,7 +265,7 @@ def run_orchestrator(cfg: SelfEvolveConfig, out_dir: str = "telemetry",
 
     final_eval = None
     if report.cycles and report.cycles[-1].eval_pass_rate is not None:
-        from jarvis.eval_bench.criteria import EvalReport as _ER
+        from huanxin.eval_bench.criteria import EvalReport as _ER
         last = report.cycles[-1]
         total = len(getattr(engine.eval_suite, "cases", []))
         passed = round(last.eval_pass_rate * total)
@@ -307,8 +307,8 @@ def run_orchestrator(cfg: SelfEvolveConfig, out_dir: str = "telemetry",
 def run_safety_check(path: str, core_ministers=("math_alpha", "reason_gamma"),
                      quality_floor: float = 0.05, max_regression: float = 0.10) -> int:
     """对当前基因快照跑金标准安全闸，返回退出码（0=通过，1=拒绝）。"""
-    from jarvis.court.genome_store import GenomeStore
-    from jarvis.court.safety_gate import SafetyContext, default_safety_gate
+    from huanxin.court.genome_store import GenomeStore
+    from huanxin.court.safety_gate import SafetyContext, default_safety_gate
 
     genomes, meta = GenomeStore.load(path)
     if not genomes:
@@ -327,10 +327,10 @@ def run_safety_check(path: str, core_ministers=("math_alpha", "reason_gamma"),
 
 
 def run_rollback(snapshot_dir: str, snapshot_id: str = "", list_only: bool = False,
-                genome_state_path: str = "jarvis/court/genome_state.json") -> int:
+                genome_state_path: str = "huanxin/court/genome_state.json") -> int:
     """列出或执行基因快照回滚。"""
-    from jarvis.court.court import Court, CourtConfig
-    from jarvis.court.rollback import RollbackManager
+    from huanxin.court.court import Court, CourtConfig
+    from huanxin.court.rollback import RollbackManager
 
     mgr = RollbackManager(snapshot_dir=snapshot_dir, genome_state_relpath=genome_state_path)
     if list_only or not snapshot_id:

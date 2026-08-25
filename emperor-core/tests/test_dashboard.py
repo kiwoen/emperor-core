@@ -1,4 +1,4 @@
-"""Tests for jarvis.dashboard_html and dashboard API endpoints."""
+"""Tests for huanxin.dashboard_html and dashboard API endpoints."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 
-from jarvis.court.court import Court
-from jarvis.court_api import create_app
+from huanxin.court.court import Court
+from huanxin.court_api import create_app
 
 
 def _login(client):
@@ -16,8 +16,8 @@ def _login(client):
     r = client.post(
         "/api/auth/login",
         json={
-            "username": os.environ["EMPEROR_ADMIN_USER"],
-            "password": os.environ["EMPEROR_ADMIN_PASS"],
+            "username": os.environ["HUANXIN_ADMIN_USER"],
+            "password": os.environ["HUANXIN_ADMIN_PASS"],
         },
     )
     assert r.status_code == 200, f"login failed: {r.status_code} {r.text}"
@@ -31,20 +31,20 @@ def _login(client):
 
 class TestDashboardHtml:
     def test_generate_html_returns_html(self):
-        from jarvis.dashboard_html import generate_html
+        from huanxin.dashboard_html import generate_html
         html = generate_html()
         assert "<!DOCTYPE html>" in html
-        assert "<title>Emperor Dashboard</title>" in html
-        assert "Emperor Dashboard" in html
+        assert "<title>Huanxin Dashboard</title>" in html
+        assert "Huanxin Dashboard" in html
 
     def test_generate_html_injects_api_base(self):
-        from jarvis.dashboard_html import generate_html
+        from huanxin.dashboard_html import generate_html
         html = generate_html(api_base="http://localhost:9999")
         assert "http://localhost:9999" in html
         assert "var API = " in html
 
     def test_generate_html_is_self_contained(self):
-        from jarvis.dashboard_html import generate_html
+        from huanxin.dashboard_html import generate_html
         html = generate_html()
         # No external resource references
         assert 'src="http' not in html
@@ -72,12 +72,12 @@ class TestDashboardApi:
         return c
 
     def test_dashboard_returns_html(self, client):
-        # /dashboard 现服务于 ChatGPT 式对话大盘；监控大盘（标题 "Emperor Dashboard"）
+        # /dashboard 现服务于 ChatGPT 式对话大盘；监控大盘（标题 "Huanxin Dashboard"）
         # 在 /dashboard/legacy 路由，故此处断言 legacy 大盘。
         resp = client.get("/dashboard/legacy")
         assert resp.status_code == 200
         assert "text/html" in resp.headers["content-type"]
-        assert "Emperor Dashboard" in resp.text
+        assert "Huanxin Dashboard" in resp.text
         assert "127.0.0.1:9999" in resp.text
 
     def test_dashboard_status_empty_court(self, client):
@@ -117,7 +117,7 @@ class TestDashboardApi:
         assert "carol" in names
 
     def test_dashboard_status_sorted_by_merit(self, client):
-        from jarvis.court.court import CourtConfig
+        from huanxin.court.court import CourtConfig
         court = Court(config=CourtConfig(min_ministers=3))
         court.register("a", domain="math")
         court.register("b", domain="science")
@@ -223,7 +223,7 @@ class TestDashboardExport:
 
 class TestDashboardHtmlPanels:
     def test_all_core_panels_present(self):
-        from jarvis.dashboard_html import generate_html
+        from huanxin.dashboard_html import generate_html
         html = generate_html()
         # All major panel IDs should be present
         expected_panels = [
@@ -237,13 +237,13 @@ class TestDashboardHtmlPanels:
             assert f'id="{panel_id}"' in html, f"Panel {panel_id} missing"
 
     def test_search_input_present(self):
-        from jarvis.dashboard_html import generate_html
+        from huanxin.dashboard_html import generate_html
         html = generate_html()
         assert 'id="dashboard-search-input"' in html
         assert 'debouncedSearch' in html
 
     def test_quick_action_bar_present(self):
-        from jarvis.dashboard_html import generate_html
+        from huanxin.dashboard_html import generate_html
         html = generate_html()
         assert 'class="quick-bar"' in html
         assert 'refreshAllPanels' in html
@@ -252,7 +252,7 @@ class TestDashboardHtmlPanels:
         assert 'exportDashboardData' in html
 
     def test_drag_drop_initialized(self):
-        from jarvis.dashboard_html import generate_html
+        from huanxin.dashboard_html import generate_html
         html = generate_html()
         assert 'initDragAndDrop' in html
         assert 'draggable-panel' in html
@@ -260,7 +260,7 @@ class TestDashboardHtmlPanels:
         assert 'restorePanelOrder' in html
 
     def test_responsive_breakpoints_present(self):
-        from jarvis.dashboard_html import generate_html
+        from huanxin.dashboard_html import generate_html
         html = generate_html()
         assert 'max-width: 899px' in html
         assert 'min-width: 900px' in html
@@ -268,7 +268,7 @@ class TestDashboardHtmlPanels:
 
     def test_search_data_structure_validation(self):
         """验证搜索返回的数据结构字段完整性"""
-        from jarvis.dashboard_html import generate_html
+        from huanxin.dashboard_html import generate_html
         html = generate_html()
         # Search renders tasks/evals/audits/healing/context_versions sections
         assert 'sectionName' in html or 'sectionIcon' in html
@@ -278,7 +278,7 @@ class TestDashboardHtmlPanels:
         assert 'item.suite' in html or 'item.passed' in html
 
     def test_search_panel_jump_function(self):
-        from jarvis.dashboard_html import generate_html
+        from huanxin.dashboard_html import generate_html
         html = generate_html()
         assert 'jumpToPanel' in html
         assert 'scrollIntoView' in html

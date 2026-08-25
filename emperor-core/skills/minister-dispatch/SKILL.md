@@ -1,6 +1,6 @@
 ---
 name: "minister-dispatch"
-description: "emperor-core 大臣派发与执行契约：大臣是自治智能体，接收圣旨(edict)经生命周期状态机处理，先试真实模型再回退 _handle，记录经验用于自我进化。触发：大臣、派发、圣旨、minister、大臣执行。"
+description: "huanxin-ai 大臣派发与执行契约：大臣是自治智能体，接收圣旨(edict)经生命周期状态机处理，先试真实模型再回退 _handle，记录经验用于自我进化。触发：大臣、派发、圣旨、minister、大臣执行。"
 triggers:
   - "大臣"
   - "派发"
@@ -12,9 +12,9 @@ triggers:
 # Minister Dispatch · 大臣派发与执行
 
 ## 系统定位
-emperor-core 的「执行臂」。8 位大臣（丞相/御史大夫/太史令/工部尚书/太常/大司农/太卜/卫尉）各自是带能力画像的自治智能体，经主路由（`task-router`）派发后独立处理任务并自我进化。
-- 上游：`task-router`（选大臣）、Emperor
-- 下游：`jarvis.codex.reviewer`（工部审查）、`SelfEvolutionEngine`（经验回流）
+huanxin-ai 的「执行臂」。8 位大臣（丞相/御史大夫/太史令/工部尚书/太常/大司农/太卜/卫尉）各自是带能力画像的自治智能体，经主路由（`task-router`）派发后独立处理任务并自我进化。
+- 上游：`task-router`（选大臣）、Huanxin
+- 下游：`huanxin.codex.reviewer`（工部审查）、`SelfEvolutionEngine`（经验回流）
 
 ## 类型识别与路由
 大臣选择由 `task-router` 完成；本技能定义**单个大臣如何处理**一条圣旨：
@@ -50,5 +50,5 @@ emperor-core 的「执行臂」。8 位大臣（丞相/御史大夫/太史令/�
 | `self-evolution` | `_learn_from_dispatch` 写入经验 |
 
 ## 版本记录
-- v1.0 (2026-08)：从技能集群「子技能自治 + 经验回流」范式落地 `jarvis/court/minister.py`
+- v1.0 (2026-08)：从技能集群「子技能自治 + 经验回流」范式落地 `huanxin/court/minister.py`
 - v1.1 (2026-08-17)：工部尚书接入 `CodeReviewer` 形成闭环

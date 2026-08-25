@@ -14,16 +14,16 @@ import json
 import tempfile
 from pathlib import Path
 
-from jarvis.court.court import Court
-from jarvis.court.diversity import DiversityMonitor, DiversitySnapshot
-from jarvis.court.evolution import MinisterGenome
-from jarvis.court.genome_redispersal import (
+from huanxin.court.court import Court
+from huanxin.court.diversity import DiversityMonitor, DiversitySnapshot
+from huanxin.court.evolution import MinisterGenome
+from huanxin.court.genome_redispersal import (
     ARCHETYPES,
     archetype_for_index,
     genomic_diversity,
     redisperse,
 )
-from jarvis.court.breeding import BreedingStrategy
+from huanxin.court.breeding import BreedingStrategy
 
 
 def _homogeneous_genomes(names):
@@ -168,7 +168,7 @@ class TestRestartSelfHeal:
 
 
 class TestLoadStateHealPersists:
-    """Mirrors Emperor._load_state(): a deployed homogeneous genomes.json is
+    """Mirrors Huanxin._load_state(): a deployed homogeneous genomes.json is
     healed on boot AND written back so the cure survives the next restart."""
 
     def _write_homogeneous_genomes(self, tmp_path, names):
@@ -195,7 +195,7 @@ class TestLoadStateHealPersists:
             path = self._write_homogeneous_genomes(
                 Path(d), ["m%d" % i for i in range(6)])
 
-            # --- first boot (emulates Emperor._load_state) ---
+            # --- first boot (emulates Huanxin._load_state) ---
             court = Court()
             court.load_genomes(path)
             court._sm._genome_path = path  # _load_state pins this before heal

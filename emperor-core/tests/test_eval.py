@@ -1,11 +1,11 @@
 """
-Tests for jarvis.eval — Evaluation Framework (package).
+Tests for huanxin.eval — Evaluation Framework (package).
 
 Covers:
-    - jarvis.eval.runner.EvalRunner: run_benchmark / run_custom_cases / report
-    - jarvis.eval.metrics: all 6 metrics + compute_all_metrics
-    - jarvis.eval.benchmarks: all 4 built-in benchmarks
-    - jarvis.eval.__init__: backward compatibility (legacy imports)
+    - huanxin.eval.runner.EvalRunner: run_benchmark / run_custom_cases / report
+    - huanxin.eval.metrics: all 6 metrics + compute_all_metrics
+    - huanxin.eval.benchmarks: all 4 built-in benchmarks
+    - huanxin.eval.__init__: backward compatibility (legacy imports)
     - AggregateReport: ranking, to_dict
     - Edge cases: empty inputs, unknown benchmarks, error handling
 """
@@ -16,7 +16,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 # ── Package imports ──
-from jarvis.eval import (
+from huanxin.eval import (
     EvalCase,
     EvalSuite,
     EvalStatus,
@@ -26,7 +26,7 @@ from jarvis.eval import (
     JudgeEvalCase,
     JudgeEvalSuite,
 )
-from jarvis.eval.metrics import (
+from huanxin.eval.metrics import (
     task_success_rate,
     tool_call_accuracy,
     response_time_ms,
@@ -36,17 +36,17 @@ from jarvis.eval.metrics import (
     compute_all_metrics,
     MetricsReport,
 )
-from jarvis.eval.benchmarks import (
+from huanxin.eval.benchmarks import (
     BenchmarkCase,
     BenchmarkResult,
-    JarvisBench,
+    HuanxinBench,
     RouterBench,
     MultiStepBench,
     SelfHealingBench,
     ALL_BENCHMARKS,
     get_benchmark,
 )
-from jarvis.eval.runner import AggregateReport
+from huanxin.eval.runner import AggregateReport
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -107,12 +107,12 @@ class TestLegacyCompatibility:
 class TestEvalRunnerRunBenchmark:
     """测试增强版 EvalRunner 的 run_benchmark 方法。"""
 
-    def test_run_jarvis_bench_no_agent(self):
+    def test_run_huanxin_bench_no_agent(self):
         """脱机模式（无 agent）：应验证用例构造并全部通过。"""
         runner = EvalRunner()
-        result = runner.run_benchmark("jarvis")
+        result = runner.run_benchmark("huanxin")
         assert isinstance(result, BenchmarkResult)
-        assert result.name == "JarvisBench"
+        assert result.name == "HuanxinBench"
         assert result.total_cases == 20
         # 脱机模式：不实际调用 agent，所有 case 应 pass
         assert result.passed == 20
@@ -144,7 +144,7 @@ class TestEvalRunnerRunBenchmark:
 
     def test_run_benchmark_returns_report_with_metrics(self):
         runner = EvalRunner()
-        result = runner.run_benchmark("jarvis")
+        result = runner.run_benchmark("huanxin")
         assert result.metrics is not None
         assert 0.0 <= result.metrics.overall_score() <= 1.0
         assert len(result.to_dict()["per_case"]) == result.total_cases
@@ -152,7 +152,7 @@ class TestEvalRunnerRunBenchmark:
     def test_all_available_benchmarks(self):
         """每个内置基准都能正常构建并运行。"""
         runner = EvalRunner()
-        for name in ["jarvis", "router", "multistep", "selfhealing"]:
+        for name in ["huanxin", "router", "multistep", "selfhealing"]:
             result = runner.run_benchmark(name)
             assert result.total_cases > 0, f"{name} has zero cases"
             assert result.passed > 0, f"{name} has zero passes"
@@ -162,7 +162,7 @@ class TestEvalRunnerRunBenchmark:
         mock_agent = MagicMock()
         mock_agent.handle = MagicMock(return_value={"data": {"value": 42}})
         runner = EvalRunner()
-        result = runner.run_benchmark("jarvis", agent=mock_agent)
+        result = runner.run_benchmark("huanxin", agent=mock_agent)
         # 确认 agent.handle 被调用
         assert mock_agent.handle.call_count == 20
         # 确认结果中包含 agent_output
@@ -261,7 +261,7 @@ class TestEvalRunnerRunAll:
 class TestReports:
     def test_report_json_returns_string(self):
         runner = EvalRunner()
-        runner.run_benchmark("jarvis")
+        runner.run_benchmark("huanxin")
         json_str = runner.report_json()
         assert isinstance(json_str, str)
         data = json.loads(json_str)
@@ -270,39 +270,39 @@ class TestReports:
 
     def test_report_markdown_returns_string(self):
         runner = EvalRunner()
-        runner.run_benchmark("jarvis")
+        runner.run_benchmark("huanxin")
         md = runner.report_markdown()
-        assert "# JARVIS Evaluation Report" in md
+        assert "# HUANXIN Evaluation Report" in md
         assert "## Summary" in md
         assert "## Ranking" in md
-        assert "### JarvisBench" in md or "jarvis" in md.lower()
+        assert "### HuanxinBench" in md or "huanxin" in md.lower()
 
     def test_report_markdown_with_all_benchmarks(self):
         runner = EvalRunner()
         runner.run_all_benchmarks()
         md = runner.report_markdown()
-        assert "JarvisBench" in md or "jarvis" in md.lower()
+        assert "HuanxinBench" in md or "huanxin" in md.lower()
         assert "RouterBench" in md or "router" in md.lower()
 
     def test_scores_by_dimension(self):
         runner = EvalRunner()
-        runner.run_benchmark("jarvis")
-        scores = runner.scores_by_dimension("jarvis")
+        runner.run_benchmark("huanxin")
+        scores = runner.scores_by_dimension("huanxin")
         assert "task_success_rate" in scores
         assert "overall_score" in scores
 
     def test_all_scores(self):
         runner = EvalRunner()
-        runner.run_benchmark("jarvis")
+        runner.run_benchmark("huanxin")
         runner.run_benchmark("router")
         all_s = runner.all_scores()
-        assert "jarvis" in all_s
+        assert "huanxin" in all_s
         assert "router" in all_s
 
     def test_history_and_reset(self):
         runner = EvalRunner()
-        runner.run_benchmark("jarvis")
-        assert "jarvis" in runner.history
+        runner.run_benchmark("huanxin")
+        assert "huanxin" in runner.history
         runner.reset()
         assert len(runner.history) == 0
 
@@ -533,8 +533,8 @@ class TestComputeAllMetrics:
 # ══════════════════════════════════════════════════════════════════
 
 class TestBenchmarksConstruction:
-    def test_jarvis_bench_cases(self):
-        bench = JarvisBench()
+    def test_huanxin_bench_cases(self):
+        bench = HuanxinBench()
         cases = bench.build_cases()
         assert len(cases) == 20
 
@@ -575,10 +575,10 @@ class TestBenchmarksConstruction:
             assert c.fault_type != "", f"Case {c.label} has no fault_type"
 
     def test_all_benchmarks_registry(self):
-        assert set(ALL_BENCHMARKS.keys()) == {"jarvis", "router", "multistep", "selfhealing"}
+        assert set(ALL_BENCHMARKS.keys()) == {"huanxin", "router", "multistep", "selfhealing"}
 
     def test_get_benchmark(self):
-        assert isinstance(get_benchmark("jarvis"), JarvisBench)
+        assert isinstance(get_benchmark("huanxin"), HuanxinBench)
         assert isinstance(get_benchmark("router"), RouterBench)
         assert get_benchmark("nonexistent") is None
 
@@ -588,8 +588,8 @@ class TestBenchmarksConstruction:
 # ══════════════════════════════════════════════════════════════════
 
 class TestBenchmarkRunNoAgent:
-    def test_jarvis_bench_run(self):
-        bench = JarvisBench()
+    def test_huanxin_bench_run(self):
+        bench = HuanxinBench()
         result = bench.run()
         assert result.total_cases == 20
         assert result.passed == 20
@@ -617,10 +617,10 @@ class TestBenchmarkRunNoAgent:
 # ══════════════════════════════════════════════════════════════════
 
 class TestBenchmarkRunWithAgent:
-    def test_jarvis_with_agent(self):
+    def test_huanxin_with_agent(self):
         mock = MagicMock()
         mock.handle = MagicMock(return_value={"data": {"date": "2025-01-01"}})
-        bench = JarvisBench()
+        bench = HuanxinBench()
         result = bench.run(agent=mock)
         assert result.total_cases == 20
         # 自定义 validator 仅校验日期/数学范围等的，简单返回应通过
@@ -655,7 +655,7 @@ class TestAggregateReport:
 
     def test_single_report_aggregate(self):
         runner = EvalRunner()
-        result = runner.run_benchmark("jarvis")
+        result = runner.run_benchmark("huanxin")
         agg = AggregateReport(
             total_benchmarks=1,
             reports=[result],
@@ -663,11 +663,11 @@ class TestAggregateReport:
         assert agg.overall_score > 0.0
         assert len(agg.ranking) == 1
         assert agg.ranking[0]["rank"] == 1
-        assert agg.ranking[0]["name"] == "JarvisBench"
+        assert agg.ranking[0]["name"] == "HuanxinBench"
 
     def test_aggregate_to_dict(self):
         runner = EvalRunner()
-        runner.run_benchmark("jarvis")
+        runner.run_benchmark("huanxin")
         runner.run_benchmark("router")
         d = runner.report_json()
         data = json.loads(d)
@@ -680,7 +680,7 @@ class TestAggregateReport:
 
 class TestRegisterBenchmark:
     def test_register_and_run(self):
-        from jarvis.eval.benchmarks import Benchmark, BenchmarkCase as BC
+        from huanxin.eval.benchmarks import Benchmark, BenchmarkCase as BC
 
         class MiniBench(Benchmark):
             name = "mini"
@@ -735,7 +735,7 @@ class TestEdgeCases:
         """空运行情况下的 Markdown 报告。"""
         runner = EvalRunner()
         md = runner.report_markdown()
-        assert "# JARVIS Evaluation Report" in md
+        assert "# HUANXIN Evaluation Report" in md
 
     def test_json_report_before_run(self):
         runner = EvalRunner()

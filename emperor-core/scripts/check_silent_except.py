@@ -15,13 +15,13 @@
     ——它们不含 "Exception" 子串，天然不命中。
 
 默认只约束我们自建的自进化核心（court / vcs / eval_bench / guardrail /
-router），不强改上游 emperor-core 其余模块的既有写法。可用 ``--paths``
+router），不强改上游 huanxin-ai 其余模块的既有写法。可用 ``--paths``
 自定义扫描范围。
 
 用法::
 
     python scripts/check_silent_except.py                 # 扫描默认核心路径
-    python scripts/check_silent_except.py --paths jarvis/  # 自定义范围
+    python scripts/check_silent_except.py --paths huanxin/  # 自定义范围
 退出码：发现静默吞异常 → 1；否则 → 0。
 """
 
@@ -35,12 +35,12 @@ from typing import Iterable, List, Tuple
 
 # 默认约束范围：我们自建的自进化核心路径
 DEFAULT_SCOPE: Tuple[str, ...] = (
-    "jarvis/court",
-    "jarvis/vcs",
-    "jarvis/eval_bench",
-    "jarvis/guardrail_chain.py",
-    "jarvis/model_router.py",
-    "jarvis/emperor.py",
+    "huanxin/court",
+    "huanxin/vcs",
+    "huanxin/eval_bench",
+    "huanxin/guardrail_chain.py",
+    "huanxin/model_router.py",
+    "huanxin/emperor.py",
 )
 
 Violation = Tuple[str, int, str]

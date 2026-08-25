@@ -15,15 +15,15 @@ from __future__ import annotations
 import os
 import sys
 
-from jarvis.court.circuit_breaker import (
+from huanxin.court.circuit_breaker import (
     CircuitBreaker, CircuitConfig, CircuitDecision, CircuitState,
 )
-from jarvis.court.court import Court, CourtConfig
-from jarvis.self_evolve import (
+from huanxin.court.court import Court, CourtConfig
+from huanxin.self_evolve import (
     GenomeDrivenExecutor, RecordingWriteChannel, SelfEvolutionEngine,
     default_ministers,
 )
-from jarvis.vcs.writeback_gate import WritebackGate
+from huanxin.vcs.writeback_gate import WritebackGate
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 import run_self_evolve  # noqa: E402

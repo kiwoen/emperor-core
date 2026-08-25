@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from jarvis.hermes.bus import MessageBus, Topic
-from jarvis.hermes_agent.server import HermesMCPServer, TOOLS_SCHEMA
-from jarvis.hermes_agent.client import HermesMCPClient
+from huanxin.hermes.bus import MessageBus, Topic
+from huanxin.hermes_agent.server import HermesMCPServer, TOOLS_SCHEMA
+from huanxin.hermes_agent.client import HermesMCPClient
 
 
 # ── Mock stdio helper ───────────────────────────────────────────────────────
@@ -56,14 +56,14 @@ class TestHermesMCPServer:
         assert "herm_list_topics" in tool_names
 
     def test_mcp_response_format(self):
-        from jarvis.hermes_agent.server import _mcp_response
+        from huanxin.hermes_agent.server import _mcp_response
         r = json.loads(_mcp_response(1, {"ok": True}))
         assert r["jsonrpc"] == "2.0"
         assert r["id"] == 1
         assert r["result"]["ok"] is True
 
     def test_mcp_error_format(self):
-        from jarvis.hermes_agent.server import _mcp_error
+        from huanxin.hermes_agent.server import _mcp_error
         r = json.loads(_mcp_error(1, -32600, "Invalid"))
         assert "error" in r
         assert r["error"]["code"] == -32600
@@ -130,7 +130,7 @@ class TestHermesMCPServerTools:
         bus = MessageBus()
         server = HermesMCPServer(bus)
 
-        from jarvis.hermes.bus import Message, MessageType
+        from huanxin.hermes.bus import Message, MessageType
 
         # Publish a few messages on a timer
         async def publisher():
@@ -293,7 +293,7 @@ class TestHermesMCPClient:
         client._sub_id = "fake"
 
         # Directly call the handler to test error path
-        from jarvis.hermes.bus import Message, MessageType
+        from huanxin.hermes.bus import Message, MessageType
         msg = Message(
             topic=Topic("mcp.client.unknown.list"),
             payload={},
@@ -337,7 +337,7 @@ class TestHermesMCPClient:
         await client.start()
 
         # Simulate a request asking for tools list
-        from jarvis.hermes.bus import Message, MessageType
+        from huanxin.hermes.bus import Message, MessageType
 
         msg = Message(
             topic=Topic("mcp.client.echo.list"),

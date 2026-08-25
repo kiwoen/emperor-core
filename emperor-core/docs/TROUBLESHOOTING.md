@@ -1,6 +1,6 @@
-# emperor-core 部署故障排查手册（学生实验 / 阿里云 VM）
+# huanxin-ai 部署故障排查手册（学生实验 / 阿里云 VM）
 
-> 适用：阿里云学生机 + `docker compose up -d --build` 部署 emperor-core。
+> 适用：阿里云学生机 + `docker compose up -d --build` 部署 huanxin-ai。
 > 用法：照「症状」找小节，先跑「诊断命令」看输出，再照「修复」做。
 
 ---
@@ -75,7 +75,7 @@ curl -f http://127.0.0.1:8000/health
 |---|---|
 | 本机 `curl` 也失败 | 服务没起 → 看第 0/5 节 |
 | 本机 200，外网打不开 | ① **安全组没放 8000** → 控制台加 8000/TCP/0.0.0.0/0（最常见！）；② 本地浏览器缓存，强制刷新；③ 公司网络屏蔽非常规端口，换手机热点 |
-| `Connection refused` | 容器没监听 0.0.0.0 → 确认 compose 里 `EMPEROR_HOST=0.0.0.0`（默认已是） |
+| `Connection refused` | 容器没监听 0.0.0.0 → 确认 compose 里 `HUANXIN_HOST=0.0.0.0`（默认已是） |
 | 一直转圈 | 防火墙/安全组只放了 22 → 补 8000 |
 
 > 阿里云默认只放 22，**8000 必须手动加**，这是头号坑。
@@ -95,7 +95,7 @@ docker compose logs --tail 50
 |---|---|
 | `Address already in use` | 8000 被占用 → `docker compose down` 再 `up`；或别的进程占了端口 `lsof -i:8000` |
 | `No module named 'xxx'` | 镜像构建时依赖没装全 → `docker compose up -d --build` 重构建 |
-| `EMPEROR_DATA_DIR` 权限拒绝 | 卷挂载权限问题 → `chmod -R 777 /app/data` 临时放行（测试用） |
+| `HUANXIN_DATA_DIR` 权限拒绝 | 卷挂载权限问题 → `chmod -R 777 /app/data` 临时放行（测试用） |
 | `sqlite3.OperationalError` | 数据库锁 → 停掉其他实例 `docker compose down` 再起 |
 | 启动慢（模型加载） | 首次启动要拉依赖/初始化，等 30–60s 再看；`start_period` 已设 20s |
 
@@ -106,7 +106,7 @@ docker compose logs --tail 50
 **诊断**
 ```bash
 docker compose build --no-cache    # 干净重建看完整报错
-docker images                      # 看是否有 emperor-core:local
+docker images                      # 看是否有 huanxin-ai:local
 df -h                              # 看磁盘是否满
 ```
 
@@ -145,9 +145,9 @@ curl -H "Authorization: Bearer <token>" http://localhost:8000/court/ministers   
 | 现象 | 修复 |
 |---|---|
 | `/health` 也 401 | 打错路径/端口；`/health` 不受令牌保护，401 说明访问的不是本服务 |
-| 带了 Bearer 仍 401 | ① `.env` 里 `EMPEROR_API_TOKEN` 值不对/有空格 → 检查 `cat .env`；② compose 没重起 `docker compose up -d` 使 `.env` 生效 |
-| 浏览器仪表盘 401 | 加 `?token=<token>` 参数，或先用无令牌模式（`EMPEROR_API_TOKEN` 留空） |
-| 想临时关闭鉴权 | `.env` 里 `EMPEROR_API_TOKEN=` 留空 → `docker compose up -d` |
+| 带了 Bearer 仍 401 | ① `.env` 里 `HUANXIN_API_TOKEN` 值不对/有空格 → 检查 `cat .env`；② compose 没重起 `docker compose up -d` 使 `.env` 生效 |
+| 浏览器仪表盘 401 | 加 `?token=<token>` 参数，或先用无令牌模式（`HUANXIN_API_TOKEN` 留空） |
+| 想临时关闭鉴权 | `.env` 里 `HUANXIN_API_TOKEN=` 留空 → `docker compose up -d` |
 
 ---
 

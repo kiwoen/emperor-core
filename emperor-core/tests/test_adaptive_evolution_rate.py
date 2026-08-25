@@ -14,7 +14,7 @@ Covers:
 
 import pytest
 
-from jarvis.court.evolution import (
+from huanxin.court.evolution import (
     AdaptiveRateConfig,
     CrossoverMode,
     EliteTurnoverMode,
@@ -26,7 +26,7 @@ from jarvis.court.evolution import (
     TaskContext,
     TaskDifficulty,
 )
-from jarvis.court.merit_board import MeritBoard
+from huanxin.court.merit_board import MeritBoard
 
 # ── Shared helpers ──────────────────────────────────────────────────
 

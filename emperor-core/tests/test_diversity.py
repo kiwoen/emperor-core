@@ -1,8 +1,8 @@
 """Tests for DiversityMonitor and catastrophe mechanism."""
 
 import pytest
-from jarvis.court.diversity import DiversityMonitor, DiversitySnapshot, CatastropheReport
-from jarvis.court.evolution import MinisterGenome
+from huanxin.court.diversity import DiversityMonitor, DiversitySnapshot, CatastropheReport
+from huanxin.court.evolution import MinisterGenome
 
 
 class TestFeatureVector:

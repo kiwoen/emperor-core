@@ -9,10 +9,10 @@ AIGC:
     ReservedCode2: HibW14NuN5K+4nuxJhIwNqt3hH9DehYUncgUbGkYxPI1WL97/3XNDjyByvlQmCkyBCQxw4geZApoBxqmP00hMit5XqVmUMoz+w/wWRVf+HNhpua9OIHn6qaiNVukNrK4Qc3sd8Ix6qRB7v8eIIHR6bog8IemB73xprOFCAlRTEm2+B4N5RIZTGqAOd0=
 ---
 
-# emperor-core 技术白皮书
+# huanxin-ai 技术白皮书
 
 > v2.0.0 | 2026年8月  
-> **Abstract**: emperor-core is a self-evolving multi-agent collaborative system designed for enterprise AI competitions. It employs a "royal court" metaphor to orchestrate specialized AI agents (ministers) under unified task scheduling, consensus decision-making, and continuous evolution frameworks. This paper details the five-layer architecture and five core technologies (self-evolution, self-healing, debate consensus, hybrid RAG, multimodal perception), with systematic comparisons against LangGraph, CrewAI, and AutoGen.
+> **Abstract**: huanxin-ai is a self-evolving multi-agent collaborative system designed for enterprise AI competitions. It employs a "royal court" metaphor to orchestrate specialized AI agents (ministers) under unified task scheduling, consensus decision-making, and continuous evolution frameworks. This paper details the five-layer architecture and five core technologies (self-evolution, self-healing, debate consensus, hybrid RAG, multimodal perception), with systematic comparisons against LangGraph, CrewAI, and AutoGen.
 
 ---
 
@@ -26,7 +26,7 @@ AIGC:
 2. **幻觉风险**：单模型生成内容缺乏交叉验证机制，错误无法内生纠正
 3. **架构碎片化**：LLM、RAG、工具调用、多模态处理通常需要多个独立系统拼接，集成成本高
 
-2026年的 AI 竞赛评审趋势愈发重视**工程化完备度**和**系统闭环能力**，而非仅仅比拼模型精度。emperor-core 正是为解决上述三大痛点而设计的系统性方案。
+2026年的 AI 竞赛评审趋势愈发重视**工程化完备度**和**系统闭环能力**，而非仅仅比拼模型精度。huanxin-ai 正是为解决上述三大痛点而设计的系统性方案。
 
 ### 1.2 设计哲学
 
@@ -71,20 +71,20 @@ User Input → Router (意图分类) → LLM Engine (生成) → Tool Registry (
 
 | 模块 | 文件数 | 功能 |
 |------|--------|------|
-| jarvis/llm | 3 | LLM 引擎（OpenAI/Anthropic/Ollama/国产5家） |
-| jarvis/router | 3 | 智能路由 + 8种意图分类 |
-| jarvis/rag | 3 | RAG 混合检索（Dense+Sparse+RRF+Rerank） |
-| jarvis/multimodal | 3 | 多模态感知（Vision/Document/Speech） |
-| jarvis/memory | 3 | 向量记忆（ChromaDB） |
-| jarvis/tools | 6 | Function Calling 标准化 + 12内置工具 |
-| jarvis/workflow | 4 | DAG 工作流编排 |
-| jarvis/mcp | 4 | MCP 协议（12工具暴露为MCP tools） |
-| jarvis/sandbox | 4 | 安全沙箱（local/subprocess/docker三模式） |
-| jarvis/async_core | 3 | 异步执行器 + 队列管理 |
-| jarvis/consensus | 3 | 多智能体辩论共识（5种策略） |
-| jarvis/eval | 4 | 标准化评测体系（4基准235用例） |
-| jarvis/compat | 3 | 国产算力 + 信创平台适配 |
-| jarvis/i18n | 3 | 双语国际化（zh/en 72条） |
+| huanxin/llm | 3 | LLM 引擎（OpenAI/Anthropic/Ollama/国产5家） |
+| huanxin/router | 3 | 智能路由 + 8种意图分类 |
+| huanxin/rag | 3 | RAG 混合检索（Dense+Sparse+RRF+Rerank） |
+| huanxin/multimodal | 3 | 多模态感知（Vision/Document/Speech） |
+| huanxin/memory | 3 | 向量记忆（ChromaDB） |
+| huanxin/tools | 6 | Function Calling 标准化 + 12内置工具 |
+| huanxin/workflow | 4 | DAG 工作流编排 |
+| huanxin/mcp | 4 | MCP 协议（12工具暴露为MCP tools） |
+| huanxin/sandbox | 4 | 安全沙箱（local/subprocess/docker三模式） |
+| huanxin/async_core | 3 | 异步执行器 + 队列管理 |
+| huanxin/consensus | 3 | 多智能体辩论共识（5种策略） |
+| huanxin/eval | 4 | 标准化评测体系（4基准235用例） |
+| huanxin/compat | 3 | 国产算力 + 信创平台适配 |
+| huanxin/i18n | 3 | 双语国际化（zh/en 72条） |
 
 ---
 
@@ -167,7 +167,7 @@ API超时 / 内存溢出 / 状态污染 / 数据库锁 / Python运行时 / 配�
 
 ### 4.1 竞品对比
 
-| 维度 | emperor-core | LangGraph | CrewAI | AutoGen |
+| 维度 | huanxin-ai | LangGraph | CrewAI | AutoGen |
 |------|-------------|-----------|--------|---------|
 | 自进化 | ✅ 遗传+粒子群 | ❌ | ❌ | ❌ |
 | 辩论共识 | ✅ 5策略 | ❌ | ❌ | 简单投票 |
@@ -184,7 +184,7 @@ API超时 / 内存溢出 / 状态污染 / 数据库锁 / Python运行时 / 配�
 
 | 基准 | 用例数 | 得分 | 说明 |
 |------|--------|------|------|
-| JarvisBench | 20 | 95% | 12种内置能力全覆盖 |
+| HuanxinBench | 20 | 95% | 12种内置能力全覆盖 |
 | RouterBench | 16 | 93.8% | 8意图分类准确率 |
 | MultiStepBench | 10 | 88% | 多步推理 |
 | SelfHealingBench | 8 | 87.5% | 自愈成功率 |
@@ -216,6 +216,6 @@ python main.py --mode server  # Web服务模式
 
 ---
 
-**项目地址**：https://github.com/kiwoen/emperor-core  
+**项目地址**：https://github.com/kiwoen/huanxin-ai  
 **许可证**：MIT
 *（内容由AI生成，仅供参考）*

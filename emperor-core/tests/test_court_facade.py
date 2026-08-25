@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from jarvis.court.court import Court, CourtConfig
-from jarvis.court.history import CycleRecord, EvolutionHistory
+from huanxin.court.court import Court, CourtConfig
+from huanxin.court.history import CycleRecord, EvolutionHistory
 
 
 # ── Helpers ───────────────────────────────────────────────────────

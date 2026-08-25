@@ -5,10 +5,10 @@ from __future__ import annotations
 import json
 import os
 
-from jarvis.court.court import Court, CourtConfig
-from jarvis.court.rollback import RollbackManager
-from jarvis.court.genome_diff import genome_state_file_content
-from jarvis.self_evolve import default_ministers
+from huanxin.court.court import Court, CourtConfig
+from huanxin.court.rollback import RollbackManager
+from huanxin.court.genome_diff import genome_state_file_content
+from huanxin.self_evolve import default_ministers
 
 
 def _fresh_court():

@@ -1,4 +1,4 @@
-"""Tests for jarvis.handoff — Multi-Agent Handoff Protocol.
+"""Tests for huanxin.handoff — Multi-Agent Handoff Protocol.
 
 Covers:
     - HandoffContext serialization / deserialization
@@ -6,7 +6,7 @@ Covers:
     - HandoffProtocol: registration, execution, fallback
     - Chain tracking, timeout, max depth
     - Stats, history, active handoffs
-    - Emperor integration (execute_task with handoff meta)
+    - Huanxin integration (execute_task with handoff meta)
     - Court API endpoints
 """
 
@@ -18,7 +18,7 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from jarvis.handoff import (
+from huanxin.handoff import (
     HandoffContext,
     HandoffProtocol,
     HandoffRequest,
@@ -28,7 +28,7 @@ from jarvis.handoff import (
     FallbackStrategy,
     handoff_protocol,
 )
-from jarvis.emperor import Emperor
+from huanxin.core import Huanxin
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -289,12 +289,12 @@ class TestHandoffPriority:
 
 
 # ══════════════════════════════════════════════════════════════════
-# Emperor integration
+# Huanxin integration
 # ══════════════════════════════════════════════════════════════════
 
-class TestEmperorHandoffIntegration:
+class TestHuanxinHandoffIntegration:
     def test_emperor_has_handoff_property(self):
-        emp = Emperor()
+        emp = Huanxin()
         assert emp.handoff is not None
 
     def test_handoff_singleton_available(self):
@@ -308,18 +308,18 @@ class TestEmperorHandoffIntegration:
 class TestHandoffAPI:
     @pytest.fixture
     def client(self):
-        from jarvis.court_api import create_app
-        from jarvis.court.court import Court
+        from huanxin.court_api import create_app
+        from huanxin.court.court import Court
 
         court = Court()
         court.register("turing", domain="math")
         court.register("curie", domain="science")
 
-        emp = Emperor()
+        emp = Huanxin()
         emp._court = court
 
         # Register ministers as handoff targets
-        from jarvis.handoff import HandoffResult, HandoffStatus
+        from huanxin.handoff import HandoffResult, HandoffStatus
 
         def make_accept(name):
             def accept(req):

@@ -8,7 +8,7 @@ from unittest import mock
 
 import pytest
 
-from jarvis.i18n import I18nEngine
+from huanxin.i18n import I18nEngine
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -16,7 +16,7 @@ from jarvis.i18n import I18nEngine
 # ══════════════════════════════════════════════════════════════════
 
 _LOCALES_DIR = (
-    Path(__file__).resolve().parent.parent / "jarvis" / "i18n" / "locales"
+    Path(__file__).resolve().parent.parent / "huanxin" / "i18n" / "locales"
 )
 
 
@@ -105,12 +105,12 @@ class TestGet:
 
     def test_get_en_system_start(self):
         engine = I18nEngine(default_locale="zh")
-        assert engine.get("system.start", locale="en") == "Emperor system starting..."
+        assert engine.get("system.start", locale="en") == "Huanxin system starting..."
 
     def test_get_with_auto_locale(self):
         engine = I18nEngine(default_locale="zh")
         result = engine.get("system.ready")
-        assert result in ("帝王系统已就绪", "Emperor system ready")
+        assert result in ("帝王系统已就绪", "Huanxin system ready")
 
     def test_get_nested_key(self):
         engine = I18nEngine()
@@ -177,7 +177,7 @@ class TestFallback:
     def test_explicit_locale_not_loaded_falls_to_system(self):
         engine = I18nEngine(default_locale="zh")
         result = engine.get("system.start", locale="fr")
-        assert result in ("帝王系统启动中...", "Emperor system starting...")
+        assert result in ("帝王系统启动中...", "Huanxin system starting...")
 
     def test_fallback_to_default(self):
         engine = I18nEngine(default_locale="zh")

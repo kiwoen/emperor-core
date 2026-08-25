@@ -1,4 +1,4 @@
-"""Tests for jarvis.guardrail_telemetry — GuardrailTelemetry + GuardrailMetricsCollector."""
+"""Tests for huanxin.guardrail_telemetry — GuardrailTelemetry + GuardrailMetricsCollector."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import time
 
 import pytest
 
-from jarvis.guardrail_telemetry import (
+from huanxin.guardrail_telemetry import (
     EventAction,
     GuardrailEvent,
     GuardrailMetricsCollector,

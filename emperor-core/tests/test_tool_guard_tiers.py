@@ -1,5 +1,5 @@
 """
-Tests for P0.5 Three-Tier Guard Enhancement (jarvis.tool_guard tiers).
+Tests for P0.5 Three-Tier Guard Enhancement (huanxin.tool_guard tiers).
 
 Covers:
   - ToolActionClassifier: read/write/external classification
@@ -17,7 +17,7 @@ import pytest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from jarvis.tool_guard import (
+from huanxin.tool_guard import (
     ToolActionType,
     ToolRiskLevel,
     AgentRole,

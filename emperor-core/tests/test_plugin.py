@@ -1,10 +1,10 @@
-"""Tests for jarvis.plugin — Plugin and PluginManager."""
+"""Tests for huanxin.plugin — Plugin and PluginManager."""
 
 from contextlib import nullcontext
 
 import pytest
 
-from jarvis.plugin import LifecycleEvent, Plugin, PluginManager
+from huanxin.plugin import LifecycleEvent, Plugin, PluginManager
 
 
 # ══════════════════════════════════════════════════════════════════

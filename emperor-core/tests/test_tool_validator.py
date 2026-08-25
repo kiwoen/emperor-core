@@ -1,5 +1,5 @@
 """
-Tests for jarvis.tools.validator — ToolCallValidator and safe_execute.
+Tests for huanxin.tools.validator — ToolCallValidator and safe_execute.
 
 Covers:
   1. Schema registration and basic validation
@@ -24,7 +24,7 @@ from typing import Any
 import pytest
 from pydantic import BaseModel, Field
 
-from jarvis.tools.validator import (
+from huanxin.tools.validator import (
     ExecutionError,
     SafeExecuteResult,
     ToolCallLog,
@@ -485,8 +485,8 @@ class TestGlobalValidator:
     """Test the global_validator singleton convenience."""
 
     def test_global_validator_is_singleton(self):
-        from jarvis.tools.validator import global_validator as g1
-        from jarvis.tools.validator import global_validator as g2
+        from huanxin.tools.validator import global_validator as g1
+        from huanxin.tools.validator import global_validator as g2
         assert g1 is g2
 
     def test_global_register_and_validate(self, fresh_global):

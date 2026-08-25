@@ -1,5 +1,5 @@
 
-# Emperor-Core 系统架构文档
+# 幻炘AI 系统架构文档
 
 > 版本: 0.1.0 | 最后更新: 2026-08-08
 
@@ -17,18 +17,18 @@
 
 ## 1. 架构总览
 
-Emperor-Core 采用五层分层架构，从顶层的控制平面到底层的持久化层，每层职责清晰且可独立演进。
+幻炘AI 采用五层分层架构，从顶层的控制平面到底层的持久化层，每层职责清晰且可独立演进。
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│                        EMPEROR-CORE ARCHITECTURE                      │
+│                        HUANXIN-CORE ARCHITECTURE                      │
 │                        (Five-Layer Design)                            │
 └──────────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────────┐
 │ LAYER 1: CONTROL PLANE (控制平面)                                      │
 │ ┌────────────┐ ┌─────────────┐ ┌──────────────┐ ┌───────────────┐   │
-│ │  Emperor    │ │ Governance   │ │  Approval     │ │  RBAC Engine  │   │
+│ │  Huanxin    │ │ Governance   │ │  Approval     │ │  RBAC Engine  │   │
 │ │(Orchestrator)│ │   Agent      │ │  Engine(HITL) │ │               │   │
 │ └──────┬─────┘ └──────┬──────┘ └──────┬───────┘ └───────┬───────┘   │
 │        │              │               │                  │           │
@@ -97,7 +97,7 @@ Emperor-Core 采用五层分层架构，从顶层的控制平面到底层的持�
 
                            EXTERNAL INTERFACES
 ┌───────────────────┐  ┌───────────────────┐  ┌───────────────────────┐
-│   Dashboard (9020)│  │  Court API (8000) │  │  CLI (jarvis/emperor) │
+│   Dashboard (9020)│  │  Court API (8000) │  │  CLI (huanxin/emperor) │
 │   FastAPI + ECharts│ │  FastAPI REST     │  │  Click-based          │
 └───────────────────┘  └───────────────────┘  └───────────────────────┘
 ```
@@ -112,7 +112,7 @@ Emperor-Core 采用五层分层架构，从顶层的控制平面到底层的持�
 
 | 模块 | 职责 | 关键类 |
 |------|------|--------|
-| **Emperor** | 顶层编排器，统一入口，管理所有子系统的生命周期 | `Emperor` |
+| **Huanxin** | 顶层编排器，统一入口，管理所有子系统的生命周期 | `Huanxin` |
 | **GovernanceAgent** | "监控 Agent 的 Agent"，策略合规、RBAC、监管规则检查 | `GovernanceAgent`, `GovernanceRule` |
 | **ApprovalEngine** | HITL 人工审批门控，高风险操作必须经过审批 | `ApprovalEngine` |
 | **RBACEngine** | 基于角色的访问控制 | `RBACEngine` |
@@ -191,7 +191,7 @@ User / CLI / API
        │
        ▼
 ┌──────────────┐
-│   Emperor     │  ← 统一入口
+│   Huanxin     │  ← 统一入口
 │ .execute_task │
 └──────┬───────┘
        │
@@ -251,7 +251,7 @@ Scheduler (定时触发)
        │
        ▼
 ┌──────────────┐
-│  Emperor      │
+│  Huanxin      │
 │  .evolve()    │
 └──────┬───────┘
        │
@@ -360,7 +360,7 @@ User Prompt
 
 ```
                         ┌──────────────┐
-                        │   Emperor    │
+                        │   Huanxin    │
                         │ (Top-Level)  │
                         └──────┬───────┘
             ┌──────────────────┼───────────────────┐
@@ -386,8 +386,8 @@ User Prompt
 
 Module Dependency Graph:
 
-Emperor
- ├── Config (jarvis.yaml)
+Huanxin
+ ├── Config (huanxin.yaml)
  ├── Court
  │    ├── MeritBoard
  │    ├── SlidingMeritBoard

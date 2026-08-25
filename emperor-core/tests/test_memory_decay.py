@@ -24,15 +24,15 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from jarvis.court.circuit_breaker import CircuitBreaker, CircuitConfig  # noqa: E402
-from jarvis.court.court import Court, CourtConfig  # noqa: E402
-from jarvis.court.memory import CourtMemory, memory_from_memorial  # noqa: E402
-from jarvis.court.real_executor import RealTaskExecutor  # noqa: E402
-from jarvis.self_evolve import (  # noqa: E402
+from huanxin.court.circuit_breaker import CircuitBreaker, CircuitConfig  # noqa: E402
+from huanxin.court.court import Court, CourtConfig  # noqa: E402
+from huanxin.court.memory import CourtMemory, memory_from_memorial  # noqa: E402
+from huanxin.court.real_executor import RealTaskExecutor  # noqa: E402
+from huanxin.self_evolve import (  # noqa: E402
     RecordingWriteChannel, SelfEvolutionEngine, real_default_tasks,
 )
-from jarvis.self_evolve_config import SelfEvolveConfig  # noqa: E402
-from jarvis.vcs.writeback_gate import WritebackGate  # noqa: E402
+from huanxin.self_evolve_config import SelfEvolveConfig  # noqa: E402
+from huanxin.vcs.writeback_gate import WritebackGate  # noqa: E402
 
 
 def test_max_per_group_retention_caps_per_group():

@@ -1,4 +1,4 @@
-"""Tests for jarvis.rbac — Role-Based Access Control module.
+"""Tests for huanxin.rbac — Role-Based Access Control module.
 
 Covers:
   - Permission enum values
@@ -13,7 +13,7 @@ import uuid
 import pytest
 from fastapi.testclient import TestClient
 
-from jarvis.rbac import (
+from huanxin.rbac import (
     RBACEngine,
     Permission,
     Role,
@@ -148,13 +148,13 @@ class TestRBACEngine:
 # 4. emperor.py integration
 # ══════════════════════════════════════════════════════════════════
 
-class TestEmperorRBACIntegration:
-    """RBAC integration in Emperor.execute_task()."""
+class TestHuanxinRBACIntegration:
+    """RBAC integration in Huanxin.execute_task()."""
 
     @pytest.fixture
     def emperor(self):
-        from jarvis.emperor import Emperor
-        emp = Emperor()
+        from huanxin.core import Huanxin
+        emp = Huanxin()
         # Register a few ministers so execute_task can select one
         emp.court.register(name="alice", domain="file_ops")
         emp.court.register(name="bob", domain="shell")
@@ -200,7 +200,7 @@ class TestRBACAPI:
 
     @pytest.fixture
     def client(self):
-        from jarvis.court_api import create_app
+        from huanxin.court_api import create_app
         app = create_app()
         return TestClient(app)
 

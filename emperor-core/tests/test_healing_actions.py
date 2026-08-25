@@ -1,4 +1,4 @@
-"""Tests for jarvis.healing_actions — pre‑baked healing actions."""
+"""Tests for huanxin.healing_actions — pre‑baked healing actions."""
 
 import gc
 import time
@@ -6,8 +6,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from jarvis import healing_actions as ha
-from jarvis.alerts import AlertManager, AlertRule, AlertSeverity
+from huanxin import healing_actions as ha
+from huanxin.alerts import AlertManager, AlertRule, AlertSeverity
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -48,8 +48,8 @@ class _StubCourt:
         return list(range(self._n))
 
 
-class _StubEmperor:
-    """Minimal Emperor stub that mirrors the public API used by healing actions."""
+class _StubHuanxin:
+    """Minimal Huanxin stub that mirrors the public API used by healing actions."""
     def __init__(self):
         self.scheduler = _StubScheduler()
         self.task_engine = _StubEngine()
@@ -65,7 +65,7 @@ class _StubEmperor:
 @pytest.fixture
 def installed(monkeypatch):
     """Install a stub emperor so _get_emperor() returns it."""
-    emperor = _StubEmperor()
+    emperor = _StubHuanxin()
     # The actions module uses a placeholder; we monkeypatch it.
     monkeypatch.setattr(ha, "_get_emperor", lambda: emperor)
     return emperor

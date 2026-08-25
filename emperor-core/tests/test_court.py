@@ -3,10 +3,10 @@
 import asyncio
 import pytest
 
-from jarvis.court import (
+from huanxin.court import (
     Decree,
     Edict,
-    Emperor,
+    Sovereign,
     ImperialCourt,
     Memorial,
     Minister,
@@ -117,7 +117,7 @@ class TestSingleMinisterDispatch:
         assert metrics["total_feedback"] >= 1
 
 
-# ── ImperialCourt (Emperor) ──────────────────────────────────────────────────
+# ── ImperialCourt (Sovereign) ────────────────────────────────────────────────
 
 class TestImperialCourt:
     def test_install_ministers_from_factory(self):
@@ -127,7 +127,7 @@ class TestImperialCourt:
         assert len(court.ministers) == 8
 
     def test_analyze_petition(self):
-        """Emperor correctly scores ministers for a given intent."""
+        """Sovereign correctly scores ministers for a given intent."""
         court = ImperialCourt()
         court.install_ministers_from_factory()
 
@@ -163,13 +163,13 @@ class TestImperialCourt:
         assert all(s in scores for s in selected)
 
 
-# ── Full Pipeline: Emperor.receive_petition ──────────────────────────────────
+# ── Full Pipeline: Sovereign.receive_petition ────────────────────────────────
 
-class TestEmperorFullPipeline:
+class TestSovereignFullPipeline:
     @pytest.mark.asyncio
     async def test_receive_petition_single(self):
-        """Emperor processes a petition with a single minister."""
-        emperor = Emperor()
+        """Sovereign processes a petition with a single minister."""
+        emperor = Sovereign()
         decree = await emperor.receive_petition("写一个Python排序算法")
         assert isinstance(decree, Decree)
         assert decree.success is True
@@ -180,7 +180,7 @@ class TestEmperorFullPipeline:
     @pytest.mark.asyncio
     async def test_receive_petition_code(self):
         """Code-related petition routed to Works Minister."""
-        emperor = Emperor()
+        emperor = Sovereign()
         decree = await emperor.receive_petition("调试Python代码的循环引用问题")
         assert decree.success
         # Should involve 工部尚书
@@ -189,7 +189,7 @@ class TestEmperorFullPipeline:
     @pytest.mark.asyncio
     async def test_receive_petition_security(self):
         """Security petition routed to Guard Captain."""
-        emperor = Emperor()
+        emperor = Sovereign()
         decree = await emperor.receive_petition("审计代码安全漏洞")
         assert decree.success
         # Should involve 卫尉
@@ -198,7 +198,7 @@ class TestEmperorFullPipeline:
     @pytest.mark.asyncio
     async def test_court_metrics(self):
         """Court metrics accumulate correctly after petitions."""
-        emperor = Emperor()
+        emperor = Sovereign()
         await emperor.receive_petition("优化API性能")
         await emperor.receive_petition("搜索最新AI论文")
 
@@ -212,7 +212,7 @@ class TestEmperorFullPipeline:
     @pytest.mark.asyncio
     async def test_ministers_independent(self):
         """Multiple petitions don't interfere with each other."""
-        emperor = Emperor()
+        emperor = Sovereign()
 
         # Parallel petitions
         results = await asyncio.gather(
@@ -227,7 +227,7 @@ class TestEmperorFullPipeline:
     @pytest.mark.asyncio
     async def test_court_session_multi_minister(self):
         """A multi-domain petition triggers a court session (朝堂议事)."""
-        emperor = Emperor()
+        emperor = Sovereign()
 
         # Set up scores to force multi-minister
         # We need a petition that scores 0.5+ for multiple ministers
@@ -244,8 +244,8 @@ class TestEmperorFullPipeline:
 class TestCourtFeedback:
     @pytest.mark.asyncio
     async def test_emperor_feedback(self):
-        """Emperor can send feedback to ministers."""
-        emperor = Emperor()
+        """Sovereign can send feedback to ministers."""
+        emperor = Sovereign()
         decree = await emperor.receive_petition("优化数据库查询")
 
         for name in decree.ministers_consulted:
@@ -288,8 +288,8 @@ class TestCourtDBPersistence:
 
     def test_evolve_persists_to_db(self, tmp_path):
         """evolve() with db set writes events to evolution_history."""
-        from jarvis.court.court import Court
-        from jarvis.database import Database
+        from huanxin.court.court import Court
+        from huanxin.database import Database
 
         db_path = str(tmp_path / "test_evolve.db")
         db = Database(db_path)
@@ -313,7 +313,7 @@ class TestCourtDBPersistence:
 
     def test_evolve_no_db_no_error(self):
         """evolve() without db should not crash."""
-        from jarvis.court.court import Court
+        from huanxin.court.court import Court
 
         court = Court()
         court.register("alpha", domain="math")
@@ -321,24 +321,24 @@ class TestCourtDBPersistence:
         assert result is not None
 
 
-# ── DB Persistence (Emperor.execute_task) ────────────────────────────────────
+# ── DB Persistence (Huanxin.execute_task) ────────────────────────────────────
 
-class TestEmperorTaskDBPersistence:
-    """Tests that Emperor.execute_task() writes to task_history when db is set."""
+class TestHuanxinTaskDBPersistence:
+    """Tests that Huanxin.execute_task() writes to task_history when db is set."""
 
     def test_execute_task_persists_to_db(self, tmp_path):
         """execute_task() with db set writes to task_history."""
         import tempfile
         import os
 
-        from jarvis.emperor import Emperor, EmperorConfig
-        from jarvis.database import Database
+        from huanxin.core import Huanxin, HuanxinConfig
+        from huanxin.database import Database
 
         db_path = str(tmp_path / "test_task.db")
         db = Database(db_path)
 
-        config = EmperorConfig()
-        emp = Emperor(config)
+        config = HuanxinConfig()
+        emp = Huanxin(config)
 
         # Register ministers before setting db
         for domain in ["general", "code", "writing"]:
@@ -358,10 +358,10 @@ class TestEmperorTaskDBPersistence:
 
     def test_execute_task_no_db_no_error(self):
         """execute_task() without db should still work."""
-        from jarvis.emperor import Emperor, EmperorConfig
+        from huanxin.core import Huanxin, HuanxinConfig
 
-        config = EmperorConfig()
-        emp = Emperor(config)
+        config = HuanxinConfig()
+        emp = Huanxin(config)
         for domain in ["general"]:
             emp._court.register(domain=domain)
 
@@ -378,8 +378,8 @@ class TestSurvivalDryRun:
     @staticmethod
     def _failing_court(enabled: bool):
         """Build a court whose 太卜 minister is a guaranteed elimination target."""
-        from jarvis.court.evolution import SurvivalMechanism
-        from jarvis.court.merit_board import MeritBoard
+        from huanxin.court.evolution import SurvivalMechanism
+        from huanxin.court.merit_board import MeritBoard
 
         mb = MeritBoard()
         for i in range(15):
@@ -397,7 +397,7 @@ class TestSurvivalDryRun:
         return sm
 
     def _run_to_elimination(self, sm):
-        from jarvis.court.evolution import SurvivalMechanism
+        from huanxin.court.evolution import SurvivalMechanism
 
         for _ in range(SurvivalMechanism.MAX_PROBATION_CYCLES + 1):
             sm.run_evolution_cycle()
@@ -406,7 +406,7 @@ class TestSurvivalDryRun:
 
     def test_enabled_still_eliminates(self):
         """Sanity check — the freeze must not break real selection."""
-        from jarvis.court.evolution import MinisterStatus
+        from huanxin.court.evolution import MinisterStatus
 
         sm = self._failing_court(enabled=True)
         assert sm.enabled is True
@@ -418,7 +418,7 @@ class TestSurvivalDryRun:
     # ── The actual freeze ─────────────────────────────────────────
 
     def test_disabled_does_not_eliminate(self):
-        from jarvis.court.evolution import MinisterStatus
+        from huanxin.court.evolution import MinisterStatus
 
         sm = self._failing_court(enabled=False)
         assert sm.enabled is False
@@ -429,7 +429,7 @@ class TestSurvivalDryRun:
 
     def test_disabled_still_records_history(self):
         """The verdict must be observable even though it is not applied."""
-        from jarvis.court.evolution import EvolutionAction
+        from huanxin.court.evolution import EvolutionAction
 
         sm = self._failing_court(enabled=False)
         self._run_to_elimination(sm)
@@ -459,7 +459,7 @@ class TestSurvivalDryRun:
 
     def test_dry_run_event_emitted_only_once(self):
         """Repeated cycles must not spam the history with the same verdict."""
-        from jarvis.court.evolution import EvolutionAction
+        from huanxin.court.evolution import EvolutionAction
 
         sm = self._failing_court(enabled=False)
         for _ in range(12):
@@ -473,7 +473,7 @@ class TestSurvivalDryRun:
 
     def test_probation_still_applied_when_frozen(self):
         """Probation is reversible, so it stays active for observability."""
-        from jarvis.court.evolution import MinisterStatus
+        from huanxin.court.evolution import MinisterStatus
 
         sm = self._failing_court(enabled=False)
         sm.run_evolution_cycle()
@@ -483,7 +483,7 @@ class TestSurvivalDryRun:
 
     def test_default_is_armed(self):
         """The primitive itself keeps its advertised behaviour by default."""
-        from jarvis.court.evolution import SurvivalMechanism
+        from huanxin.court.evolution import SurvivalMechanism
 
         assert SurvivalMechanism().enabled is True
 
@@ -492,20 +492,20 @@ class TestCourtFreezesElimination:
     """The production composition root ships with elimination frozen."""
 
     def test_court_default_freezes_elimination(self):
-        from jarvis.court.court import Court
+        from huanxin.court.court import Court
 
         court = Court()
         assert court._sm.enabled is False
 
     def test_court_config_can_rearm(self):
-        from jarvis.court.court import Court, CourtConfig
+        from huanxin.court.court import Court, CourtConfig
 
         court = Court(CourtConfig(enable_auto_elimination=True))
         assert court._sm.enabled is True
 
     def test_court_evolve_never_removes_ministers(self):
         """Many evolution cycles must not shrink a live court."""
-        from jarvis.court.court import Court
+        from huanxin.court.court import Court
 
         court = Court()
         for name, domain in [

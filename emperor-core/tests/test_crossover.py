@@ -3,7 +3,7 @@
 import math
 import pytest
 import random
-from jarvis.court.evolution import (
+from huanxin.court.evolution import (
     CrossoverMode,
     MinisterGenome,
     SurvivalMechanism,

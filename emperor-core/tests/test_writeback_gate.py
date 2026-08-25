@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import pytest
 
-from jarvis.eval_bench.criteria import EvalReport, EvalResult
-from jarvis.vcs import (
+from huanxin.eval_bench.criteria import EvalReport, EvalResult
+from huanxin.vcs import (
     GitWriteChannel,
     WritebackBlocked,
     WritebackGate,

@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from jarvis.hierarchical_memory import (
+from huanxin.hierarchical_memory import (
     HierarchicalMemoryEngine,
     MemoryNode,
     MemoryTier,

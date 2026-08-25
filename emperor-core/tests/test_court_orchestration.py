@@ -1,10 +1,10 @@
-"""Tests for Court-Orchestrator integration — Emperor dispatches through Orchestrator."""
+"""Tests for Court-Orchestrator integration — Sovereign dispatches through Orchestrator."""
 import asyncio
 
 import pytest
 
-from jarvis.core.orchestrator import ExecutionMode, Orchestrator
-from jarvis.court.emperor import ImperialCourt, Emperor
+from huanxin.core.orchestrator import ExecutionMode, Orchestrator
+from huanxin.court.sovereign import ImperialCourt, Sovereign
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
@@ -278,7 +278,7 @@ class TestGenomeInjection:
         court = ImperialCourt()
         court.install_ministers_from_factory()
 
-        from jarvis.court.genome_injector import GenomeInjector
+        from huanxin.court.genome_injector import GenomeInjector
 
         for name, minister in court.ministers.items():
             genome = minister.genome
@@ -294,7 +294,7 @@ class TestGenomeInjection:
 
     def test_genome_injection_idempotent(self):
         """Reinstalling a minister should update genome without breaking."""
-        from jarvis.court.ministers import create_ministers
+        from huanxin.court.ministers import create_ministers
 
         court = ImperialCourt()
         ministers = create_ministers()
@@ -314,8 +314,8 @@ class TestGenomeInjection:
 
     def test_resync_after_evolution_mutation(self):
         """After evolution mutates genomes, resync pushes updated values to minister."""
-        from jarvis.court.ministers import create_ministers
-        from jarvis.court.evolution import MinisterGenome
+        from huanxin.court.ministers import create_ministers
+        from huanxin.court.evolution import MinisterGenome
 
         court = ImperialCourt()
         minister = create_ministers()[0]
@@ -349,7 +349,7 @@ class TestGenomeInjection:
 
     def test_resync_only_updates_minister_with_genome(self):
         """resync skips ministers without genomes in SurvivalMechanism."""
-        from jarvis.court.ministers import create_ministers
+        from huanxin.court.ministers import create_ministers
 
         court = ImperialCourt()
         ministers = create_ministers()
@@ -372,9 +372,9 @@ class TestGenomeBreedingFeedbackLoop:
     @pytest.mark.asyncio
     async def test_genome_change_flows_to_llm_call(self):
         """Genome change → resync → next LLM call uses new parameters."""
-        from jarvis.court.ministers import create_ministers
-        from jarvis.court.evolution import MinisterGenome
-        from jarvis.court.providers.base import ModelResponse
+        from huanxin.court.ministers import create_ministers
+        from huanxin.court.evolution import MinisterGenome
+        from huanxin.court.providers.base import ModelResponse
 
         class CapturingProvider:
             is_available = True
@@ -399,7 +399,7 @@ class TestGenomeBreedingFeedbackLoop:
         court.install_minister(minister)
 
         # Issue first decree with factory genome
-        from jarvis.court.minister import Edict
+        from huanxin.court.minister import Edict
         edict = Edict(edict_id="e-1", intent="test")
         await minister.receive_edict(edict)
 
@@ -438,7 +438,7 @@ class TestGenomeBreedingFeedbackLoop:
 
     def test_bred_shadow_has_valid_genome(self):
         """AutoBreeder creates shadow ministers with valid genomes."""
-        from jarvis.court.ministers import create_ministers
+        from huanxin.court.ministers import create_ministers
 
         court = ImperialCourt()
         ministers = create_ministers()

@@ -5,8 +5,8 @@ from __future__ import annotations
 import os
 import tempfile
 
-from jarvis.approval import ApprovalEngine
-from jarvis.court.approval_gate import WritebackApprovalGate
+from huanxin.approval import ApprovalEngine
+from huanxin.court.approval_gate import WritebackApprovalGate
 
 
 def _tmp_db() -> str:

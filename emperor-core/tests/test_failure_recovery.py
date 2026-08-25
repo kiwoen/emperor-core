@@ -16,7 +16,7 @@ import threading
 import pytest
 from unittest import mock
 
-from jarvis.failure_recovery import (
+from huanxin.failure_recovery import (
     ErrorCategory, ErrorClassifier,
     RetryPolicy,
     CircuitState, CircuitBreaker,
@@ -24,7 +24,7 @@ from jarvis.failure_recovery import (
     RecoveryResultStatus, RecoveryResult, RecoveryContext, RecoveryEngine,
     create_default_engine, create_strict_engine,
 )
-from jarvis.pipeline import (
+from huanxin.pipeline import (
     ServicePipeline, Stage, StageStatus, PipelineStatus,
     PipelineRegistry,
 )

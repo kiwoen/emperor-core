@@ -1,10 +1,10 @@
 """
-P0.6 对 jarvis.llm_judge 的回归 / 行为测试。
+P0.6 对 huanxin.llm_judge 的回归 / 行为测试。
 
 覆盖主理人要求：
 1. LLMJudge.evaluate 在**启发式模式**下发出 warning（UserWarning + logger.warning）。
 2. accuracy 维度在启发式模式的 reasoning 含 "heuristic" 字样（证明不再冒充事实正确）。
-3. 默认 EMPEROR_JUDGE_MODE=deterministic 时，llm_judge **不再**以关键词重叠作为
+3. 默认 HUANXIN_JUDGE_MODE=deterministic 时，llm_judge **不再**以关键词重叠作为
    权威 accuracy（行为证明：确定性 accuracy 不走关键词重叠）。
 4. llm 模式无 key 时，evaluate 显式回退启发式并告警（绝不静默假高分）。
 """
@@ -16,10 +16,10 @@ import warnings
 
 import pytest
 
-from jarvis.llm_judge import LLMJudge, JudgingCriteria
+from huanxin.llm_judge import LLMJudge, JudgingCriteria
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
-LLM_JUDGE_SRC = REPO_ROOT / "jarvis" / "llm_judge.py"
+LLM_JUDGE_SRC = REPO_ROOT / "huanxin" / "llm_judge.py"
 
 
 def _accuracy(res):
@@ -32,7 +32,7 @@ def _accuracy(res):
 
 
 def test_heuristic_mode_emits_warning_and_marks_heuristic(monkeypatch, caplog):
-    monkeypatch.setenv("EMPEROR_JUDGE_MODE", "heuristic")
+    monkeypatch.setenv("HUANXIN_JUDGE_MODE", "heuristic")
     judge = LLMJudge()
     with caplog.at_level(logging.WARNING):
         with pytest.warns(UserWarning):
@@ -56,7 +56,7 @@ def test_heuristic_mode_emits_warning_and_marks_heuristic(monkeypatch, caplog):
 
 
 def test_default_mode_is_deterministic_not_keyword_overlap(monkeypatch):
-    monkeypatch.delenv("EMPEROR_JUDGE_MODE", raising=False)
+    monkeypatch.delenv("HUANXIN_JUDGE_MODE", raising=False)
     judge = LLMJudge()
     # 关键词高度重叠但事实错误的内容
     output = "法国 巴黎 巴黎 法国 首都 首都 法国 巴黎"
@@ -73,12 +73,12 @@ def test_keyword_overlap_only_in_heuristic_mode(monkeypatch):
     output = "法国 巴黎 巴黎 法国 首都 首都 法国 巴黎"
     expected = "法国 巴黎 巴黎 法国 德国 首都 法国 巴黎"
 
-    monkeypatch.setenv("EMPEROR_JUDGE_MODE", "heuristic")
+    monkeypatch.setenv("HUANXIN_JUDGE_MODE", "heuristic")
     h_score = judge.evaluate(
         output, expected, criteria=[JudgingCriteria.ACCURACY]
     ).breakdown[0].score
 
-    monkeypatch.setenv("EMPEROR_JUDGE_MODE", "deterministic")
+    monkeypatch.setenv("HUANXIN_JUDGE_MODE", "deterministic")
     d_score = judge.evaluate(
         output, expected, criteria=[JudgingCriteria.ACCURACY]
     ).breakdown[0].score
@@ -114,8 +114,8 @@ def test_source_accuracy_not_using_keyword_overlap_in_deterministic_path():
 
 
 def test_llm_mode_falls_back_to_heuristic_with_warning(monkeypatch, caplog):
-    monkeypatch.setenv("EMPEROR_JUDGE_MODE", "llm")
-    monkeypatch.delenv("EMPEROR_LLM_API_KEY", raising=False)
+    monkeypatch.setenv("HUANXIN_JUDGE_MODE", "llm")
+    monkeypatch.delenv("HUANXIN_LLM_API_KEY", raising=False)
     judge = LLMJudge()
     with caplog.at_level(logging.WARNING):
         with pytest.warns(UserWarning):

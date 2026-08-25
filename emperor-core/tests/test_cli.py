@@ -1,4 +1,4 @@
-"""Tests for Emperor CLI (argparse-based)."""
+"""Tests for Huanxin CLI (argparse-based)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from jarvis.cli import main, VERSION
+from huanxin.cli import main, VERSION
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -23,7 +23,7 @@ def run_cli(argv: list[str]) -> tuple[int, str]:
     buf = io.StringIO()
     sys.stdout = buf
     try:
-        sys.argv = ["jarvis"] + argv
+        sys.argv = ["huanxin"] + argv
         try:
             main()
             exit_code = 0
@@ -46,7 +46,7 @@ class TestCLINoArgs:
     def test_no_args_shows_help(self):
         exit_code, output = run_cli([])
         assert exit_code == 1
-        assert "jarvis" in output.lower() or "usage" in output.lower()
+        assert "huanxin" in output.lower() or "usage" in output.lower()
 
     def test_version(self):
         exit_code, output = run_cli(["--version"])
@@ -61,7 +61,7 @@ class TestCLINoArgs:
 class TestCLIStatus:
     """Tests for status command."""
 
-    @patch("jarvis.emperor.Emperor")
+    @patch("huanxin.core.Huanxin")
     def test_status_command(self, mock_emperor_cls):
         mock_emperor = MagicMock()
         mock_court = MagicMock()
@@ -86,7 +86,7 @@ class TestCLIStatus:
 
         exit_code, output = run_cli(["status"])
         assert exit_code == 0
-        assert "Emperor Core" in output
+        assert "幻炘AI" in output
         assert "5" in output
         assert "turing" in output
 
@@ -94,7 +94,7 @@ class TestCLIStatus:
 class TestCLIMinisters:
     """Tests for ministers command."""
 
-    @patch("jarvis.emperor.Emperor")
+    @patch("huanxin.core.Huanxin")
     def test_ministers_empty(self, mock_emperor_cls):
         mock_emperor = MagicMock()
         mock_court = MagicMock()
@@ -108,7 +108,7 @@ class TestCLIMinisters:
         assert exit_code == 0
         assert "暂无大臣" in output
 
-    @patch("jarvis.emperor.Emperor")
+    @patch("huanxin.core.Huanxin")
     def test_ministers_with_data(self, mock_emperor_cls):
         mock_emperor = MagicMock()
         mock_court = MagicMock()
@@ -146,7 +146,7 @@ class TestCLIMinisters:
 class TestCLITask:
     """Tests for task command."""
 
-    @patch("jarvis.emperor.Emperor")
+    @patch("huanxin.core.Huanxin")
     def test_task_command(self, mock_emperor_cls):
         mock_emperor = MagicMock()
         mock_emperor.execute_task.return_value = {
@@ -166,7 +166,7 @@ class TestCLITask:
         assert "Result: 5" in output
         assert "abc12345" in output
 
-    @patch("jarvis.emperor.Emperor")
+    @patch("huanxin.core.Huanxin")
     def test_task_with_domain(self, mock_emperor_cls):
         mock_emperor = MagicMock()
         mock_emperor.execute_task.return_value = {
@@ -184,7 +184,7 @@ class TestCLITask:
         assert exit_code == 0
         mock_emperor.execute_task.assert_called_with("2+2", domain="math")
 
-    @patch("jarvis.emperor.Emperor")
+    @patch("huanxin.core.Huanxin")
     def test_task_failure(self, mock_emperor_cls):
         mock_emperor = MagicMock()
         mock_emperor.execute_task.return_value = {
@@ -206,7 +206,7 @@ class TestCLITask:
 class TestCLIEvolve:
     """Tests for evolve command."""
 
-    @patch("jarvis.emperor.Emperor")
+    @patch("huanxin.core.Huanxin")
     def test_evolve_no_ministers(self, mock_emperor_cls):
         mock_emperor = MagicMock()
         mock_court = MagicMock()
@@ -218,7 +218,7 @@ class TestCLIEvolve:
         assert exit_code == 0
         assert "无活跃大臣" in output
 
-    @patch("jarvis.emperor.Emperor")
+    @patch("huanxin.core.Huanxin")
     def test_evolve_command(self, mock_emperor_cls):
         mock_emperor = MagicMock()
         mock_court = MagicMock()
@@ -240,7 +240,7 @@ class TestCLIEvolve:
 class TestCLIAlerts:
     """Tests for alerts command."""
 
-    @patch("jarvis.emperor.Emperor")
+    @patch("huanxin.core.Huanxin")
     def test_alerts_empty(self, mock_emperor_cls):
         mock_emperor = MagicMock()
         mock_alerts = MagicMock()

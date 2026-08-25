@@ -1,5 +1,5 @@
 
-# Emperor-Core API Reference
+# 幻炘AI API Reference
 
 > 版本: 0.1.0 | 最后更新: 2026-08-08
 
@@ -7,7 +7,7 @@
 
 ## 目录
 
-1. [核心编排器 — Emperor](#1-核心编排器--emperor)
+1. [核心编排器 — Huanxin](#1-核心编排器--emperor)
 2. [Court 进化宫廷](#2-court-进化宫廷)
 3. [共识引擎 — Consensus](#3-共识引擎--consensus)
 4. [流水线引擎 — Pipeline](#4-流水线引擎--pipeline)
@@ -42,13 +42,13 @@
 
 ---
 
-## 1. 核心编排器 — Emperor
+## 1. 核心编排器 — Huanxin
 
-`jarvis.emperor.Emperor` — 一站式 AI 系统编排器，集成 Court / TaskEngine / REST API / CLI。
+`huanxin.core.Huanxin` — 一站式 AI 系统编排器，集成 Court / TaskEngine / REST API / CLI。
 
 | 方法 | 签名 | 返回值 | 说明 |
 |------|------|--------|------|
-| `__init__` | `(config: Optional[EmperorConfig] = None, config_path: Optional[str] = None)` | — | 初始化 Emperor，自动加载 `jarvis.yaml` |
+| `__init__` | `(config: Optional[HuanxinConfig] = None, config_path: Optional[str] = None)` | — | 初始化 Huanxin，自动加载 `huanxin.yaml` |
 | `register` | `(name: str, domain: str = "general", **kwargs)` | `Minister` | 注册新大臣 |
 | `evolve` | `(cycles: int = 1)` | `EvolutionResult` | 运行 N 轮进化 |
 | `execute_task` | `(task: str, domain: str = "general")` | `TaskResult` | 执行任务 |
@@ -92,7 +92,7 @@
 
 ## 2. Court 进化宫廷
 
-`jarvis.court.court.Court` — 进化系统统一入口。
+`huanxin.court.court.Court` — 进化系统统一入口。
 
 | 方法 | 签名 | 返回值 | 说明 |
 |------|------|--------|------|
@@ -119,22 +119,22 @@
 
 | 模块 | 主要类 | 职责 |
 |------|--------|------|
-| `jarvis.court.merit_board` | `MeritBoard` | 功绩排行榜 |
-| `jarvis.court.sliding_merit` | `SlidingMeritBoard` | 滑动窗口功绩计算 |
-| `jarvis.court.evolution` | `SurvivalMechanism` | 生存机制（Crossover / Elitism） |
-| `jarvis.court.history` | `EvolutionHistory` | 进化历史记录与导出 |
-| `jarvis.court.inspector` | `CourtInspector` | 宫廷健康检查 |
-| `jarvis.court.breeding` | `BreedingEngine` | 大臣育种（新大臣生成） |
-| `jarvis.court.genome_store` | `GenomeStore` | 基因组持久化 |
-| `jarvis.court.task_engine` | `TaskEngine` | 任务执行引擎 |
-| `jarvis.court.diversity` | `DiversityMonitor` | 多样性监控 |
-| `jarvis.court.censorate` | `Censorate` | 御史台（输出审查） |
+| `huanxin.court.merit_board` | `MeritBoard` | 功绩排行榜 |
+| `huanxin.court.sliding_merit` | `SlidingMeritBoard` | 滑动窗口功绩计算 |
+| `huanxin.court.evolution` | `SurvivalMechanism` | 生存机制（Crossover / Elitism） |
+| `huanxin.court.history` | `EvolutionHistory` | 进化历史记录与导出 |
+| `huanxin.court.inspector` | `CourtInspector` | 宫廷健康检查 |
+| `huanxin.court.breeding` | `BreedingEngine` | 大臣育种（新大臣生成） |
+| `huanxin.court.genome_store` | `GenomeStore` | 基因组持久化 |
+| `huanxin.court.task_engine` | `TaskEngine` | 任务执行引擎 |
+| `huanxin.court.diversity` | `DiversityMonitor` | 多样性监控 |
+| `huanxin.court.censorate` | `Censorate` | 御史台（输出审查） |
 
 ---
 
 ## 3. 共识引擎 — Consensus
 
-`jarvis.consensus.engine.ConsensusEngine` — 多大臣辩论与共识形成。
+`huanxin.consensus.engine.ConsensusEngine` — 多大臣辩论与共识形成。
 
 | 方法 | 签名 | 返回值 | 说明 |
 |------|------|--------|------|
@@ -162,7 +162,7 @@
 
 ## 4. 流水线引擎 — Pipeline
 
-`jarvis.pipeline` — 将能力串联成端到端自动化服务链。
+`huanxin.pipeline` — 将能力串联成端到端自动化服务链。
 
 ### 主要类
 
@@ -201,7 +201,7 @@
 
 ## 5. 治理代理 — GovernanceAgent
 
-`jarvis.governance_agent.GovernanceAgent` — 监控 Agent 的 Agent。
+`huanxin.governance_agent.GovernanceAgent` — 监控 Agent 的 Agent。
 
 | 方法 | 签名 | 返回值 | 说明 |
 |------|------|--------|------|
@@ -233,7 +233,7 @@
 
 ## 6. 有界自治 — BoundedAutonomy
 
-`jarvis.bounded_autonomy.BoundedAutonomyEngine` — 三区操作空间分类器。
+`huanxin.bounded_autonomy.BoundedAutonomyEngine` — 三区操作空间分类器。
 
 | 方法 | 签名 | 返回值 | 说明 |
 |------|------|--------|------|
@@ -253,7 +253,7 @@
 
 ## 7. 反思引擎 — Reflexion
 
-`jarvis.reflexion.ReflexionEngine` — Agent 输出质量自我反思层。
+`huanxin.reflexion.ReflexionEngine` — Agent 输出质量自我反思层。
 
 | 方法 | 签名 | 返回值 | 说明 |
 |------|------|--------|------|
@@ -281,7 +281,7 @@
 
 ## 8. 状态机 — StateMachine
 
-`jarvis.state_machine.StateMachine` — LangGraph 风格的有状态编排引擎。
+`huanxin.state_machine.StateMachine` — LangGraph 风格的有状态编排引擎。
 
 ### 导出函数
 
@@ -305,7 +305,7 @@
 
 ## 9. 自愈引擎 — Healing
 
-`jarvis.healing.HealingEngine` — 系统自愈引擎。
+`huanxin.healing.HealingEngine` — 系统自愈引擎。
 
 | 方法 | 签名 | 返回值 | 说明 |
 |------|------|--------|------|
@@ -314,7 +314,7 @@
 | `heal` | `()` | `list[HealResult]` | 执行自愈 |
 | `register_action` | `(action: HealingAction)` | — | 注册自愈动作 |
 
-### 内置自愈动作 (jarvis.healing_actions)
+### 内置自愈动作 (huanxin.healing_actions)
 
 | 动作 | 说明 |
 |------|------|
@@ -328,7 +328,7 @@
 
 ## 10. 能力系统 — Capability
 
-`jarvis.capability` — 12 个内置能力处理器的注册表。
+`huanxin.capability` — 12 个内置能力处理器的注册表。
 
 ### CapabilityRegistry
 
@@ -360,7 +360,7 @@
 
 ## 11. MCP 管理器
 
-`jarvis.mcp_manager.MCPManager` — 多 MCP Server 统一管理器。
+`huanxin.mcp_manager.MCPManager` — 多 MCP Server 统一管理器。
 
 | 方法 | 签名 | 返回值 | 说明 |
 |------|------|--------|------|
@@ -382,7 +382,7 @@
 
 ## 12. 多模态引擎 — Multimodal
 
-`jarvis.multimodal` — 图像/语音/文档统一处理。
+`huanxin.multimodal` — 图像/语音/文档统一处理。
 
 ### MultimodalEngine
 
@@ -416,7 +416,7 @@
 
 ## 13. RAG 引擎
 
-`jarvis.rag` — 检索增强生成完整流水线。
+`huanxin.rag` — 检索增强生成完整流水线。
 
 ### RAGEngine
 
@@ -444,7 +444,7 @@
 
 ## 14. 记忆系统 — Memory
 
-`jarvis.memory` — ChromaDB + TF-IDF + Jaccard 三级混合检索。
+`huanxin.memory` — ChromaDB + TF-IDF + Jaccard 三级混合检索。
 
 ### MemoryEngine
 
@@ -472,7 +472,7 @@
 
 ## 15. 知识图谱 RAG — GraphRAG
 
-`jarvis.graph_rag.GraphRAG` — 基于知识图谱的记忆引擎。
+`huanxin.graph_rag.GraphRAG` — 基于知识图谱的记忆引擎。
 
 | 方法 | 签名 | 返回值 | 说明 |
 |------|------|--------|------|
@@ -484,7 +484,7 @@
 
 ## 16. 模型路由 — Router
 
-`jarvis.core.router.ModelRouter` — 零成本复杂度分类 + 模型路由。
+`huanxin.core.router.ModelRouter` — 零成本复杂度分类 + 模型路由。
 
 | 方法 | 签名 | 返回值 | 说明 |
 |------|------|--------|------|
@@ -503,7 +503,7 @@
 
 ## 17. 多模型路由 — MultiModelRouter
 
-`jarvis.multi_model.MultiModelRouter` — DeepSeek V3/R1 并行与集成路由。
+`huanxin.multi_model.MultiModelRouter` — DeepSeek V3/R1 并行与集成路由。
 
 | 方法 | 签名 | 返回值 | 说明 |
 |------|------|--------|------|
@@ -524,7 +524,7 @@
 
 ## 18. 审计日志 — Audit
 
-`jarvis.audit.AuditLogger` — 不可变执行日志。
+`huanxin.audit.AuditLogger` — 不可变执行日志。
 
 | 方法 | 签名 | 返回值 | 说明 |
 |------|------|--------|------|
@@ -536,7 +536,7 @@
 
 ## 19. 审批引擎 — Approval
 
-`jarvis.approval.ApprovalEngine` — HITL 人工审批门控。
+`huanxin.approval.ApprovalEngine` — HITL 人工审批门控。
 
 | 方法 | 签名 | 返回值 | 说明 |
 |------|------|--------|------|
@@ -549,7 +549,7 @@
 
 ## 20. 幻觉守卫 — HallucinationGuard
 
-`jarvis.hallucination_guard.HallucinationGuard` — LLM 输出事实性守卫。
+`huanxin.hallucination_guard.HallucinationGuard` — LLM 输出事实性守卫。
 
 | 方法 | 签名 | 返回值 | 说明 |
 |------|------|--------|------|
@@ -568,7 +568,7 @@
 
 ## 21. 循环守卫 — LoopGuard
 
-`jarvis.loop_guard.AgentLoopGuard` — 防止 Agent 无界循环耗尽配额。
+`huanxin.loop_guard.AgentLoopGuard` — 防止 Agent 无界循环耗尽配额。
 
 | 方法 | 签名 | 返回值 | 说明 |
 |------|------|--------|------|
@@ -580,7 +580,7 @@
 
 ## 22. 上下文压缩 — ContextCompressor
 
-`jarvis.context_compressor.ContextCompressor` — 长对话历史压缩管理。
+`huanxin.context_compressor.ContextCompressor` — 长对话历史压缩管理。
 
 | 方法 | 签名 | 返回值 | 说明 |
 |------|------|--------|------|
@@ -591,7 +591,7 @@
 
 ## 23. 上下文版本控制 — ContextVersioning
 
-`jarvis.context_versioning.ContextVersioning` — 不可变状态快照与回滚。
+`huanxin.context_versioning.ContextVersioning` — 不可变状态快照与回滚。
 
 | 方法 | 签名 | 返回值 | 说明 |
 |------|------|--------|------|
@@ -604,7 +604,7 @@
 
 ## 24. 评估运行器 — EvalRunner
 
-`jarvis.eval.EvalRunner` — Agent 回归评估。
+`huanxin.eval.EvalRunner` — Agent 回归评估。
 
 | 方法 | 签名 | 返回值 | 说明 |
 |------|------|--------|------|
@@ -615,7 +615,7 @@
 
 ## 25. 沙箱 — Sandbox
 
-`jarvis.sandbox.SandboxManager` — 安全代码执行环境。
+`huanxin.sandbox.SandboxManager` — 安全代码执行环境。
 
 | 方法 | 签名 | 返回值 | 说明 |
 |------|------|--------|------|
@@ -625,11 +625,11 @@
 
 ## 26. 插件系统 — Plugin
 
-### jarvis.plugin.PluginManager（生命周期钩子）
+### huanxin.plugin.PluginManager（生命周期钩子）
 
 | 生命周期钩子 | 触发时机 |
 |-------------|---------|
-| `ON_INIT` | Emperor 初始化完成 |
+| `ON_INIT` | Huanxin 初始化完成 |
 | `PRE_TASK` | 任务执行前 |
 | `POST_TASK` | 任务执行后 |
 | `PRE_EVOLVE` | 进化执行前 |
@@ -640,14 +640,14 @@
 | `ON_HEAL_START` | 自愈开始 |
 | `ON_HEAL_COMPLETE` | 自愈完成 |
 
-### jarvis.plugin_system.PluginManager（热加载）
+### huanxin.plugin_system.PluginManager（热加载）
 
 | 方法 | 签名 | 返回值 | 说明 |
 |------|------|--------|------|
 | `load` | `(plugin_path: str)` | `Plugin` | 动态加载第三方插件 |
 | `unload` | `(plugin_name: str)` | — | 卸载插件 |
 
-### jarvis.plugin_marketplace.PluginMarketplace
+### huanxin.plugin_marketplace.PluginMarketplace
 
 | 方法 | 签名 | 返回值 | 说明 |
 |------|------|--------|------|
@@ -659,14 +659,14 @@
 
 ## 27. 成本追踪 — CostTracker
 
-`jarvis.cost_tracker.CostTracker` — 每次 LLM 调用的成本记录与统计。
+`huanxin.cost_tracker.CostTracker` — 每次 LLM 调用的成本记录与统计。
 
 | 方法 | 签名 | 返回值 | 说明 |
 |------|------|--------|------|
 | `record` | `(model: str, tokens: int, cost: float)` | — | 记录一次调用成本 |
 | `stats` | `()` | `dict` | 成本统计摘要 |
 
-`jarvis.cost_per_success.CostPerSuccessTracker` — 每次成功运行的成本追踪。
+`huanxin.cost_per_success.CostPerSuccessTracker` — 每次成功运行的成本追踪。
 
 | 方法 | 签名 | 返回值 | 说明 |
 |------|------|--------|------|
@@ -677,7 +677,7 @@
 
 ## 28. 提示词模板 — PromptTemplate
 
-`jarvis.prompt_template.PromptTemplateManager` — 自适应提示词模板。
+`huanxin.prompt_template.PromptTemplateManager` — 自适应提示词模板。
 
 | 方法 | 签名 | 返回值 | 说明 |
 |------|------|--------|------|
@@ -689,7 +689,7 @@
 
 ## 29. 任务路由器 — TaskRouter
 
-`jarvis.router.RouterEngine` — 意图分类 + 多级路由。
+`huanxin.router.RouterEngine` — 意图分类 + 多级路由。
 
 | 方法 | 签名 | 返回值 | 说明 |
 |------|------|--------|------|
@@ -700,7 +700,7 @@
 
 ## 30. 工作流引擎 — WorkflowEngine
 
-`jarvis.workflow.WorkflowEngine` — DAG 多步骤编排。
+`huanxin.workflow.WorkflowEngine` — DAG 多步骤编排。
 
 | 方法 | 签名 | 返回值 | 说明 |
 |------|------|--------|------|
@@ -711,14 +711,14 @@
 
 ## 31. 配置系统 — Config
 
-`jarvis.config` — YAML 配置加载系统。
+`huanxin.config` — YAML 配置加载系统。
 
 | 函数 | 说明 |
 |------|------|
-| `load_config(path)` | 加载 `jarvis.yaml` |
+| `load_config(path)` | 加载 `huanxin.yaml` |
 | `save_default_config(path)` | 生成默认配置 |
 
-### EmperorConfig / AppConfig 关键参数
+### HuanxinConfig / AppConfig 关键参数
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|

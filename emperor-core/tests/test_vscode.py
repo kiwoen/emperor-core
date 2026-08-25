@@ -4,9 +4,9 @@ import json
 
 import pytest
 
-from jarvis.hermes.bus import MessageBus, Topic
-from jarvis.vscode.commands import EditorCommand, VSCodeCommands
-from jarvis.vscode.bridge import VSCodeBridge
+from huanxin.hermes.bus import MessageBus, Topic
+from huanxin.vscode.commands import EditorCommand, VSCodeCommands
+from huanxin.vscode.bridge import VSCodeBridge
 
 
 # ============================================================================
@@ -202,7 +202,7 @@ class TestVSCodeBridge:
 
         reply = await bus.request(
             Topic("vscode.terminal.create"),
-            payload={"name": "JARVIS-Server"},
+            payload={"name": "HUANXIN-Server"},
             sender="test",
             timeout=3.0,
         )

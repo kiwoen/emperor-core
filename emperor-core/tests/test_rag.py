@@ -1,4 +1,4 @@
-"""Tests for jarvis.rag — document loading, chunking, hybrid retrieval, and answer generation."""
+"""Tests for huanxin.rag — document loading, chunking, hybrid retrieval, and answer generation."""
 
 import os
 import sys
@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 # Ensure project root is on path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "emperor-core"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "huanxin-ai"))
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -86,7 +86,7 @@ class TestDocumentLoader:
     """Tests for DocumentLoader."""
 
     def test_load_txt(self, sample_txt_file):
-        from jarvis.rag.engine import DocumentLoader
+        from huanxin.rag.engine import DocumentLoader
 
         loader = DocumentLoader()
         text, meta = loader.load(sample_txt_file)
@@ -97,7 +97,7 @@ class TestDocumentLoader:
         assert os.path.basename(sample_txt_file) in meta["file_name"]
 
     def test_load_md(self, sample_md_file):
-        from jarvis.rag.engine import DocumentLoader
+        from huanxin.rag.engine import DocumentLoader
 
         loader = DocumentLoader()
         text, meta = loader.load(sample_md_file)
@@ -107,7 +107,7 @@ class TestDocumentLoader:
         assert meta["file_type"] == "md"
 
     def test_load_unsupported_extension(self):
-        from jarvis.rag.engine import DocumentLoader
+        from huanxin.rag.engine import DocumentLoader
 
         loader = DocumentLoader()
         with tempfile.NamedTemporaryFile(suffix=".xyz", delete=False) as f:
@@ -120,14 +120,14 @@ class TestDocumentLoader:
             os.unlink(path)
 
     def test_load_missing_file(self):
-        from jarvis.rag.engine import DocumentLoader
+        from huanxin.rag.engine import DocumentLoader
 
         loader = DocumentLoader()
         with pytest.raises(FileNotFoundError):
             loader.load("/nonexistent/file_12345.txt")
 
     def test_load_txt_metadata_fields(self, sample_txt_file):
-        from jarvis.rag.engine import DocumentLoader
+        from huanxin.rag.engine import DocumentLoader
 
         loader = DocumentLoader()
         _, meta = loader.load(sample_txt_file)
@@ -147,7 +147,7 @@ class TestRecursiveCharacterTextSplitter:
     """Tests for RecursiveCharacterTextSplitter."""
 
     def test_split_short_text(self):
-        from jarvis.rag.engine import RecursiveCharacterTextSplitter
+        from huanxin.rag.engine import RecursiveCharacterTextSplitter
 
         splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
         text = "Short text that fits in one chunk."
@@ -157,7 +157,7 @@ class TestRecursiveCharacterTextSplitter:
         assert chunks[0] == text
 
     def test_split_by_paragraph(self):
-        from jarvis.rag.engine import RecursiveCharacterTextSplitter
+        from huanxin.rag.engine import RecursiveCharacterTextSplitter
 
         splitter = RecursiveCharacterTextSplitter(chunk_size=60, chunk_overlap=10)
         text = (
@@ -171,7 +171,7 @@ class TestRecursiveCharacterTextSplitter:
         assert len(chunks) >= 2
 
     def test_split_long_text(self):
-        from jarvis.rag.engine import RecursiveCharacterTextSplitter
+        from huanxin.rag.engine import RecursiveCharacterTextSplitter
 
         splitter = RecursiveCharacterTextSplitter(chunk_size=100, chunk_overlap=20)
         # Generate text much longer than chunk_size
@@ -184,7 +184,7 @@ class TestRecursiveCharacterTextSplitter:
             assert len(chunk) <= 100 + 30  # small tolerance
 
     def test_split_documents_preserves_metadata(self):
-        from jarvis.rag.engine import RecursiveCharacterTextSplitter
+        from huanxin.rag.engine import RecursiveCharacterTextSplitter
 
         splitter = RecursiveCharacterTextSplitter(chunk_size=80, chunk_overlap=20)
         texts = ["Doc A " * 40, "Doc B " * 40]
@@ -202,7 +202,7 @@ class TestRecursiveCharacterTextSplitter:
         assert len(b_chunks) > 0
 
     def test_chunk_metadata_indices(self):
-        from jarvis.rag.engine import RecursiveCharacterTextSplitter
+        from huanxin.rag.engine import RecursiveCharacterTextSplitter
 
         splitter = RecursiveCharacterTextSplitter(chunk_size=200, chunk_overlap=50)
         texts = ["Single doc " * 30]
@@ -221,14 +221,14 @@ class TestRecursiveCharacterTextSplitter:
         assert indices == list(range(len(chunks)))
 
     def test_empty_text(self):
-        from jarvis.rag.engine import RecursiveCharacterTextSplitter
+        from huanxin.rag.engine import RecursiveCharacterTextSplitter
 
         splitter = RecursiveCharacterTextSplitter()
         chunks = splitter.split_text("")
         assert chunks == [""] or chunks == []
 
     def test_custom_separators(self):
-        from jarvis.rag.engine import RecursiveCharacterTextSplitter
+        from huanxin.rag.engine import RecursiveCharacterTextSplitter
 
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=15, chunk_overlap=3, separators=["|", " "]
@@ -247,8 +247,8 @@ class TestHybridRetriever:
     """Tests for HybridRetriever (dense + BM25 + RRF + rerank)."""
 
     def test_index_and_retrieve(self, temp_dir):
-        from jarvis.memory.vector_store import VectorMemory
-        from jarvis.rag.retriever import HybridRetriever
+        from huanxin.memory.vector_store import VectorMemory
+        from huanxin.rag.retriever import HybridRetriever
 
         vm = VectorMemory(persist_dir=temp_dir, collection_name="test_rag")
         retriever = HybridRetriever(vector_store=vm)
@@ -274,8 +274,8 @@ class TestHybridRetriever:
         assert len(results["chunks"]) >= 1
 
     def test_dense_only_retrieve(self, temp_dir):
-        from jarvis.memory.vector_store import VectorMemory
-        from jarvis.rag.retriever import HybridRetriever
+        from huanxin.memory.vector_store import VectorMemory
+        from huanxin.rag.retriever import HybridRetriever
 
         vm = VectorMemory(persist_dir=temp_dir, collection_name="test_dense")
         retriever = HybridRetriever(vector_store=vm)
@@ -289,7 +289,7 @@ class TestHybridRetriever:
         assert len(results["chunks"]) >= 1
 
     def test_sparse_retrieve_no_vector_store(self):
-        from jarvis.rag.retriever import HybridRetriever
+        from huanxin.rag.retriever import HybridRetriever
 
         retriever = HybridRetriever(vector_store=None)
         retriever.index(["apple banana cherry", "dog cat mouse", "sun moon stars"])
@@ -299,7 +299,7 @@ class TestHybridRetriever:
         assert "apple" in results["chunks"][0].lower()
 
     def test_fusion_results_combines_sources(self):
-        from jarvis.rag.retriever import HybridRetriever
+        from huanxin.rag.retriever import HybridRetriever
 
         dense = [
             {"id": "d1", "chunk": "Python is great", "metadata": {}, "distance": 0.1, "source": "dense"},
@@ -320,7 +320,7 @@ class TestHybridRetriever:
         assert count == 1
 
     def test_fusion_scores_are_positive(self):
-        from jarvis.rag.retriever import HybridRetriever
+        from huanxin.rag.retriever import HybridRetriever
 
         dense = [
             {"id": "d1", "chunk": "Chunk A", "metadata": {}, "distance": 0.1, "source": "dense"},
@@ -334,8 +334,8 @@ class TestHybridRetriever:
         assert all(s > 0 for s in fused["scores"])
 
     def test_empty_retrieve(self, temp_dir):
-        from jarvis.memory.vector_store import VectorMemory
-        from jarvis.rag.retriever import HybridRetriever
+        from huanxin.memory.vector_store import VectorMemory
+        from huanxin.rag.retriever import HybridRetriever
 
         vm = VectorMemory(persist_dir=temp_dir, collection_name="test_empty")
         retriever = HybridRetriever(vector_store=vm)
@@ -345,7 +345,7 @@ class TestHybridRetriever:
 
     def test_bm25_fallback(self):
         """Test that fallback BM25 works without rank-bm25 installed."""
-        from jarvis.rag.retriever import _FallbackBM25
+        from huanxin.rag.retriever import _FallbackBM25
 
         corpus = [
             "the quick brown fox jumps over the lazy dog",
@@ -371,9 +371,9 @@ class TestRAGEngine:
     """Tests for RAGEngine."""
 
     def test_add_document_txt(self, sample_txt_file, temp_dir):
-        from jarvis.memory.vector_store import VectorMemory
-        from jarvis.rag.engine import RAGEngine
-        from jarvis.rag.retriever import HybridRetriever
+        from huanxin.memory.vector_store import VectorMemory
+        from huanxin.rag.engine import RAGEngine
+        from huanxin.rag.retriever import HybridRetriever
 
         vm = VectorMemory(persist_dir=temp_dir, collection_name="rag_test")
         rag = RAGEngine(retriever=HybridRetriever(vector_store=vm))
@@ -385,9 +385,9 @@ class TestRAGEngine:
         assert "file_name" in result
 
     def test_add_document_md(self, sample_md_file, temp_dir):
-        from jarvis.memory.vector_store import VectorMemory
-        from jarvis.rag.engine import RAGEngine
-        from jarvis.rag.retriever import HybridRetriever
+        from huanxin.memory.vector_store import VectorMemory
+        from huanxin.rag.engine import RAGEngine
+        from huanxin.rag.retriever import HybridRetriever
 
         vm = VectorMemory(persist_dir=temp_dir, collection_name="rag_md_test")
         rag = RAGEngine(retriever=HybridRetriever(vector_store=vm))
@@ -397,9 +397,9 @@ class TestRAGEngine:
         assert result["chunks"] > 0
 
     def test_query_returns_answer_and_sources(self, sample_txt_file, temp_dir):
-        from jarvis.memory.vector_store import VectorMemory
-        from jarvis.rag.engine import RAGEngine
-        from jarvis.rag.retriever import HybridRetriever
+        from huanxin.memory.vector_store import VectorMemory
+        from huanxin.rag.engine import RAGEngine
+        from huanxin.rag.retriever import HybridRetriever
 
         vm = VectorMemory(persist_dir=temp_dir, collection_name="rag_query_test")
         rag = RAGEngine(
@@ -421,9 +421,9 @@ class TestRAGEngine:
             assert "excerpt" in src
 
     def test_query_no_documents(self, temp_dir):
-        from jarvis.memory.vector_store import VectorMemory
-        from jarvis.rag.engine import RAGEngine
-        from jarvis.rag.retriever import HybridRetriever
+        from huanxin.memory.vector_store import VectorMemory
+        from huanxin.rag.engine import RAGEngine
+        from huanxin.rag.retriever import HybridRetriever
 
         vm = VectorMemory(persist_dir=temp_dir, collection_name="rag_empty_test")
         rag = RAGEngine(retriever=HybridRetriever(vector_store=vm))
@@ -433,9 +433,9 @@ class TestRAGEngine:
         assert "No relevant documents" in result["answer"]
 
     def test_query_with_rerank_disabled(self, sample_txt_file, temp_dir):
-        from jarvis.memory.vector_store import VectorMemory
-        from jarvis.rag.engine import RAGEngine
-        from jarvis.rag.retriever import HybridRetriever
+        from huanxin.memory.vector_store import VectorMemory
+        from huanxin.rag.engine import RAGEngine
+        from huanxin.rag.retriever import HybridRetriever
 
         vm = VectorMemory(persist_dir=temp_dir, collection_name="rag_norerank_test")
         rag = RAGEngine(retriever=HybridRetriever(vector_store=vm))
@@ -447,9 +447,9 @@ class TestRAGEngine:
         assert len(result["sources"]) >= 1
 
     def test_citation_format(self, sample_txt_file, temp_dir):
-        from jarvis.memory.vector_store import VectorMemory
-        from jarvis.rag.engine import RAGEngine
-        from jarvis.rag.retriever import HybridRetriever
+        from huanxin.memory.vector_store import VectorMemory
+        from huanxin.rag.engine import RAGEngine
+        from huanxin.rag.retriever import HybridRetriever
 
         vm = VectorMemory(persist_dir=temp_dir, collection_name="rag_cite_test")
         rag = RAGEngine(retriever=HybridRetriever(vector_store=vm))
@@ -462,9 +462,9 @@ class TestRAGEngine:
         assert "source:" in answer or len(result["sources"]) > 0
 
     def test_multiple_documents(self, sample_txt_file, sample_md_file, temp_dir):
-        from jarvis.memory.vector_store import VectorMemory
-        from jarvis.rag.engine import RAGEngine
-        from jarvis.rag.retriever import HybridRetriever
+        from huanxin.memory.vector_store import VectorMemory
+        from huanxin.rag.engine import RAGEngine
+        from huanxin.rag.retriever import HybridRetriever
 
         vm = VectorMemory(persist_dir=temp_dir, collection_name="rag_multi_test")
         rag = RAGEngine(retriever=HybridRetriever(vector_store=vm))
@@ -481,9 +481,9 @@ class TestRAGEngine:
         assert len(result["retrieved_chunks"]) >= 1
 
     def test_chunk_size_parameter(self, sample_txt_file, temp_dir):
-        from jarvis.memory.vector_store import VectorMemory
-        from jarvis.rag.engine import RAGEngine
-        from jarvis.rag.retriever import HybridRetriever
+        from huanxin.memory.vector_store import VectorMemory
+        from huanxin.rag.engine import RAGEngine
+        from huanxin.rag.retriever import HybridRetriever
 
         vm = VectorMemory(persist_dir=temp_dir, collection_name="rag_chunk_test")
         rag_small = RAGEngine(
@@ -517,9 +517,9 @@ class TestRAGIntegration:
     """Integration tests combining RAGEngine with LLMEngine (network optional)."""
 
     def test_rag_engine_constructor_defaults(self, temp_dir):
-        from jarvis.memory.vector_store import VectorMemory
-        from jarvis.rag.engine import RAGEngine
-        from jarvis.rag.retriever import HybridRetriever
+        from huanxin.memory.vector_store import VectorMemory
+        from huanxin.rag.engine import RAGEngine
+        from huanxin.rag.retriever import HybridRetriever
 
         vm = VectorMemory(persist_dir=temp_dir, collection_name="rag_default")
         rag = RAGEngine(retriever=HybridRetriever(vector_store=vm))
@@ -527,8 +527,8 @@ class TestRAGIntegration:
         assert rag._splitter.chunk_overlap == 200
 
     def test_hybrid_retriever_metadata_filter(self, temp_dir):
-        from jarvis.memory.vector_store import VectorMemory
-        from jarvis.rag.retriever import HybridRetriever
+        from huanxin.memory.vector_store import VectorMemory
+        from huanxin.rag.retriever import HybridRetriever
 
         vm = VectorMemory(persist_dir=temp_dir, collection_name="rag_filter_test")
         retriever = HybridRetriever(vector_store=vm)
@@ -542,9 +542,9 @@ class TestRAGIntegration:
         assert len(results["chunks"]) >= 1
 
     def test_document_deduplication_across_adds(self, sample_txt_file, temp_dir):
-        from jarvis.memory.vector_store import VectorMemory
-        from jarvis.rag.engine import RAGEngine
-        from jarvis.rag.retriever import HybridRetriever
+        from huanxin.memory.vector_store import VectorMemory
+        from huanxin.rag.engine import RAGEngine
+        from huanxin.rag.retriever import HybridRetriever
 
         vm = VectorMemory(persist_dir=temp_dir, collection_name="rag_dedup_test")
         rag = RAGEngine(retriever=HybridRetriever(vector_store=vm))
@@ -558,9 +558,9 @@ class TestRAGIntegration:
         assert vm.count() == r1["chunks"] * 2
 
     def test_sources_not_duplicate(self, sample_txt_file, temp_dir):
-        from jarvis.memory.vector_store import VectorMemory
-        from jarvis.rag.engine import RAGEngine
-        from jarvis.rag.retriever import HybridRetriever
+        from huanxin.memory.vector_store import VectorMemory
+        from huanxin.rag.engine import RAGEngine
+        from huanxin.rag.retriever import HybridRetriever
 
         vm = VectorMemory(persist_dir=temp_dir, collection_name="rag_nodup_test")
         rag = RAGEngine(retriever=HybridRetriever(vector_store=vm))

@@ -16,14 +16,14 @@ from fastapi.testclient import TestClient
 @pytest.fixture
 def sandbox_manager():
     """Create a fresh SandboxManager for each test."""
-    from jarvis.sandbox import SandboxManager
+    from huanxin.sandbox import SandboxManager
     return SandboxManager(engine="local_subprocess", timeout_seconds=30)
 
 
 @pytest.fixture
 def client(sandbox_manager):
     """Create FastAPI TestClient with sandbox manager injected."""
-    from jarvis.court_api import create_app
+    from huanxin.court_api import create_app
     app = create_app()
     app.extra["sandbox_manager"] = sandbox_manager
     with TestClient(app) as c:
@@ -46,7 +46,7 @@ class TestSandboxStatus:
         assert "local_subprocess" in data["available_engines"]
 
     def test_503_when_no_sandbox_manager(self):
-        from jarvis.court_api import create_app
+        from huanxin.court_api import create_app
         app = create_app()
         with TestClient(app) as c:
             resp = c.get("/api/dashboard/sandbox/status")

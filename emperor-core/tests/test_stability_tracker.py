@@ -1,6 +1,6 @@
 """Tests for StabilityTracker — court merit stability over cycles."""
 
-from jarvis.court.evolution import StabilityTracker
+from huanxin.court.evolution import StabilityTracker
 
 
 class TestStabilityTracker:
@@ -101,7 +101,7 @@ class TestStabilityAdaptiveRates:
 
     def test_stability_affects_mutation_scale(self):
         """Low stability → higher mutation_scale."""
-        from jarvis.court.evolution import (
+        from huanxin.court.evolution import (
             SurvivalMechanism,
             EvolutionRateMode,
             AdaptiveRateConfig,
@@ -119,7 +119,7 @@ class TestStabilityAdaptiveRates:
         )
 
         # Set fixed difficulty and diversity for controlled test
-        from jarvis.court.evolution import TaskContext
+        from huanxin.court.evolution import TaskContext
         sm.set_task_context(TaskContext(
             difficulty=TaskDifficulty.MODERATE,
             intent="test",
@@ -145,7 +145,7 @@ class TestStabilityAdaptiveRates:
 
     def test_stability_blend_zero_ignores_stability(self):
         """stability_blend=0 → stability has no effect on rates."""
-        from jarvis.court.evolution import (
+        from huanxin.court.evolution import (
             SurvivalMechanism,
             EvolutionRateMode,
             AdaptiveRateConfig,
@@ -188,7 +188,7 @@ class TestStabilityAdaptiveRates:
 
     def test_catastrophe_resets_stability(self):
         """After a catastrophe, stability resets to neutral."""
-        from jarvis.court.evolution import SurvivalMechanism
+        from huanxin.court.evolution import SurvivalMechanism
 
         sm = SurvivalMechanism()
         for _ in range(5):

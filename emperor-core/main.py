@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""emperor-core 自主运行主入口
+"""huanxin-ai 自主运行主入口
 
 Usage:
     python main.py --mode chat      交互式对话模式
@@ -35,10 +35,10 @@ BANNER = r"""
 def setup_signal_handlers(cleanup_fn):
     """设置信号处理器，优雅退出"""
     def handler(sig, frame):
-        print("\n\n[emperor-core] 收到退出信号，正在清理...")
+        print("\n\n[huanxin-ai] 收到退出信号，正在清理...")
         if cleanup_fn:
             cleanup_fn()
-        print("[emperor-core] 朝堂已关闭。吾皇万岁万岁万万岁！")
+        print("[huanxin-ai] 朝堂已关闭。吾皇万岁万岁万万岁！")
         sys.exit(0)
     signal.signal(signal.SIGINT, handler)
     signal.signal(signal.SIGTERM, handler)
@@ -49,7 +49,7 @@ def load_config(config_path=None):
     import yaml
     default_config = {
         "emperor": {
-            "name": "Emperor",
+            "name": "Huanxin",
             "mode": "auto",
             "llm_provider": "mock",
             "llm_model": "mock-model",
@@ -81,14 +81,14 @@ def load_config(config_path=None):
 
 def run_chat_mode(config):
     """交互式对话模式"""
-    from jarvis.emperor import Emperor
-    from jarvis.router import Router
+    from huanxin.core import Huanxin
+    from huanxin.router import Router
 
-    emperor = Emperor(config=config)
+    emperor = Huanxin(config=config)
     router = Router()
 
     print(BANNER)
-    print(f"  Emperor [{config['emperor']['name']}] 已就位")
+    print(f"  Huanxin [{config['emperor']['name']}] 已就位")
     print(f"  朝中大臣：{len(emperor.ministers)} 位")
     print(f"  共识策略：{config['consensus']['default_strategy']}")
     print(f"  输入 'quit' 或 'exit' 退朝")
@@ -108,7 +108,7 @@ def run_chat_mode(config):
         if not user_input:
             continue
         if user_input.lower() in ("quit", "exit", "退朝", "退下"):
-            print("[Emperor] 退朝！众爱卿辛苦了。")
+            print("[Huanxin] 退朝！众爱卿辛苦了。")
             break
 
         # 路由
@@ -122,9 +122,9 @@ def run_chat_mode(config):
                 result = emperor.deliberate(user_input, ministers=None, strategy=None)
             else:
                 result = emperor.process(user_input)
-            print(f"\n[Emperor] {result}")
+            print(f"\n[Huanxin] {result}")
         except Exception as e:
-            print(f"\n[Emperor] 朝堂谏议出错：{e}")
+            print(f"\n[Huanxin] 朝堂谏议出错：{e}")
             # 尝试自愈
             if hasattr(emperor, 'heal'):
                 restored = emperor.heal()
@@ -136,7 +136,7 @@ def run_chat_mode(config):
 
 def run_demo_mode(config, use_mock=True):
     """自动演示模式"""
-    from jarvis.demo import DemoRunner
+    from huanxin.demo import DemoRunner
 
     print(BANNER)
     print("  演示模式启动...")
@@ -164,26 +164,26 @@ def run_demo_mode(config, use_mock=True):
 
 
 def run_server_mode(config, host="", port=0):
-    """启动 Web / Dashboard 服务（与 ``jarvis cli serve`` 同源的 Emperor.serve）。
+    """启动 Web / Dashboard 服务（与 ``huanxin cli serve`` 同源的 Huanxin.serve）。
 
-    旧实现导入不存在的 ``jarvis.server``，导致 ``--mode server`` 直接 ``ImportError``。
-    此处改用 JARVIS 真实的 ``Emperor.serve`` —— 一键式 live dashboard：自动播种大臣 +
+    旧实现导入不存在的 ``huanxin.server``，导致 ``--mode server`` 直接 ``ImportError``。
+    此处改用 HUANXIN 真实的 ``Huanxin.serve`` —— 一键式 live dashboard：自动播种大臣 +
     启动周期进化调度器（与 cli serve 同一实现，已验证可用）。
 
-    host/port 复用 ``jarvis.cli`` 的解析逻辑，保证与 Dockerfile /
-    docker-compose.yml / render.yaml 同一套事实来源（EMPEROR_HOST /
-    EMPEROR_PORT，缺省 0.0.0.0:8000），避免 main.py 又冒出一个 5000 端口。
+    host/port 复用 ``huanxin.cli`` 的解析逻辑，保证与 Dockerfile /
+    docker-compose.yml / render.yaml 同一套事实来源（HUANXIN_HOST /
+    HUANXIN_PORT，缺省 0.0.0.0:8000），避免 main.py 又冒出一个 5000 端口。
     """
-    from jarvis.cli import _resolve_serve_host, _resolve_serve_port
-    from jarvis.emperor import Emperor, EmperorConfig
+    from huanxin.cli import _resolve_serve_host, _resolve_serve_port
+    from huanxin.core import Huanxin, HuanxinConfig
 
     host = _resolve_serve_host(host or None)
     port = _resolve_serve_port(port or None)
 
-    # main.py 的 load_config 返回裸 dict，而 Emperor 内部按 EmperorConfig 访问
-    # (self.config.api_port 等)，故必须显式构造 EmperorConfig，不能直接传 dict。
-    # EmperorConfig 会自行读取 EMPEROR_DATA_DIR / EMPEROR_COURT_PATH。
-    cfg = EmperorConfig()
+    # main.py 的 load_config 返回裸 dict，而 Huanxin 内部按 HuanxinConfig 访问
+    # (self.config.api_port 等)，故必须显式构造 HuanxinConfig，不能直接传 dict。
+    # HuanxinConfig 会自行读取 HUANXIN_DATA_DIR / HUANXIN_COURT_PATH。
+    cfg = HuanxinConfig()
     cfg.api_port = port
     cfg.api_host = host
 
@@ -192,7 +192,7 @@ def run_server_mode(config, host="", port=0):
     print("-" * 60)
 
     try:
-        emperor = Emperor(config=cfg)
+        emperor = Huanxin(config=cfg)
         emperor.serve(host=host, port=port)
         return 0
     except Exception as exc:  # noqa: BLE001 — 启动失败应给出可读错误而非栈
@@ -201,13 +201,13 @@ def run_server_mode(config, host="", port=0):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="emperor-core 自主运行入口")
+    parser = argparse.ArgumentParser(description="huanxin-ai 自主运行入口")
     parser.add_argument("--mode", choices=["chat", "demo", "server"], default="demo",
                         help="运行模式 (默认: demo)")
     parser.add_argument("--config", type=str, default=None,
                         help="配置文件路径 (YAML)")
     parser.add_argument("--port", type=int, default=0,
-                        help="Web 服务端口 (未指定时读 EMPEROR_PORT，默认: 8000)")
+                        help="Web 服务端口 (未指定时读 HUANXIN_PORT，默认: 8000)")
     parser.add_argument("--mock", action="store_true", default=True,
                         help="使用 Mock 数据 (默认开启)")
     parser.add_argument("--no-mock", dest="mock", action="store_false",

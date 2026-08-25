@@ -1,8 +1,8 @@
-# emperor-core 自进化闭环运行配置（落地部署用）
+# huanxin-ai 自进化闭环运行配置（落地部署用）
 #
 # 用法：
 #   python scripts/run_self_evolve.py --config configs/self_evolve.yaml
-#   jarvis self-evolve --config configs/self_evolve.yaml
+#   huanxin self-evolve --config configs/self_evolve.yaml
 #
 # 安全姿态（生产推荐）：
 #   - 评测闸严格（min_pass_rate 高 + 禁止回归），基准不过绝不写回
@@ -16,8 +16,8 @@
 cycles: 6
 tasks_per_minister: 2
 seed: 7
-repo: kiwoen/emperor-core
-genome_state_path: jarvis/court/genome_state.json
+repo: kiwoen/huanxin-ai
+genome_state_path: huanxin/court/genome_state.json
 resume: false
 
 # 人类审批门：生产必须为 false（需人工复核）。离线演示可用 --auto-approve 临时开启。
@@ -59,15 +59,15 @@ resource_max_ops: null
 
 # 安全快照：每轮写回前落盘，事后可一键回滚到 safe 已知点
 enable_snapshots: true
-snapshot_dir: jarvis/court/snapshots
+snapshot_dir: huanxin/court/snapshots
 
 
 # ── Phase 12：持久化经验记忆（自我学习跨重启累积）──
 # 每次任务真实成败记入 CourtMemory 并落盘，使进化学到的经验跨重启/跨进程累积，
-# 而非仅活在当次进程内存。落盘路径默认 jarvis/court/memory.json（已 .gitignore，属运行时产物）。
+# 而非仅活在当次进程内存。落盘路径默认 huanxin/court/memory.json（已 .gitignore，属运行时产物）。
 use_memory: true
-memory_path: jarvis/court/memory.json
-# CLI 可临时覆盖：jarvis self-evolve --no-memory  关闭记忆；--memory-path <path> 换落盘位置
+memory_path: huanxin/court/memory.json
+# CLI 可临时覆盖：huanxin self-evolve --no-memory  关闭记忆；--memory-path <path> 换落盘位置
 
 # ── Phase 12 续：记忆驱动基因 warm-start（opt-in，默认关）──
 # 开启后，run() 启动时用已落盘经验把冷启动基因朝「该域历史最优方向」轻推，

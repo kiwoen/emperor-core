@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 # ============================================================
-# emperor-core 服务器端更新脚本（幂等 + 健康检查 + 自动回滚）
+# huanxin-ai 服务器端更新脚本（幂等 + 健康检查 + 自动回滚）
 # ============================================================
-# 在**服务器上**执行，把 /srv/emperor-core 更新到 origin 最新代码并重建容器。
+# 在**服务器上**执行，把 /srv/huanxin-ai 更新到 origin 最新代码并重建容器。
 #
 # 用法（服务器上）：
-#   cd /srv/emperor-core && bash scripts/remote_deploy.sh
+#   cd /srv/huanxin-ai && bash scripts/remote_deploy.sh
 #
 # 也可从本机远程执行（无需先登录）：
-#   ssh root@<公网IP> 'cd /srv/emperor-core && git fetch origin && \
+#   ssh root@<公网IP> 'cd /srv/huanxin-ai && git fetch origin && \
 #     git show origin/master:scripts/remote_deploy.sh | bash -s'
 #
 # 环境变量（均可选）：
-#   DEPLOY_DIR    部署目录，默认 /srv/emperor-core
+#   DEPLOY_DIR    部署目录，默认 /srv/huanxin-ai
 #   DEPLOY_BRANCH 跟踪分支，默认 master
 #   APP_PORT      健康检查端口，默认 8000
 #   HEALTH_RETRY  健康检查重试次数，默认 40（每次间隔 3s，约 2 分钟）
@@ -26,7 +26,7 @@
 # ============================================================
 set -euo pipefail
 
-DEPLOY_DIR="${DEPLOY_DIR:-/srv/emperor-core}"
+DEPLOY_DIR="${DEPLOY_DIR:-/srv/huanxin-ai}"
 DEPLOY_BRANCH="${DEPLOY_BRANCH:-master}"
 APP_PORT="${APP_PORT:-8000}"
 HEALTH_RETRY="${HEALTH_RETRY:-40}"

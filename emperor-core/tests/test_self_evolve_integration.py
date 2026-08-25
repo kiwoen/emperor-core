@@ -11,11 +11,11 @@
 
 from __future__ import annotations
 
-from jarvis.court.circuit_breaker import CircuitBreaker, CircuitConfig, CircuitState
-from jarvis.eval_bench.criteria import EvalReport
-from jarvis.eval_bench.run import run_suite
-from jarvis.eval_bench.suites.canonical import build_canonical_suite
-from jarvis.vcs import GitWriteChannel, WritebackBlocked, WritebackGate
+from huanxin.court.circuit_breaker import CircuitBreaker, CircuitConfig, CircuitState
+from huanxin.eval_bench.criteria import EvalReport
+from huanxin.eval_bench.run import run_suite
+from huanxin.eval_bench.suites.canonical import build_canonical_suite
+from huanxin.vcs import GitWriteChannel, WritebackBlocked, WritebackGate
 
 
 class _FakeRunner:

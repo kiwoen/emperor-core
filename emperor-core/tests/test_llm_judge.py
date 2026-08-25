@@ -1,4 +1,4 @@
-"""Tests for jarvis.llm_judge — LLM-as-Judge evaluation engine.
+"""Tests for huanxin.llm_judge — LLM-as-Judge evaluation engine.
 
 Covers: single evaluate, pairwise compare, batch evaluate, API endpoints,
 integrated JudgeEvalSuite, per-dimension breakdown, edge cases.
@@ -6,7 +6,7 @@ integrated JudgeEvalSuite, per-dimension breakdown, edge cases.
 
 import pytest
 
-from jarvis.llm_judge import (
+from huanxin.llm_judge import (
     LLMJudge,
     JudgingCriteria,
     JudgeResult,
@@ -15,7 +15,7 @@ from jarvis.llm_judge import (
     BatchReport,
     DimensionScore,
 )
-from jarvis.eval import JudgeEvalCase, JudgeEvalSuite, EvalRunner
+from huanxin.eval import JudgeEvalCase, JudgeEvalSuite, EvalRunner
 
 
 # ══════════════════════════════════════════════════════════════════

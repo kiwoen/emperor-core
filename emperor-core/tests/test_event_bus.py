@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 @pytest.fixture(autouse=True)
 def reset_event_bus():
     """Reset EventBus singleton to clean state before each test."""
-    from jarvis.event_bus import EventBus, event_bus
+    from huanxin.event_bus import EventBus, event_bus
     # Clear all subscribers
     with event_bus._lock:
         event_bus._queues.clear()
@@ -27,7 +27,7 @@ def reset_event_bus():
 @pytest.fixture
 def subscriber():
     """Create a subscriber and return (queue, sub_id)."""
-    from jarvis.event_bus import event_bus
+    from huanxin.event_bus import event_bus
     q, sub_id = event_bus.subscribe()
     yield q, sub_id
     try:
@@ -40,14 +40,14 @@ def subscriber():
 
 class TestEvent:
     def test_event_creation(self):
-        from jarvis.event_bus import Event
+        from huanxin.event_bus import Event
         e = Event("test", {"key": "val"})
         assert e.type == "test"
         assert e.data == {"key": "val"}
         assert e.timestamp > 0
 
     def test_event_slots(self):
-        from jarvis.event_bus import Event
+        from huanxin.event_bus import Event
         e = Event("t", {})
         with pytest.raises(AttributeError):
             e.new_attr = 1
@@ -57,7 +57,7 @@ class TestEvent:
 
 class TestEventBus:
     def test_singleton(self):
-        from jarvis.event_bus import EventBus
+        from huanxin.event_bus import EventBus
         a = EventBus()
         b = EventBus()
         assert a is b
@@ -68,7 +68,7 @@ class TestEventBus:
         assert isinstance(sub_id, int)
 
     def test_publish_receive(self, subscriber):
-        from jarvis.event_bus import Event, event_bus
+        from huanxin.event_bus import Event, event_bus
         q, _ = subscriber
         event_bus.publish(Event("dispatch", {"minister": "test"}))
         data = json.loads(q.get(timeout=1))
@@ -77,7 +77,7 @@ class TestEventBus:
         assert "ts" in data
 
     def test_unsubscribe_stops_delivery(self):
-        from jarvis.event_bus import Event, event_bus
+        from huanxin.event_bus import Event, event_bus
         q, sub_id = event_bus.subscribe()
         event_bus.unsubscribe(sub_id)
         event_bus.publish(Event("x", {}))
@@ -85,7 +85,7 @@ class TestEventBus:
             q.get(timeout=0.1)
 
     def test_subscriber_count(self):
-        from jarvis.event_bus import event_bus
+        from huanxin.event_bus import event_bus
         initial = event_bus.subscriber_count
         q1, s1 = event_bus.subscribe()
         q2, s2 = event_bus.subscribe()
@@ -96,7 +96,7 @@ class TestEventBus:
         assert event_bus.subscriber_count == initial
 
     def test_heartbeat(self, subscriber):
-        from jarvis.event_bus import event_bus
+        from huanxin.event_bus import event_bus
         q, _ = subscriber
         event_bus.publish_heartbeat()
         data = json.loads(q.get(timeout=1))
@@ -107,7 +107,7 @@ class TestEventBus:
 
 class TestPublisherDispatch:
     def test_publish_dispatch(self, subscriber):
-        from jarvis.event_publisher import publish_dispatch
+        from huanxin.event_publisher import publish_dispatch
         q, _ = subscriber
         publish_dispatch("censor", "ed-001", "search web", True, 0.95, 123.4)
         data = json.loads(q.get(timeout=1))
@@ -120,7 +120,7 @@ class TestPublisherDispatch:
         assert d["elapsed_ms"] == 123.4
 
     def test_publish_dispatch_failure(self, subscriber):
-        from jarvis.event_publisher import publish_dispatch
+        from huanxin.event_publisher import publish_dispatch
         q, _ = subscriber
         publish_dispatch("scribe", "ed-002", "write file", False, 0.1, 500.0)
         data = json.loads(q.get(timeout=1))
@@ -130,7 +130,7 @@ class TestPublisherDispatch:
 
 class TestPublisherSandbox:
     def test_publish_sandbox(self, subscriber):
-        from jarvis.event_publisher import publish_sandbox
+        from huanxin.event_publisher import publish_sandbox
         q, _ = subscriber
         publish_sandbox("print('hello')", 0, "local_subprocess", 45.2)
         data = json.loads(q.get(timeout=1))
@@ -142,7 +142,7 @@ class TestPublisherSandbox:
         assert d["elapsed_ms"] == 45.2
 
     def test_publish_sandbox_long_code_truncated(self, subscriber):
-        from jarvis.event_publisher import publish_sandbox
+        from huanxin.event_publisher import publish_sandbox
         q, _ = subscriber
         long_code = "print('" + "x" * 100 + "')"
         publish_sandbox(long_code, 1, "local_direct", 10.0)
@@ -152,7 +152,7 @@ class TestPublisherSandbox:
 
 class TestPublisherPipeline:
     def test_publish_pipeline(self, subscriber):
-        from jarvis.event_publisher import publish_pipeline
+        from huanxin.event_publisher import publish_pipeline
         q, _ = subscriber
         publish_pipeline("daily_brief", "pipe-001", "completed", steps=5, elapsed_ms=1500.0)
         data = json.loads(q.get(timeout=1))
@@ -166,7 +166,7 @@ class TestPublisherPipeline:
 
 class TestPublisherGovernance:
     def test_publish_governance_create(self, subscriber):
-        from jarvis.event_publisher import publish_governance_rule
+        from huanxin.event_publisher import publish_governance_rule
         q, _ = subscriber
         publish_governance_rule("create", "no-delete-files", "P0", "Prevent file deletion")
         data = json.loads(q.get(timeout=1))
@@ -175,7 +175,7 @@ class TestPublisherGovernance:
         assert data["data"]["priority"] == "P0"
 
     def test_publish_governance_delete(self, subscriber):
-        from jarvis.event_publisher import publish_governance_rule
+        from huanxin.event_publisher import publish_governance_rule
         q, _ = subscriber
         publish_governance_rule("delete", "old-rule")
         data = json.loads(q.get(timeout=1))
@@ -184,7 +184,7 @@ class TestPublisherGovernance:
 
 class TestPublisherHealing:
     def test_publish_healing_success(self, subscriber):
-        from jarvis.event_publisher import publish_healing
+        from huanxin.event_publisher import publish_healing
         q, _ = subscriber
         publish_healing("restart_service", "success", "scheduler", 234.5)
         data = json.loads(q.get(timeout=1))
@@ -193,7 +193,7 @@ class TestPublisherHealing:
         assert data["data"]["triggered_by"] == "scheduler"
 
     def test_publish_healing_failure(self, subscriber):
-        from jarvis.event_publisher import publish_healing
+        from huanxin.event_publisher import publish_healing
         q, _ = subscriber
         publish_healing("clear_cache", "failure")
         data = json.loads(q.get(timeout=1))
@@ -202,7 +202,7 @@ class TestPublisherHealing:
 
 class TestPublisherApproval:
     def test_publish_approval_approved(self, subscriber):
-        from jarvis.event_publisher import publish_approval
+        from huanxin.event_publisher import publish_approval
         q, _ = subscriber
         publish_approval("req-001", "approved", "high", True)
         data = json.loads(q.get(timeout=1))
@@ -211,7 +211,7 @@ class TestPublisherApproval:
         assert data["data"]["risk_level"] == "high"
 
     def test_publish_approval_denied(self, subscriber):
-        from jarvis.event_publisher import publish_approval
+        from huanxin.event_publisher import publish_approval
         q, _ = subscriber
         publish_approval("req-002", "denied", "low", False)
         data = json.loads(q.get(timeout=1))
@@ -220,7 +220,7 @@ class TestPublisherApproval:
 
 class TestPublisherMemory:
     def test_publish_memory_consolidate(self, subscriber):
-        from jarvis.event_publisher import publish_memory
+        from huanxin.event_publisher import publish_memory
         q, _ = subscriber
         publish_memory("consolidate", node_count=42)
         data = json.loads(q.get(timeout=1))
@@ -231,7 +231,7 @@ class TestPublisherMemory:
 
 class TestPublisherEval:
     def test_publish_eval(self, subscriber):
-        from jarvis.event_publisher import publish_eval
+        from huanxin.event_publisher import publish_eval
         q, _ = subscriber
         publish_eval("governance", 10, 2, 500.0)
         data = json.loads(q.get(timeout=1))
@@ -244,7 +244,7 @@ class TestPublisherEval:
 
 class TestPublisherAlert:
     def test_publish_alert(self, subscriber):
-        from jarvis.event_publisher import publish_alert
+        from huanxin.event_publisher import publish_alert
         q, _ = subscriber
         publish_alert("alert-1", "critical", "Disk usage > 95%", "system")
         data = json.loads(q.get(timeout=1))
@@ -261,7 +261,7 @@ class TestPublisherAlert:
 class TestSSEEventIntegration:
     @pytest.fixture
     def client(self):
-        from jarvis.court_api import create_app
+        from huanxin.court_api import create_app
         from fastapi.testclient import TestClient
         app = create_app()
         return TestClient(app)
@@ -275,7 +275,7 @@ class TestSSEEventIntegration:
 
     def test_dispatch_endpoint_triggers_event(self, client):
         """Dispatch endpoint publishes events to EventBus."""
-        from jarvis.event_bus import event_bus
+        from huanxin.event_bus import event_bus
 
         with event_bus._lock:
             event_bus._queues.clear()
@@ -302,8 +302,8 @@ class TestSSEEventIntegration:
 
     def test_sandbox_endpoint_triggers_event(self, client):
         """Sandbox run publishes events to EventBus."""
-        from jarvis.event_bus import event_bus
-        from jarvis.sandbox import SandboxManager
+        from huanxin.event_bus import event_bus
+        from huanxin.sandbox import SandboxManager
 
         client.app.extra["sandbox_manager"] = SandboxManager()
 
@@ -330,7 +330,7 @@ class TestSSEEventIntegration:
 
 class TestEventTypes:
     def test_all_types_defined(self):
-        from jarvis.event_publisher import EVENT_TYPES
+        from huanxin.event_publisher import EVENT_TYPES
         assert "dispatch" in EVENT_TYPES
         assert "pipeline" in EVENT_TYPES
         assert "sandbox" in EVENT_TYPES

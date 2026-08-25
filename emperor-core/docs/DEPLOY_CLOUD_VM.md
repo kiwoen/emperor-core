@@ -1,7 +1,7 @@
-# emperor-core 云服务器部署手册（从零到上线）
+# huanxin-ai 云服务器部署手册（从零到上线）
 
 > 目标：在一台**自己管的**云主机（腾讯云轻量 / 阿里云 ECS / 任意 Ubuntu VM）上，  
-> 用 Docker Compose 把 emperor-core 跑成 7×24 常驻服务，带持久化数据、  
+> 用 Docker Compose 把 huanxin-ai 跑成 7×24 常驻服务，带持久化数据、  
 > 自动重启、HTTPS 域名访问和备份。
 >
 > 全文命令**可直接复制粘贴**。带 `#` 的是注释，`$` 后面是要敲的命令。  
@@ -13,16 +13,16 @@
 
 | 项         | 值                                                                                                      |
 | --------- | ------------------------------------------------------------------------------------------------------ |
-| 容器真正的服务入口 | `python -m jarvis.cli serve`（≡ `jarvis serve`） → `Emperor.serve()` → `court_api.create_app()`（FastAPI） |
+| 容器真正的服务入口 | `python -m huanxin.cli serve`（≡ `huanxin serve`） → `Huanxin.serve()` → `court_api.create_app()`（FastAPI） |
 | 监听地址      | `0.0.0.0:8000`（Dockerfile / compose / render.yaml 三处统一）                                                |
-| 健康探针      | `GET /health` → `{"status":"ok","service":"emperor-core"}`                                             |
+| 健康探针      | `GET /health` → `{"status":"ok","service":"huanxin-ai"}`                                             |
 | 仪表盘       | `GET /dashboard`                                                                                       |
 | 法庭接口      | `GET /court/summary`、`/court/ministers` …                                                              |
 | 接口文档      | `GET /docs`（FastAPI 自带 Swagger）                                                                        |
 | 数据落盘      | 容器内 `/app/data`，由命名卷 `emperor-data` 承载                                                                 |
 
 启动时系统会**自动播种 8 位大臣**并拉起后台调度器（周期性进化 + 周期性任务），  
-即"完整 JARVIS 体验"。
+即"完整 HUANXIN 体验"。
 
 ---
 
@@ -101,8 +101,8 @@ $ systemctl restart docker
 
 ```bash
 $ mkdir -p /srv && cd /srv
-$ git clone https://github.com/<你的账号>/emperor-core.git
-$ cd /srv/emperor-core
+$ git clone https://github.com/<你的账号>/huanxin-ai.git
+$ cd /srv/huanxin-ai
 
 # ⚠️ 关键自检：这三个文件必须存在，否则第 4 步构建会失败
 $ ls -l Dockerfile docker-compose.yml requirements-docker.txt
@@ -116,7 +116,7 @@ $ ls -l Dockerfile docker-compose.yml requirements-docker.txt
 
 ```bash
 # Windows 用 Git Bash / PowerShell 均可
-$ scp -r "D:/AI自我进化/emperor-core" root@123.45.67.89:/srv/emperor-core
+$ scp -r "D:/AI自我进化/huanxin-ai" root@123.45.67.89:/srv/huanxin-ai
 ```
 
 ---
@@ -124,7 +124,7 @@ $ scp -r "D:/AI自我进化/emperor-core" root@123.45.67.89:/srv/emperor-core
 ## 4. 一条命令拉起（首次构建 3–6 分钟）
 
 ```bash
-$ cd /srv/emperor-core
+$ cd /srv/huanxin-ai
 $ docker compose up -d --build
 ```
 
@@ -133,7 +133,7 @@ $ docker compose up -d --build
 ```bash
 $ docker compose logs -f
 # 出现下面这两行就是起来了（Ctrl+C 退出看日志，容器继续跑）：
-#   [Emperor] API + Dashboard → http://0.0.0.0:8000
+#   [Huanxin] API + Dashboard → http://0.0.0.0:8000
 #   Uvicorn running on http://0.0.0.0:8000
 ```
 
@@ -151,7 +151,7 @@ $ docker compose ps
 ```bash
 # ① 健康探针 —— 这条必须返回 200，是所有自动化的基准
 $ curl -f http://localhost:8000/health
-# {"status":"ok","service":"emperor-core"}
+# {"status":"ok","service":"huanxin-ai"}
 
 # ② 仪表盘（应输出一大段 HTML）
 $ curl -s http://localhost:8000/dashboard | head -c 300
@@ -199,7 +199,7 @@ $ apt update && apt install -y caddy
 
 ```bash
 $ cat > /etc/caddy/Caddyfile <<'EOF'
-# ── emperor-core 反向代理 + 自动 HTTPS ──
+# ── huanxin-ai 反向代理 + 自动 HTTPS ──
 emperor.example.com {
     # 证书申请失败通知邮箱
     tls you@example.com
@@ -227,7 +227,7 @@ $ systemctl reload caddy                         # 生效（首次可用 restart
 
 ```bash
 $ curl -f https://emperor.example.com/health
-# {"status":"ok","service":"emperor-core"}
+# {"status":"ok","service":"huanxin-ai"}
 ```
 
 ### 6.3 收口 8000 端口（重要）
@@ -256,7 +256,7 @@ $ curl -f https://emperor.example.com/health
 
 | 文件                     | 内容                       |
 | ---------------------- | ------------------------ |
-| `jarvis.db`            | 法庭主库：大臣、基因、进化历史、任务记录     |
+| `huanxin.db`            | 法庭主库：大臣、基因、进化历史、任务记录     |
 | `audit.db`             | **不可篡改审计流水**（务必备份）       |
 | `approval.db`          | 人类审批（HITL）记录             |
 | `cost_records.json`    | 逐次调用成本                   |
@@ -267,14 +267,14 @@ $ curl -f https://emperor.example.com/health
 
 ```bash
 $ docker volume inspect emperor-data
-$ docker compose exec emperor-core ls -lh /app/data
+$ docker compose exec huanxin-ai ls -lh /app/data
 ```
 
 ### 7.2 手动备份 / 恢复
 
 ```bash
 # 备份（当前目录生成 emperor-data.tar.gz）
-$ cd /srv/emperor-core
+$ cd /srv/huanxin-ai
 $ docker run --rm -v emperor-data:/data -v $(pwd):/backup busybox \
     tar czf /backup/emperor-data.tar.gz -C /data .
 
@@ -291,7 +291,7 @@ $ docker compose start
 $ mkdir -p /srv/backups
 $ cat > /usr/local/bin/emperor-backup.sh <<'EOF'
 #!/bin/sh
-# emperor-core 数据卷每日备份，保留最近 14 份
+# huanxin-ai 数据卷每日备份，保留最近 14 份
 set -e
 STAMP=$(date +%Y%m%d-%H%M)
 OUT=/srv/backups
@@ -315,14 +315,14 @@ $ crontab -l    # 确认已写入
 
 ## 8. 接真实大模型（可选，随时切换）
 
-**不做这一步系统也完整可用**（`EMPEROR_LLM_PROVIDER=mock`，离线确定性推理）。  
+**不做这一步系统也完整可用**（`HUANXIN_LLM_PROVIDER=mock`，离线确定性推理）。  
 要接真模型，**不用改代码、不用重建镜像**：
 
 ```bash
-$ cd /srv/emperor-core
+$ cd /srv/huanxin-ai
 $ cat > .env <<'EOF'
 # 只填你有的那个即可
-EMPEROR_LLM_PROVIDER=deepseek
+HUANXIN_LLM_PROVIDER=deepseek
 DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
 # OPENAI_API_KEY=sk-xxxx
 # ANTHROPIC_API_KEY=sk-ant-xxxx
@@ -333,7 +333,7 @@ $ chmod 600 .env          # 只有 root 能读
 然后打开 `docker-compose.yml`，把 `environment:` 里这几行的注释去掉：
 
 ```yaml
-      EMPEROR_LLM_PROVIDER: deepseek
+      HUANXIN_LLM_PROVIDER: deepseek
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
 ```
 
@@ -359,7 +359,7 @@ $ docker compose logs -f --tail 100 # 实时日志
 $ docker compose restart            # 重启
 $ docker compose down               # 停止并删容器（数据卷保留）
 $ docker compose up -d --build      # 改了代码后重新构建上线
-$ docker stats emperor-core         # 实时 CPU / 内存占用
+$ docker stats huanxin-ai         # 实时 CPU / 内存占用
 ```
 
 ### 9.2 自动重启
@@ -371,7 +371,7 @@ $ docker stats emperor-core         # 实时 CPU / 内存占用
 ### 9.3 代码更新上线
 
 ```bash
-$ cd /srv/emperor-core
+$ cd /srv/huanxin-ai
 $ git pull
 $ docker compose up -d --build
 $ curl -f http://localhost:8000/health   # 必须 200 才算上线成功
@@ -384,7 +384,7 @@ $ curl -f http://localhost:8000/health   # 必须 200 才算上线成功
 ```bash
 $ docker run -d --name watchtower --restart unless-stopped \
     -v /var/run/docker.sock:/var/run/docker.sock \
-    containrrr/watchtower --cleanup --interval 3600 emperor-core
+    containrrr/watchtower --cleanup --interval 3600 huanxin-ai
 ```
 
 > 本地 `build:` 出来的镜像不会被 Watchtower 更新，它只跟踪远端仓库标签。  
@@ -402,7 +402,7 @@ $ cat > /usr/local/bin/emperor-watch.sh <<'EOF'
 #!/bin/sh
 if ! curl -fsS --max-time 10 http://localhost:8000/health > /dev/null; then
     echo "$(date '+%F %T') health FAILED, restarting" >> /var/log/emperor-watch.log
-    cd /srv/emperor-core && docker compose restart
+    cd /srv/huanxin-ai && docker compose restart
 fi
 EOF
 $ chmod +x /usr/local/bin/emperor-watch.sh
@@ -415,7 +415,7 @@ $ ( crontab -l 2>/dev/null; echo "*/5 * * * * /usr/local/bin/emperor-watch.sh" )
 Docker 自带的 healthcheck 也一直在跑：
 
 ```bash
-$ docker inspect --format '{{json .State.Health}}' emperor-core
+$ docker inspect --format '{{json .State.Health}}' huanxin-ai
 ```
 
 ### 10.2 可回滚的发布姿势
@@ -424,20 +424,20 @@ $ docker inspect --format '{{json .State.Health}}' emperor-core
 
 ```bash
 # 发布 v1（打固定 tag 并留档）
-$ cd /srv/emperor-core
-$ docker build -t emperor-core:v1 .
-$ docker tag emperor-core:v1 emperor-core:local
+$ cd /srv/huanxin-ai
+$ docker build -t huanxin-ai:v1 .
+$ docker tag huanxin-ai:v1 huanxin-ai:local
 $ docker compose up -d
 
 # 发布 v2
 $ git pull
-$ docker build -t emperor-core:v2 .
-$ docker tag emperor-core:v2 emperor-core:local
+$ docker build -t huanxin-ai:v2 .
+$ docker tag huanxin-ai:v2 huanxin-ai:local
 $ docker compose up -d
 $ curl -f http://localhost:8000/health || echo "坏了，执行回滚"
 
 # ── 回滚到 v1（10 秒内完成）──
-$ docker tag emperor-core:v1 emperor-core:local
+$ docker tag huanxin-ai:v1 huanxin-ai:local
 $ docker compose up -d --force-recreate
 $ curl -f http://localhost:8000/health
 ```
@@ -456,8 +456,8 @@ $ curl -f http://localhost:8000/health
 | Render 免费套餐（`render.yaml`） | ￥0           | ❌ **重启即丢** | ❌ 15 分钟休眠 | 只适合演示；审计/审批数据会丢    |
 | Fly.io 免费额度                | ￥0 起         | 需挂 volume  | ✅         | 会用 flyctl 的可选      |
 
-> **为什么不推荐免费 PaaS 长期跑**：emperor-core 靠 `audit.db`（不可篡改审计）  
-> 和 `jarvis.db`（基因/进化历史）**跨重启累积进化**。免费套餐无持久盘 + 定时  
+> **为什么不推荐免费 PaaS 长期跑**：huanxin-ai 靠 `audit.db`（不可篡改审计）  
+> 和 `huanxin.db`（基因/进化历史）**跨重启累积进化**。免费套餐无持久盘 + 定时  
 > 休眠会让调度器被打断、历史被清零，等于每次都从零开始。自管 VM + 命名卷才  
 > 是这套系统的正确形态。
 
@@ -469,12 +469,12 @@ $ curl -f http://localhost:8000/health
 | ------------------ | ----------------------------------------------------------------------------- |
 | `curl /health` 连不上 | `docker compose ps` 看是否 Up；`docker compose logs --tail 50` 看报错                |
 | 状态一直 `starting`    | 冷启动要 10–20 秒；超过 1 分钟看日志是否有 traceback                                          |
-| 状态 `unhealthy`     | 进容器手测：`docker compose exec emperor-core curl -v http://localhost:8000/health` |
+| 状态 `unhealthy`     | 进容器手测：`docker compose exec huanxin-ai curl -v http://localhost:8000/health` |
 | 端口被占               | `ss -lntp \| grep 8000`，杀掉占用进程或改 compose 的 `"8001:8000"`                      |
 | 构建时 pip 超时         | 配 pip 镜像：Dockerfile 的 pip 命令加 `-i https://pypi.tuna.tsinghua.edu.cn/simple`   |
 | 内存不够被 OOM kill     | `dmesg \| grep -i kill`；升到 4G，或调小 compose 里的 memory 上限                        |
 | 域名 HTTPS 不通        | `systemctl status caddy`、`journalctl -u caddy -n 50`；确认 80/443 已放行且 DNS 已生效   |
-| 想进容器看看             | `docker compose exec emperor-core sh`                                         |
+| 想进容器看看             | `docker compose exec huanxin-ai sh`                                         |
 | 磁盘满了               | `docker system df`，清理：`docker system prune -a`（**不会**动命名卷）                    |
 
 ---
@@ -482,7 +482,7 @@ $ curl -f http://localhost:8000/health
 ## 13. 公网安全：访问令牌（强烈建议）
 
 `docker-compose.yml` 把 8000 暴露到公网，**不设令牌等于把仪表盘和所有 API 裸奔**。  
-本项目内置一个**可选启用的 Token 鉴权中间件**，由环境变量 `EMPEROR_API_TOKEN` 控制：
+本项目内置一个**可选启用的 Token 鉴权中间件**，由环境变量 `HUANXIN_API_TOKEN` 控制：
 
 - **不设置 / 留空** → 完全不鉴权（内网实验、本地开发方便，向后兼容）。
 - **设置一个强随机串** → 除 `/health` 外所有请求必须携带令牌，否则返回 `401`。
@@ -493,9 +493,9 @@ openssl rand -hex 24
 # 例如输出：9f2c...（复制下来）
 
 # 写入 .env（已被 .gitignore 忽略，勿提交）
-cd /srv/emperor-core
+cd /srv/huanxin-ai
 cat >> .env <<'EOF'
-EMPEROR_API_TOKEN=把上面那串粘这里
+HUANXIN_API_TOKEN=把上面那串粘这里
 EOF
 chmod 600 .env
 
@@ -524,7 +524,7 @@ curl -H "Authorization: Bearer <token>" http://localhost:8000/court/ministers  #
 
 ```bash
 # 上线
-cd /srv/emperor-core && docker compose up -d --build
+cd /srv/huanxin-ai && docker compose up -d --build
 
 # 体检
 curl -f http://localhost:8000/health && docker compose ps
@@ -537,7 +537,7 @@ docker run --rm -v emperor-data:/data -v $(pwd):/backup busybox \
   tar czf /backup/emperor-data.tar.gz -C /data .
 
 # 回滚
-docker tag emperor-core:v1 emperor-core:local && docker compose up -d --force-recreate
+docker tag huanxin-ai:v1 huanxin-ai:local && docker compose up -d --force-recreate
 ```
 
 | 访问入口 | URL                                         |

@@ -1,6 +1,6 @@
 @echo off
 echo ========================================
-echo   emperor-core v2.0.0 环境安装脚本
+echo   huanxin-ai v2.0.0 环境安装脚本
 echo ========================================
 echo.
 
@@ -41,7 +41,7 @@ echo [OK] 依赖安装完成
 
 :: 初始化数据库
 echo [INFO] 初始化数据库...
-python -c "from jarvis.database import init_db; init_db()" 2>nul
+python -c "from huanxin.database import init_db; init_db()" 2>nul
 if %errorlevel% equ 0 (echo [OK] 数据库初始化完成) else (echo [WARN] 数据库初始化跳过（可能已存在）)
 
 :: 运行测试

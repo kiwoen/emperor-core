@@ -1,5 +1,5 @@
 
-# Emperor-Core 快速入门指南
+# 幻炘AI 快速入门指南
 
 > 版本: 0.1.0 | 最后更新: 2026-08-08
 
@@ -31,11 +31,11 @@
 
 ## 2. 安装
 
-### 2.1 安装 Emperor-Core
+### 2.1 安装 幻炘AI
 
 ```bash
 # 进入项目目录
-cd emperor-core
+cd huanxin-ai
 
 # 安装核心依赖
 pip install -e .
@@ -48,7 +48,7 @@ pip install -e ".[dev]"
 
 ```bash
 # 检查版本
-python -c "import jarvis; print(jarvis.__version__)"
+python -c "import huanxin; print(huanxin.__version__)"
 
 # 输出: 0.1.0
 ```
@@ -59,10 +59,10 @@ python -c "import jarvis; print(jarvis.__version__)"
 
 ### 3.1 自动生成配置
 
-首次运行时，系统会自动在项目根目录生成 `jarvis.yaml`：
+首次运行时，系统会自动在项目根目录生成 `huanxin.yaml`：
 
 ```bash
-python -m jarvis serve
+python -m huanxin serve
 ```
 
 ### 3.2 默认配置说明
@@ -129,7 +129,7 @@ set DEEPSEEK_API_KEY=sk-your-key-here
 ### 4.1 一键启动 Dashboard
 
 ```bash
-python -m jarvis serve
+python -m huanxin serve
 ```
 
 启动后访问 [http://127.0.0.1:9020](http://127.0.0.1:9020) 打开 Dashboard。
@@ -149,7 +149,7 @@ python -m jarvis serve
 
 ```bash
 # 使用 CLI 入口
-jarvis serve
+huanxin serve
 
 # 或使用 emperor 别名
 emperor serve
@@ -170,25 +170,25 @@ emperor serve
 
 ```bash
 # 执行通用任务
-jarvis task "计算 2 的 10 次方"
+huanxin task "计算 2 的 10 次方"
 
 # 指定领域执行
-jarvis task --domain math "求解方程 x^2 + 3x + 2 = 0"
+huanxin task --domain math "求解方程 x^2 + 3x + 2 = 0"
 
 # 查询系统状态
-jarvis status
+huanxin status
 
 # 查看大臣列表
-jarvis ministers
+huanxin ministers
 ```
 
 ### 5.3 通过 Python API 执行任务
 
 ```python
-from jarvis.emperor import Emperor
+from huanxin.core import Huanxin
 
 # 初始化
-emp = Emperor()
+emp = Huanxin()
 
 # 注册大臣
 emp.register("alice", domain="math", temperature=0.7)
@@ -226,7 +226,7 @@ emp.serve(port=9020)
 
 ```bash
 # 通过 CLI
-jarvis evolve
+huanxin evolve
 
 # 通过 Dashboard
 # 在控制面板点击「手动进化」按钮
@@ -239,7 +239,7 @@ curl -X POST http://127.0.0.1:9020/api/evolve
 
 ```bash
 # CLI
-jarvis status
+huanxin status
 
 # Dashboard → 进化历史趋势图
 # Court API
@@ -252,13 +252,13 @@ curl http://127.0.0.1:8000/court/history
 
 | 命令 | 说明 |
 |------|------|
-| `jarvis serve` | 启动 Dashboard + 调度器 |
-| `jarvis task "xxx"` | 手动执行任务 |
-| `jarvis task --domain math "xxx"` | 指定领域执行任务 |
-| `jarvis status` | 查看系统状态 |
-| `jarvis ministers` | 查看大臣列表 |
-| `jarvis evolve` | 手动触发进化 |
-| `jarvis alerts` | 查看告警历史 |
+| `huanxin serve` | 启动 Dashboard + 调度器 |
+| `huanxin task "xxx"` | 手动执行任务 |
+| `huanxin task --domain math "xxx"` | 指定领域执行任务 |
+| `huanxin status` | 查看系统状态 |
+| `huanxin ministers` | 查看大臣列表 |
+| `huanxin evolve` | 手动触发进化 |
+| `huanxin alerts` | 查看告警历史 |
 
 ---
 

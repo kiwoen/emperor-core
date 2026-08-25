@@ -29,7 +29,7 @@ jobs:
         run: pytest -q
 
       - name: Write-protect reverse check
-        # 反向校验：除 jarvis/vcs/git_channel.py 外，任何文件出现
+        # 反向校验：除 huanxin/vcs/git_channel.py 外，任何文件出现
         # git push master/main、gh api PUT/POST 命中受保护分支即判红。
         run: python scripts/check_write_protect.py
 

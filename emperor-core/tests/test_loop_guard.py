@@ -1,4 +1,4 @@
-"""Tests for jarvis.loop_guard — AgentLoopGuard, CostCap, LoopDetector."""
+"""Tests for huanxin.loop_guard — AgentLoopGuard, CostCap, LoopDetector."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import time
 
 import pytest
 
-from jarvis.loop_guard import (
+from huanxin.loop_guard import (
     AgentLoopGuard,
     BudgetExceededError,
     CostCap,

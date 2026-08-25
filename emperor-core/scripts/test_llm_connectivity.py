@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-test_llm_connectivity.py — verify that emperor-core can reach a real
+test_llm_connectivity.py — verify that huanxin-ai can reach a real
 OpenAI-compatible model endpoint (e.g. ChatOpens free model).
 
 Usage:
@@ -28,7 +28,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from jarvis.core.llm import LLMEngine, LLMConfig  # noqa: E402
+from huanxin.core.llm import LLMEngine, LLMConfig  # noqa: E402
 
 
 def _load_dotenv(path: Path = ROOT / ".env") -> None:

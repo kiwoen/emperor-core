@@ -1,8 +1,8 @@
-"""Tests for jarvis.consensus — multi-agent debate & consensus strategies."""
+"""Tests for huanxin.consensus — multi-agent debate & consensus strategies."""
 
 from __future__ import annotations
 
-from jarvis.consensus.strategies import (
+from huanxin.consensus.strategies import (
     ConsensusResult,
     CritiqueResult,
     MinisterOutput,
@@ -12,7 +12,7 @@ from jarvis.consensus.strategies import (
     BestOfN,
     SynthesisConsensus,
 )
-from jarvis.consensus.engine import ConsensusEngine, ConsensusConfig
+from huanxin.consensus.engine import ConsensusEngine, ConsensusConfig
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -349,7 +349,7 @@ class TestConsensusEngine:
         assert result.strategy == "weighted_vote"
 
     def test_merit_score_lookup(self):
-        from jarvis.court.court import Court
+        from huanxin.court.court import Court
 
         court = Court()
         court.register("alpha")
@@ -376,7 +376,7 @@ class TestConsensusEngine:
         assert result.num_ministers == 2
 
     def test_auto_select_from_court(self):
-        from jarvis.court.court import Court
+        from huanxin.court.court import Court
 
         court = Court()
         court.register("m1", domain="general")

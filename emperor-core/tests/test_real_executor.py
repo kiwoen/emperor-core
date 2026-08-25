@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from jarvis.court.court import Court
-from jarvis.court.fitness import RealTaskFitness
-from jarvis.court.offline_solver import OfflineSolver
-from jarvis.court.real_executor import RealTaskExecutor
-from jarvis.self_evolve import (
+from huanxin.court.court import Court
+from huanxin.court.fitness import RealTaskFitness
+from huanxin.court.offline_solver import OfflineSolver
+from huanxin.court.real_executor import RealTaskExecutor
+from huanxin.self_evolve import (
     SelfEvolutionEngine,
     SimulatedTask,
     default_ministers,

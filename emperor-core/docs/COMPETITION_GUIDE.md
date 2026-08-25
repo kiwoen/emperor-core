@@ -1,5 +1,5 @@
 
-# Emperor-Core 竞赛参赛指南
+# 幻炘AI 竞赛参赛指南
 
 > 版本: 0.1.0 | 最后更新: 2026-08-08
 
@@ -19,7 +19,7 @@
 
 ### 1.1 自进化 (Self-Evolution)
 
-Emperor-Core 不是静态的 AI 系统——它能自我进化。系统通过"宫廷"（Court）模型管理一批"大臣"（Ministers），每位大臣拥有独特的基因组（Genome），系统定期评估功绩（MeritBoard），通过精英保留（Elitism）、交叉育种（Crossover）和变异（Mutation）生成新一代大臣。
+幻炘AI 不是静态的 AI 系统——它能自我进化。系统通过"宫廷"（Court）模型管理一批"大臣"（Ministers），每位大臣拥有独特的基因组（Genome），系统定期评估功绩（MeritBoard），通过精英保留（Elitism）、交叉育种（Crossover）和变异（Mutation）生成新一代大臣。
 
 - **滑动窗口功绩**：不只看总成绩，还看近期表现（指数衰减）
 - **多样性监控**：防止大臣同质化，保持基因池多样性
@@ -78,7 +78,7 @@ Emperor-Core 不是静态的 AI 系统——它能自我进化。系统通过"�
 
 ### 2.2 零成本模型路由
 
-传统方案调用 LLM 来判断提示词复杂度，但 Emperor-Core 的 `ModelRouter` 使用纯正则匹配进行零成本分类——不消耗任何 API Token 即可将提示词路由到 cheap / standard / premium 三级模型。配合 `MultiModelRouter` 的并行/集成/成本优化策略，实现了智能的模型选择与成本控制。
+传统方案调用 LLM 来判断提示词复杂度，但 幻炘AI 的 `ModelRouter` 使用纯正则匹配进行零成本分类——不消耗任何 API Token 即可将提示词路由到 cheap / standard / premium 三级模型。配合 `MultiModelRouter` 的并行/集成/成本优化策略，实现了智能的模型选择与成本控制。
 
 ### 2.3 辩论共识引擎
 
@@ -112,7 +112,7 @@ Emperor-Core 不是静态的 AI 系统——它能自我进化。系统通过"�
 
 **需求**：某大型电商平台每天处理 10 万+ 客服对话，需要对客服回答进行质量检测、合规审查和效果评级。
 
-**Emperor-Core 解决方案**：
+**幻炘AI 解决方案**：
 1. 初始化 8 位大臣，分别专精合规检查、情感分析、问题解决度评估等维度
 2. 通过 `GovernanceAgent` 注册行业合规规则（如"不得泄露用户隐私"、"退款必须走标准流程"）
 3. 通过 `BoundedAutonomy` 设置 YELLOW 区操作（人工审核）和 GREEN 区操作（自动通过）
@@ -127,7 +127,7 @@ Emperor-Core 不是静态的 AI 系统——它能自我进化。系统通过"�
 
 **需求**：某对冲基金需要 AI 系统每天分析 500+ 份研报、财报、新闻，提取关键信号，形成投资建议。
 
-**Emperor-Core 解决方案**：
+**幻炘AI 解决方案**：
 1. `RAGEngine` 加载所有研报和财报，构建检索索引
 2. `GraphRAG` 构建企业-行业-市场知识图谱，追踪关系变化
 3. `ConsensusEngine` 让多位大臣就同一投资目标进行辩论，通过加权投票形成共识
@@ -142,7 +142,7 @@ Emperor-Core 不是静态的 AI 系统——它能自我进化。系统通过"�
 
 **需求**：某大型制造企业部署了多个 AI 应用（代码助手、文档生成、数据分析），需要一个统一的安全管控中台，确保所有 AI 操作合规、可审计、可追溯。
 
-**Emperor-Core 解决方案**：
+**幻炘AI 解决方案**：
 1. `GovernanceAgent` 作为所有 AI 调用的安全门控，注册 IP 保护、数据脱敏、操作权限等规则
 2. `BoundedAutonomy` 定义清晰的 GREEN/YELLOW/RED 操作边界
 3. `ApprovalEngine` 对 RED 区操作实施强制人工审批
@@ -158,7 +158,7 @@ Emperor-Core 不是静态的 AI 系统——它能自我进化。系统通过"�
 
 **需求**：某 SaaS 公司需要 AI 自动运维系统，能够监控服务健康、自动修复故障、管理发布流程。
 
-**Emperor-Core 解决方案**：
+**幻炘AI 解决方案**：
 1. `AlertManager` + `HealingEngine` 实现自动化故障检测和自愈
 2. `WorkflowEngine` 编排多步骤运维流程（如灰度发布）
 3. `SandboxManager` 安全执行运维脚本
@@ -173,7 +173,7 @@ Emperor-Core 不是静态的 AI 系统——它能自我进化。系统通过"�
 
 ### 对比维度
 
-| 维度 | Emperor-Core | LangChain | AutoGPT | CrewAI | MetaGPT |
+| 维度 | 幻炘AI | LangChain | AutoGPT | CrewAI | MetaGPT |
 |------|-------------|-----------|---------|--------|---------|
 | **自进化** | 基因组育种 + 滑动窗口功绩 + 多样性监控 | 无 | 无 | 无 | 无 |
 | **自愈** | 诊断→修复闭环 + 动作库 | 无 | 无 | 无 | 无 |
@@ -188,7 +188,7 @@ Emperor-Core 不是静态的 AI 系统——它能自我进化。系统通过"�
 
 ### 核心差异化总结
 
-1. **不是工具框架，是 Agent 操作系统**：Emperor-Core 提供了完整的 Agent 生命周期管理（创建→执行→反思→进化→自愈），而非仅仅是 LLM 调用的封装。
+1. **不是工具框架，是 Agent 操作系统**：幻炘AI 提供了完整的 Agent 生命周期管理（创建→执行→反思→进化→自愈），而非仅仅是 LLM 调用的封装。
 
 2. **安全性内建，而非外挂**：GovernanceAgent + BoundedAutonomy + ApprovalEngine 构成纵深防御，每一步操作都经过安全检查，而非事后审计。
 
@@ -211,9 +211,9 @@ Emperor-Core 不是静态的 AI 系统——它能自我进化。系统通过"�
 | 3 | API 参考文档 | 所有公开接口说明 | [API.md](API.md) |
 | 4 | 快速入门指南 | 5 分钟上手教程 | [QUICKSTART.md](QUICKSTART.md) |
 | 5 | 版本变更记录 | 记录开发历程 | [CHANGELOG.md](CHANGELOG.md) |
-| 6 | 源码与测试 | GitHub 仓库 + 单元测试 | `emperor-core/` |
+| 6 | 源码与测试 | GitHub 仓库 + 单元测试 | `huanxin-ai/` |
 | 7 | Demo 视频 | 展示 Dashboard + 任务执行 + 进化过程 | 录制制作 |
-| 8 | 安装包 / 可执行文件 | `pip install emperor-core` | `pyproject.toml` |
+| 8 | 安装包 / 可执行文件 | `pip install huanxin-ai` | `pyproject.toml` |
 
 ### 5.2 推荐补充材料
 
@@ -231,7 +231,7 @@ Emperor-Core 不是静态的 AI 系统——它能自我进化。系统通过"�
 
 为了在答辩或演示中展示核心价值，建议准备以下 Demo 流程：
 
-- [ ] 启动 Emperor-Core：`python -m jarvis serve`
+- [ ] 启动 幻炘AI：`python -m huanxin serve`
 - [ ] 打开 Dashboard 展示系统概览
 - [ ] 手动执行一个任务，展示完整的执行链路
 - [ ] 触发进化，展示进化历史趋势图

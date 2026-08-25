@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from jarvis.court.evolution import SurvivalMechanism
-from jarvis.court.inspector import CourtInspector
-from jarvis.court.merit_board import MeritBoard
+from huanxin.court.evolution import SurvivalMechanism
+from huanxin.court.inspector import CourtInspector
+from huanxin.court.merit_board import MeritBoard
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-# emperor-core 自进化系统「落地完成」复盘报告
+# huanxin-ai 自进化系统「落地完成」复盘报告
 
 > 文档性质：阶段性完工复盘（对照《实施方案》第 8 章 DoD）。
 > 时间线：2026-08-09 起，历经 P0.1–P0.6、P1.4、P2.1、P2.2、P2.3、P3.1 与可观测性硬化。
@@ -28,7 +28,7 @@
 | **Phase 8 真实写回 diff** | ✅ | genome_diff：写回携带系统对自己基因的**真实 unified diff**（告别占位符） |
 | **Phase 8 人类审批门接入** | ✅ | approval_gate 接通既有 ApprovalEngine，未批准绝不自动 PR |
 | **Phase 8 审计 / 检查点接入** | ✅ | 每轮进化进不可篡改审计库；基因落盘为检查点可续跑 / 回放 |
-| **Phase 8 运行时入口 + 配置** | ✅ | `jarvis self-evolve` 子命令 + YAML 配置，落地可一键运行 / 调参 |
+| **Phase 8 运行时入口 + 配置** | ✅ | `huanxin self-evolve` 子命令 + YAML 配置，落地可一键运行 / 调参 |
 | **Phase 9 金标准安全闸** | ✅ | safety_gate：写回前最后一道硬约束（schema/唯一性/质量地板/核心大臣在位/受保护路径/无回归），fail-closed |
 | **Phase 9 资源预算护栏** | ✅ | ResourceBudget：单轮墙钟/操作数越限即熔断，自进化不会跑飞 |
 | **Phase 9 可回滚安全快照** | ✅ | RollbackManager：`safe/<id>` 标记的安全点，一键回滚到进化前 / 任意轮 |
@@ -68,7 +68,7 @@
 ### 1.3 写回闭环（P2.1/P2.2 新增，修前「零代码自修改」）
 
 - 修前：`pyproject.toml` 声明 gitpython，全库零 `import git`；进化从不真正改码。
-- 修后：`jarvis/vcs/git_channel.py` GitWriteChannel —— 克隆到隔离沙箱 → 新建 `absorb-<date>` 分支 → 应用补丁 → push 该分支 → 用 `gh api` 开 PR（目标 master）。**内部 `_assert_no_protected_push` 兜底：任何 `git push master/main` 立即抛错。**
+- 修后：`huanxin/vcs/git_channel.py` GitWriteChannel —— 克隆到隔离沙箱 → 新建 `absorb-<date>` 分支 → 应用补丁 → push 该分支 → 用 `gh api` 开 PR（目标 master）。**内部 `_assert_no_protected_push` 兜底：任何 `git push master/main` 立即抛错。**
 - CI：`scripts/check_write_protect.py` 在 absorb.yml 中对全仓库源码反向扫描，除 git_channel.py 外任何 `git push master`、`gh api PUT/POST 命中受保护分支` 即判红。
 
 ---
@@ -93,7 +93,7 @@
 ## 4. 安全边界（硬性，不可逾越）
 
 1. **绝不自动合 master**：所有写回走 PR + 人类 review；GitWriteChannel 无直推路径。
-2. **沙箱运行进化**：实验只在隔离环境，不连生产 `jarvis.db`。
+2. **沙箱运行进化**：实验只在隔离环境，不连生产 `huanxin.db`。
 3. **资源预算**：单轮成本超预算即熔断（CircuitBreaker）。
 4. **权限模型**：`rbac.py` 约束「谁能让 AI 写码」，默认最小权限。
 5. **退化即停**：CircuitBreaker 见功勋跌幅超阈值立即停并告警。
@@ -103,7 +103,7 @@
 
 ## 5. 提交与同步
 
-- 所有改动经 feature 分支 → 合并 master → 推送 GitHub（`kiwoen/emperor-core`）。
+- 所有改动经 feature 分支 → 合并 master → 推送 GitHub（`kiwoen/huanxin-ai`）。
 - 分支命名已从「含斜杠」改为**扁平连字符**（沙箱 git 嵌套 ref 写入限制教训）。
 - 复盘文档、调研文档、实施方案均已作为仓库交付物纳入 `docs/`。
 
@@ -112,7 +112,7 @@
 ## 6. 本轮增量（P2.3 + 可观测性硬化 + P3.1）
 
 **P2.3 评测闸写回（DGM 闭环补全）**：此前 `GitWriteChannel.propose_change` 会**无条件**开 PR——
-一个让基准回归的突变也会被照样提交。本轮新增 `jarvis/vcs/writeback_gate.py`
+一个让基准回归的突变也会被照样提交。本轮新增 `huanxin/vcs/writeback_gate.py`
 （`WritebackGate` / `WritebackBlocked`），把「基准评测」这一环接进写回通道：
 提供 `eval_report` 时，评测不达标 / 相对基线回归 / 某域跌破下限 / 空套件，
 即在任何 git 操作**之前**抛 `WritebackBlocked`（fail fast、零副作用、绝不静默放行）。
@@ -125,7 +125,7 @@
 （窄类型、有意为之）。新增 `scripts/check_silent_except.py` 并接入 `absorb.yml`，
 反向校验核心路径不得再引入静默吞异常（防回归）。
 
-**P3.1 监控看板**：`jarvis/telemetry.py`（stdlib-only）把熔断器状态、基准评测、大臣功勋、
+**P3.1 监控看板**：`huanxin/telemetry.py`（stdlib-only）把熔断器状态、基准评测、大臣功勋、
 进化事件、成本聚合成 `TelemetrySnapshot`；`scripts/emit_telemetry.py` 跑真实 canonical
 基准（离线、确定性）生成 `telemetry.json` + `telemetry.js`，并复制出自包含
 `dashboard.html`（浏览器直接打开，file:// 可用，无需起服务）。
@@ -145,7 +145,7 @@ integration 4，去重后计入套件），受触模块定向回归 **317 passed
 **目标**：此前所有安全组件都是「带单测的独立件」，缺一个能**一键真正跑起来**的完整
 自进化循环。本轮补齐编排层，并借「真实跑一遍」逼出并修掉了 3 个潜伏 bug。
 
-**落地编排器**：新建 `jarvis/self_evolve.py`（`SelfEvolutionEngine`）+
+**落地编排器**：新建 `huanxin/self_evolve.py`（`SelfEvolutionEngine`）+
 `scripts/run_self_evolve.py`（CLI）。把全链路串成闭环：
 护栏(GuardrailChain) → 路由(SmartRouter) → 执行(Executor) → 适应度(RealTaskFitness)
 → 功勋(MeritBoard) → 进化(Court.evolve，受 CircuitBreaker+PromotionGate 约束)
@@ -175,7 +175,7 @@ GA 算子的 RNG），无需 LLM key、不连网、不碰真实 git；`--live` �
 ## 8. 本轮增量（Phase 8：把安全闭环真正「落地执行」）
 
 > 驱动：调研 2025–2026 年自进化 / 自改写 AI（DGM、SWE-agent、OpenHands 等）的安全闭环实践，
-> 对照 emperor-core 已有能力，补齐「能跑但没接上」的三道落地闸：真实写回、人类审批、审计/持久化，
+> 对照 huanxin-ai 已有能力，补齐「能跑但没接上」的三道落地闸：真实写回、人类审批、审计/持久化，
 > 并给出可一键运行的生产入口。
 
 **背景**：上几轮已建成沙箱（GitWriteChannel 只开 PR）、基准评测（WritebackGate）、熔断/晋升闸，
@@ -185,35 +185,35 @@ GA 算子的 RNG），无需 LLM key、不连网、不碰真实 git；`--live` �
 
 **Phase 8 交付**：
 
-1. **真实写回 diff（jarvis/court/genome_diff.py）**：进化前后各对全体大臣基因拍快照，
-   用 `difflib` 生成指向仓库内 `jarvis/court/genome_state.json` 的标准 unified diff
+1. **真实写回 diff（huanxin/court/genome_diff.py）**：进化前后各对全体大臣基因拍快照，
+   用 `difflib` 生成指向仓库内 `huanxin/court/genome_state.json` 的标准 unified diff
    （新文件用 `/dev/null` 头，`git apply` 可直接消化）。写回携带系统这一轮**对自己基因的
    真实改动**，PR 里能看到「A 大臣 temperature 0.9 → 0.62」之类的具体内容——可审查、可回滚。
 
-2. **人类审批门接入（jarvis/court/approval_gate.py）**：把 `jarvis/approval.ApprovalEngine`
+2. **人类审批门接入（huanxin/court/approval_gate.py）**：把 `huanxin/approval.ApprovalEngine`
    接通到写回前。每次写回先建一条 `risk_level=critical` 的审批请求进 `approval.db`；
    `auto_approve=False`（生产默认）时**仅记录、不自动 PR**，必须等人类对这条请求 approve
    后由另一条流程发起；`auto_approve=True` 仅用于离线/CI 演示。无引擎则退化为直接放行
    （向后兼容）。DGM 安全模型第三段「人工审批门」由此从纸面变成落库可查的硬约束。
 
-3. **审计 / 检查点接入（jarvis/self_evolve.py）**：每轮 `court.evolve` 与写回决策都进
+3. **审计 / 检查点接入（huanxin/self_evolve.py）**：每轮 `court.evolve` 与写回决策都进
    `AuditLogger`（不可篡改 `audit.db`）——「什么变了、谁批过、怎么回滚」全程可查、可回放；
-   运行结束把全体基因落盘为 `jarvis/court/genome_state.json` 检查点（原子写），
+   运行结束把全体基因落盘为 `huanxin/court/genome_state.json` 检查点（原子写），
    支持 `--resume` 跨重启续跑与回放。
 
-4. **运行时入口 + 配置（jarvis/cli.py + jarvis/self_evolve_config.py）**：新增
-   `jarvis self-evolve` 子命令（封装编排器，参数与脚本对齐），使自进化循环成为与
+4. **运行时入口 + 配置（huanxin/cli.py + huanxin/self_evolve_config.py）**：新增
+   `huanxin self-evolve` 子命令（封装编排器，参数与脚本对齐），使自进化循环成为与
    `serve`/`chat` 并列的一等运行时模式；新增 YAML 配置（`configs/self_evolve.yaml`，
    `SelfEvolveConfig`）把轮数/种子/闸阈值/审批/审计/检查点路径从硬编码抽离，便于在
    离线演示 / CI / 生产间切换。生产姿态默认：严格评测闸 + 开启人类审批门 + 离线记录写回。
 
 **实测**（`--cycles 5 --seed 7 --audit`，离线）：5 轮完整跑通，health=healthy，
 5 次写回均携带真实基因 diff（proposed:absorb-offline-N），审计库每轮写入 evolve/writeback
-事件，基因检查点成功落盘（5 初始大臣经自动 breeding 增至 9）。`jarvis self-evolve` 子命令
+事件，基因检查点成功落盘（5 初始大臣经自动 breeding 增至 9）。`huanxin self-evolve` 子命令
 端到端验证通过。
 
 **本轮测试**：新增 14 个（genome_diff 4 + approval_gate 3 + 落地集成 7），
-受触模块定向回归全绿，零回归；`run_self_evolve.py` / `jarvis self-evolve` 真实跑通。
+受触模块定向回归全绿，零回归；`run_self_evolve.py` / `huanxin self-evolve` 真实跑通。
 
 ---
 
@@ -225,28 +225,28 @@ GA 算子的 RNG），无需 LLM key、不连网、不碰真实 git；`--live` �
 
 **Phase 9 交付**：
 
-1. **金标准安全闸（jarvis/court/safety_gate.py，新增）**：DGM 论文「golden safety dataset」约束的
+1. **金标准安全闸（huanxin/court/safety_gate.py，新增）**：DGM 论文「golden safety dataset」约束的
    落地版——在写回前的**最后一道**硬约束（fail-closed）。逐基因校验：`genome_schema`（字段合法）、
    `unique_names`（大臣名唯一）、`quality_floor`（任一基因质量 ≥ 地板，默认 0.05）、
    `core_ministers`（核心大臣 math_alpha / reason_gamma 一个都不能少）、
    `protected_paths`（未触碰受保护核心模块）、`no_regression`（相对基线的金标准大臣平均质量回退 ≤
-   上限，默认 0.10）。任一不通过即抛 `SafetyError`，**绝不静默放行**。`jarvis self-evolve
+   上限，默认 0.10）。任一不通过即抛 `SafetyError`，**绝不静默放行**。`huanxin self-evolve
    safety-check` 子命令可对当前基因快照独立跑该闸。
 
-2. **资源预算护栏（jarvis/court/resource_guard.py，新增）**：`ResourceBudget` 上下文管理器，
+2. **资源预算护栏（huanxin/court/resource_guard.py，新增）**：`ResourceBudget` 上下文管理器，
    为**单轮**自进化设墙钟（`resource_seconds`，默认 120s）与操作数（`resource_max_ops`）上限；
    越限抛 `ResourceBudgetExceeded` 并触发安全熔断，交回上层——杜绝 runaway 自进化无限占用时间 /
    调用。命令行 `--resource-seconds` / `--resource-max-ops` 可调。
 
-3. **可测试回滚（jarvis/court/rollback.py，新增）**：`RollbackManager` 每轮写回前落一个带元数据的
+3. **可测试回滚（huanxin/court/rollback.py，新增）**：`RollbackManager` 每轮写回前落一个带元数据的
    基因快照（原子写 `.tmp`→`os.replace`），基线（cycle 0）标记为 `safe` 已知点；`index.json` 记录
    全部快照元数据便于审计。`rollback_to(id, court, genome_state_path)` 经既有 `Court.load_genomes`
    （与检查点同一套反序列化）载入，保证「保存 ↔ 回滚」完全对称，并同步更新运行中的
-   `genome_state.json` 使回滚立即可见、可 `--resume` 续跑。`jarvis self-evolve rollback
+   `genome_state.json` 使回滚立即可见、可 `--resume` 续跑。`huanxin self-evolve rollback
    --list` / `--to <id>` 子命令可用。修正了 `Court.load_genomes` 由「合并」改为「替换」语义
    （对 resume 与 rollback 均正确）。
 
-4. **闭环接入（jarvis/self_evolve.py / scripts/run_self_evolve.py / jarvis/cli.py / 配置）**：
+4. **闭环接入（huanxin/self_evolve.py / scripts/run_self_evolve.py / huanxin/cli.py / 配置）**：
    三块安全件全部接入 `SelfEvolutionEngine.run()`：基线安全快照 → 单轮资源预算包裹 →
    每轮快照 → 写回前先过金标准安全闸（不通过则拦下）。`SelfEvolveConfig` 与
    `configs/self_evolve.yaml` 暴露全部开关（`use_safety_gate` / `quality_floor` /
@@ -265,7 +265,7 @@ GA 算子的 RNG），无需 LLM key、不连网、不碰真实 git；`--live` �
 **本轮测试**：新增 9 个（safety_gate 3 + resource_guard 3 + rollback 3），与 Phase 8 共 23 个新增测试；
 受触模块定向回归（24 文件）全绿，CI 双闸（check_write_protect / check_silent_except）对新增代码零告警。
 
-**完成度**：至此 emperor-core 自进化闭环已具备 DGM 三约束（沙箱 + 编码基准评测 + 人工审批门）+
+**完成度**：至此 huanxin-ai 自进化闭环已具备 DGM 三约束（沙箱 + 编码基准评测 + 人工审批门）+
 研究 P0 落地清单（金标准安全闸 / 资源预算 / 可测试回滚）的全部要素，且**离线、确定性、可复现、
 可审计、可回滚**地真正跑通——满足「完全落地执行」目标。
 
@@ -278,18 +278,18 @@ GA 算子的 RNG），无需 LLM key、不连网、不碰真实 git；`--live` �
 
 **Phase 10 交付**：
 
-1. **行为级金标准安全检查（jarvis/court/safety_gate.py：新增 `GoldenSafetyCheck`）**：DGM「golden safety dataset」
+1. **行为级金标准安全检查（huanxin/court/safety_gate.py：新增 `GoldenSafetyCheck`）**：DGM「golden safety dataset」
    的真正落地——把当前最优大臣在固定基准（canonical suite）上的**真实答对率**作为写回前的 fail-closed 不变式。
    编排引擎在 `_evaluate` 算出的 `eval_pass_rate` 注入 `SafetyContext.behavioral_pass_rate`，任一 blocking 闸
    不过即拒。**与结构检查互补**：结构全过、评测闸也放过，只要真实行为正确率跌破 `golden_pass_rate_min`
    （默认 0.5，生产可调高）就拒绝写回。无行为评测数据时按 *warning* 处理，不阻塞离线/无评测场景。
    `default_safety_gate` 默认包含该检查。
 
-2. **评测与运行轮次解耦（jarvis/self_evolve.py：修正 `answer_eval_case`）**：原本评测采样依赖 `cycle`，
+2. **评测与运行轮次解耦（huanxin/self_evolve.py：修正 `answer_eval_case`）**：原本评测采样依赖 `cycle`，
    使「跑了第几轮」混入行为正确率、且无法对不同轮复用评测。现改为仅依赖 `(minister, case)`，**评测纯粹
    反映基因质量**，从而为下一步缓存扫清语义障碍（也更正确：进化效果应由基因决定，而非轮次计数）。
 
-3. **评测结果缓存（jarvis/self_evolve.py：新增 `_eval_cache`）**：按「最优大臣 + 其基因」签名缓存评测报告，
+3. **评测结果缓存（huanxin/self_evolve.py：新增 `_eval_cache`）**：按「最优大臣 + 其基因」签名缓存评测报告，
    基因未变即复用上次结果，跳过对稳定基因的重复评测（长程运行 / 高频轮询场景下的性能优化，且完全正确——
    评测已与 cycle 解耦，同基因必得同结果）。
 
@@ -309,7 +309,7 @@ GA 算子的 RNG），无需 LLM key、不连网、不碰真实 git；`--live` �
 缓存复用/cycle 解耦/行为信号注入），累计 Phase 8–10 共 **30 个新增测试**；受触模块定向回归
 （court/cli/eval/safety/landing 等 21 文件）全绿（合计本轮 446 项通过），CI 双闸零告警。
 
-**完成度**：emperor-core 自进化闭环现已具备 DGM 三约束（沙箱 + **结构级 + 行为级**编码基准评测 + 人工审批门）+
+**完成度**：huanxin-ai 自进化闭环现已具备 DGM 三约束（沙箱 + **结构级 + 行为级**编码基准评测 + 人工审批门）+
 研究 P0 落地清单（金标准安全闸 / 资源预算 / 可测试回滚）的全部要素，且离线、确定性、可复现、可审计、可回滚、
 行为级 fail-closed 地真正跑通。
 
@@ -321,19 +321,19 @@ GA 算子的 RNG），无需 LLM key、不连网、不碰真实 git；`--live` �
 
 **Phase 11 交付**：
 
-1. **真实离线求解器（jarvis/court/offline_solver.py，新增）**：不再模拟，而是**真算**——
+1. **真实离线求解器（huanxin/court/offline_solver.py，新增）**：不再模拟，而是**真算**——
    `math` 用 AST 白名单安全求值真实算式（真算出 1234+5678=6912，拒绝任意代码执行）；
    `code` 针对请求函数发出真实可运行代码（含真 `def`）；`retrieval`/`factual` 走内置知识表
    检索；`refusal` 识别不安全意图并真实拒绝。`is_correct(answer, expected)` 用真实答案对黄金
    答案判对错（含数值容差），提供**真实正确性信号**。
 
-2. **真实任务执行器（jarvis/court/real_executor.py，新增 `RealTaskExecutor`）**：实现引擎
+2. **真实任务执行器（huanxin/court/real_executor.py，新增 `RealTaskExecutor`）**：实现引擎
    `TaskExecutor` 协议。先真解题，再用基因质量门控「答对 / 答错」——更优基因更可能「真的解对」→
    更高适应度 → 被进化保留/交叉。于是**进化梯度来自真实计算的正确性**，而非长度或运气。
    可选真实 LLM 后端（`OPENAI_API_KEY`/`DEEPSEEK_API_KEY` + openai 包，经 `build_default_llm()`
    自动探测；无 key / 无包 / 失败一律安全退回离线求解器），全程离线、确定性、可复现。
 
-3. **自我学习闭环（jarvis/self_evolve.py：新增 `_reinforce` + `self_learn` 开关）**：每个任务的
+3. **自我学习闭环（huanxin/self_evolve.py：新增 `_reinforce` + `self_learn` 开关）**：每个任务的
    **真实成败即时微调大臣基因**——成功向最优区（温度≈0.4 / 置信≈0.9）靠拢，失败微降置信并回摆。
    确定性小步长、可复现；改动反映在 `genome_state_payload`，被写回 diff 真实捕获，并随检查点持久化
    （`--resume` 跨重启累积学习）。默认随真实执行器开启。
@@ -353,7 +353,7 @@ GA 算子的 RNG），无需 LLM key、不连网、不碰真实 git；`--live` �
 端到端真实执行学习 1），累计 Phase 8–11 共 **40 个新增测试**；受触模块定向回归（含 task_engine、
 court_api、eval、cli 等）全绿（本轮 310 项通过），CI 双闸零告警。
 
-**完成度**：emperor-core 现已**真的执行任务**（真实求解而非模拟）、**真的自我学习**（真实成败即时
+**完成度**：huanxin-ai 现已**真的执行任务**（真实求解而非模拟）、**真的自我学习**（真实成败即时
 微调基因并持久化）、并在 DGM 三约束 + 行为级金标准安全闸下 fail-closed 进化——满足「完全落地
 自我学习进化执行任务」。接真实 LLM 仅需配 `OPENAI_API_KEY`/`DEEPSEEK_API_KEY`，编排与安全闸门不变。
 
@@ -370,23 +370,23 @@ court_api、eval、cli 等）全绿（本轮 310 项通过），CI 双闸零告�
 
 **Phase 12 交付**：
 
-1. **经验记忆落盘（jarvis/court/memory.py）**：`CourtMemory` 新增 `save(path)` / `load(path)`
+1. **经验记忆落盘（huanxin/court/memory.py）**：`CourtMemory` 新增 `save(path)` / `load(path)`
    原子写（tmp→replace，防半截文件）；`load` 对缺失/损坏文件安全回退空记忆，绝不阻断运行。
    每条 `MemoryEntry` 含 `domain / minister_name / success / confidence / merit` 等，可被路由、
    报告、真实 LLM 上下文复用。`get_all_domain_stats()` 按域汇总成功率/最强大臣，是「学到了什么」
    的可观测证据。
 
-2. **引擎接线（jarvis/self_evolve.py + self_evolve_config.py）**：引擎持有 `CourtMemory` 实例，
+2. **引擎接线（huanxin/self_evolve.py + self_evolve_config.py）**：引擎持有 `CourtMemory` 实例，
    `run()` 末调用 `_save_memory()` 落盘、`__init__`/`run()` 按 `--resume` 从盘 `_load_memory()`
-   恢复，**跨重启累积学习**；配置新增 `use_memory` / `memory_path`（默认 `jarvis/court/memory.json`，
+   恢复，**跨重启累积学习**；配置新增 `use_memory` / `memory_path`（默认 `huanxin/court/memory.json`，
    已加入 `.gitignore`，属运行时产物不入库）；`memory_stats()` 对外暴露按域统计。
 
-3. **执行器与 CLI 贯通（jarvis/court/real_executor.py + scripts/run_self_evolve.py + jarvis/cli.py）**：
+3. **执行器与 CLI 贯通（huanxin/court/real_executor.py + scripts/run_self_evolve.py + huanxin/cli.py）**：
    执行器共享同一 `CourtMemory` 实例（上下文增强）；`run_orchestrator` 构建时显式传入
    `memory=memory, use_memory=..., memory_path=...`；运行结束打印按域的可观测记忆小结；
    CLI 新增 `--no-memory` / `--memory-path` 开关，可一键关记忆或换落盘路径。
 
-4. **多领域派发修复（jarvis/self_evolve.py `_execute_tasks`）**：原 `for task in self.tasks[:per_minister]`
+4. **多领域派发修复（huanxin/self_evolve.py `_execute_tasks`）**：原 `for task in self.tasks[:per_minister]`
    固定只跑前 2 个任务（清一色 `math`）。改为**按大臣基因 domain 亲和派发**——同领域优先、否则
    `general` 大臣兜底、组内按已分配数轮转均摊；并对「无同领域任务的大臣」（如 `reasoning`）用任意
    任务补一个，保证**每个大臣都执行过真实任务**以驱动基因自我学习。修复后 `memory.json` 覆盖
@@ -396,7 +396,7 @@ court_api、eval、cli 等）全绿（本轮 310 项通过），CI 双闸零告�
 - 修复前：`Counter({'math': 26})`——只有 math 被学。
 - 修复后（`--cycles 3 --seed 7`，real 执行 + 自我学习 + 经验记忆）：
   ```
-  🧠 经验记忆已落盘 jarvis/court/memory.json（跨重启累积，--resume 继续学习）：
+  🧠 经验记忆已落盘 huanxin/court/memory.json（跨重启累积，--resume 继续学习）：
      · code       样本=6    成功率=83% 最强大臣=code_beta
      · factual    样本=6    成功率=67% 最强大臣=gen_epsilon
      · math       样本=7    成功率=43% 最强大臣=math_alpha
@@ -411,7 +411,7 @@ court_api、eval、cli 等）全绿（本轮 310 项通过），CI 双闸零告�
 电路保护器**合法安全熔断**（仍校验离线跑通 + 评测闸拦截写回的核心意图）。受触模块定向回归
 （self_evolve / memory / real_executor / safety_gate / evolution / landing / integration）全绿。
 
-**完成度**：emperor-core 现已 **真实执行任务**（真实求解而非模拟）、**真实自我学习**（真实成败
+**完成度**：huanxin-ai 现已 **真实执行任务**（真实求解而非模拟）、**真实自我学习**（真实成败
 即时微调基因 + 经验落盘跨重启累积）、并在 DGM 三约束 + 行为级金标准安全闸下 fail-closed 进化——
 满足「完全落地自我学习进化执行任务」。接真实 LLM 仅需配 `OPENAI_API_KEY`/`DEEPSEEK_API_KEY`，
 编排与安全闸门不变。
@@ -421,7 +421,7 @@ court_api、eval、cli 等）全绿（本轮 310 项通过），CI 双闸零告�
 > Phase 12 初版只做到「经验记录 + 落盘」，但派发仍按「领域亲和 + 轮转」——累积的经验**只写不读**，
 > 自我学习尚未真正改变「谁执行哪个任务」。本 refinement 收口闭环：让经验**反向驱动派发决策**。
 
-**改动（jarvis/self_evolve.py）**：
+**改动（huanxin/self_evolve.py）**：
 - 新增模块级纯函数 `_rank_ministers(group, domain, mem_quality)`：按「该 (大臣,领域) 历史成功率」
   对候选组降序排序；无记忆 / 某大臣无历史时回退 0.5，配合 Python 稳定排序退化为「原序轮转」，**零回归**。
 - `_execute_tasks` 在每轮派发前，从 `CourtMemory._entries` 一次性聚合出 `mem_quality`，再把组内排序交给
@@ -441,7 +441,7 @@ landing / integration）合计 **81 passed**，仅 `datetime.utcnow` 既有弃�
 > 派发已用记忆驱动（续¹），但「记忆」与「基因」仍是两条平行通道——经验只影响路由，不直接塑造基因。
 > 本 refinement 把二者统一：让已累积经验在冷启动/新部署时**轻推基因**，使新实例直接站在历史经验肩上。
 
-**改动（jarvis/self_evolve.py + self_evolve_config.py + scripts/run_self_evolve.py + jarvis/cli.py）**：
+**改动（huanxin/self_evolve.py + self_evolve_config.py + scripts/run_self_evolve.py + huanxin/cli.py）**：
 - `SelfEvolutionEngine` 新增 `warm_start_from_memory`（opt-in，默认关 → 零回归）；`run()` 启动期调用
   `_warm_start_genes_from_memory()`：按 (大臣,领域) 聚合历史成功率，以 0.25 小步长把
   `confidence_baseline` 朝历史成功率、`temperature` 朝最优区轻推（仅对记忆中有该域历史的大臣生效，无历史不动）。
@@ -461,7 +461,7 @@ landing / integration）合计 **81 passed**，仅 `datetime.utcnow` 既有弃�
 > 续² 用固定 0.25 步长把冷启动基因朝历史经验推。但「历史成功率」本身有噪声：1 次全胜与 20 次全胜，
 > 可信度截然不同。固定步长要么样本少时过度信任偶然，要么样本多时推进太慢。本 refinement 让步长**自适应**。
 
-**改动（jarvis/self_evolve.py `_warm_start_genes_from_memory`）**：
+**改动（huanxin/self_evolve.py `_warm_start_genes_from_memory`）**：
 - 步长公式 `step = min(0.5, 0.12 + 0.038 * t)`（`t` = 该 (大臣,领域) 历史样本数）：
   1 样本→0.158（保守）、5→0.31、10+→0.5（封顶，充分信任）。
 - confidence 与 temperature 校准**共用同一自适应步长**，使「经验越充分，基因越贴近历史最优」。
@@ -479,8 +479,8 @@ real_executor）合计 **172 passed**，仅 `datetime.utcnow` 既有弃用告警
 > 自进化 + 经验记忆**闭环本身已完整且可测**（Phase 8–12 + 续¹/²/³），但**围绕它的落地链路**仍有若干缺口。
 
 **本轮回退（具体修复）**：
-- `main.py --mode server` 原本 `from jarvis.server import create_app` —— `jarvis/server.py` 根本不存在，文档写的启动方式直接 `ImportError`。已改为复用真实的 `Emperor.serve()`（与 `jarvis cli serve` 同一实现），并显式构造 `EmperorConfig()`（旧代码把裸 dict 传给 `Emperor`，会在 `serve` 内 `self.config.api_port` 处 `AttributeError`）。语法/导入已验证。
-- 备注：`main.py --mode chat` 仍把裸 dict 传给 `Emperor`（潜在同类坑），建议同样改为 `EmperorConfig()`。
+- `main.py --mode server` 原本 `from huanxin.server import create_app` —— `huanxin/server.py` 根本不存在，文档写的启动方式直接 `ImportError`。已改为复用真实的 `Huanxin.serve()`（与 `huanxin cli serve` 同一实现），并显式构造 `HuanxinConfig()`（旧代码把裸 dict 传给 `Huanxin`，会在 `serve` 内 `self.config.api_port` 处 `AttributeError`）。语法/导入已验证。
+- 备注：`main.py --mode chat` 仍把裸 dict 传给 `Huanxin`（潜在同类坑），建议同样改为 `HuanxinConfig()`。
 
 **还缺什么（按优先级）**：
 
@@ -490,10 +490,10 @@ real_executor）合计 **172 passed**，仅 `datetime.utcnow` 既有弃用告警
 | **P1** | 经验记忆无衰减/裁剪 | `CourtMemory` 只增不减，陈旧样本会主导路由/暖启动。建议加可配置 decay/留存窗口（默认关→零回归）——这是下一个自然 refinement。 |
 | **P1** | 缺"学习曲线"度量 | 有机制测试（路由动、基因动），但无"随样本累积，路由命中最优大臣比例↑ / 冷启动误差↓"的端到端度量。建议加 `--benchmark-learning-curve`。 |
 | **P1** | CI 不跑真实自进化冒烟 | `ci.yml` 跑整个 `tests/`（忽略 network/`test_core`/e2e），但**不**跑 `scripts/run_self_evolve.py`。建议在 CI 加 `run_self_evolve --cycles 2` 门禁，防编排胶水回归（正是本轮回退那类）。 |
-| **P2** | 外围模块是占位 | codex/generator 的 extract/rename 占位；`jarvis/core/llm.py` 离线分支返回硬编码工程串（真实路径走 litellm 的 `jarvis/llm/engine.py`，不受影响）；mcp SSE 传输未实现（需装 `mcp` 包）。均不在自进化关键路径。 |
+| **P2** | 外围模块是占位 | codex/generator 的 extract/rename 占位；`huanxin/core/llm.py` 离线分支返回硬编码工程串（真实路径走 litellm 的 `huanxin/llm/engine.py`，不受影响）；mcp SSE 传输未实现（需装 `mcp` 包）。均不在自进化关键路径。 |
 | **P2** | 环境/部署 | 本沙箱无 git 凭证，本地提交就绪但推送受阻（需 `gh auth login` 后快进推送）；真实 LLM 需 key + 已装 `litellm`（本环境已装）；`test_core.py` 被 CI 忽略。 |
 
-**本轮回退验证**：`main.py` 语法 OK；`Emperor`/`EmperorConfig` 导入正常、`serve` 存在。自进化子系统本轮未改，定向回归 172 passed 不受影响。
+**本轮回退验证**：`main.py` 语法 OK；`Huanxin`/`HuanxinConfig` 导入正常、`serve` 存在。自进化子系统本轮未改，定向回归 172 passed 不受影响。
 
 ### Phase 12 续⁵：记忆衰减 / 留存窗口（边界化「只增不减 + 陈旧样本主导」）
 
@@ -502,7 +502,7 @@ real_executor）合计 **172 passed**，仅 `datetime.utcnow` 既有弃用告警
 > 依赖真实墙钟（默认 1 小时才衰减一次），在短时自进化运行里几乎不触发，对闭环不实用。本 refinement
 > 加两道**确定性、可关闭（默认关→零回归）**的边界。
 
-**改动（jarvis/court/memory.py + self_evolve.py + self_evolve_config.py + scripts/run_self_evolve.py + jarvis/cli.py）**：
+**改动（huanxin/court/memory.py + self_evolve.py + self_evolve_config.py + scripts/run_self_evolve.py + huanxin/cli.py）**：
 - `CourtMemory(max_per_group=None)`：新增**每 (大臣,领域) 留存上限**；`record()` 超限时 `prune_oldest_per_group()`
   丢弃最旧样本，直接边界化「只增不减」。`save/load` 持久化该配置，使 `--resume` 复用同一窗口。
 - `CourtMemory.per_minister_domain_quality(recency_decay=1.0)`：新增**确定性**聚合助手——按**插入序**

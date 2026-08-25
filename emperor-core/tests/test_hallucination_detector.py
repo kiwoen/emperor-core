@@ -1,5 +1,5 @@
 """
-Tests for jarvis.hallucination_detector — Silent Hallucination Detection.
+Tests for huanxin.hallucination_detector — Silent Hallucination Detection.
 
 Covers:
   - OutputConsistencyChecker: n-gram overlap, entity agreement, divergent segment detection
@@ -14,7 +14,7 @@ import pytest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from jarvis.hallucination_detector import (
+from huanxin.hallucination_detector import (
     OutputConsistencyChecker,
     ConsistencyResult,
     FactualityVerifier,

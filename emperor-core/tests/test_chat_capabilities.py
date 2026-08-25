@@ -17,9 +17,9 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-import jarvis.court_api as court_api
-from jarvis.api import auth_store
-from jarvis.capabilities.search import WebSearchService
+import huanxin.court_api as court_api
+from huanxin.api import auth_store
+from huanxin.capabilities.search import WebSearchService
 
 
 class _RecordingLLM:
@@ -39,8 +39,8 @@ class _RecordingLLM:
 def client_and_llm(tmp_path, monkeypatch):
     data_dir = tmp_path / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("EMPEROR_DATA_DIR", str(data_dir))
-    monkeypatch.setenv("EMPEROR_OPEN_REGISTRATION", "1")
+    monkeypatch.setenv("HUANXIN_DATA_DIR", str(data_dir))
+    monkeypatch.setenv("HUANXIN_OPEN_REGISTRATION", "1")
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
     monkeypatch.setattr(auth_store, "_conn", None)
 

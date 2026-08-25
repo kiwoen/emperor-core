@@ -23,7 +23,7 @@ import time
 import pytest
 from starlette.testclient import TestClient
 
-from jarvis.cost_per_success import (
+from huanxin.cost_per_success import (
     CostPerSuccessTracker,
     CostEfficiencyAlert,
     TaskOutcomeRecord,
@@ -370,7 +370,7 @@ class TestApiEndpoint:
     @pytest.fixture
     def client(self, populated_tracker):
         """Create a TestClient with the tracker in app.extra."""
-        from jarvis.court_api import create_app
+        from huanxin.court_api import create_app
         app = create_app()
         app.extra["cost_per_success"] = populated_tracker
         return TestClient(app)
@@ -396,7 +396,7 @@ class TestApiEndpoint:
 
     def test_api_no_tracker(self):
         """API should return 503 when tracker not available."""
-        from jarvis.court_api import create_app
+        from huanxin.court_api import create_app
         app = create_app()
         client = TestClient(app)
         resp = client.get("/api/dashboard/cost-efficiency")

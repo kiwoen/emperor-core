@@ -9,8 +9,8 @@ import time
 import pytest
 from starlette.testclient import TestClient
 
-from jarvis.court_api import create_app
-from jarvis.emperor import Emperor
+from huanxin.court_api import create_app
+from huanxin.core import Huanxin
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -20,8 +20,8 @@ from jarvis.emperor import Emperor
 
 @pytest.fixture
 def client():
-    """Create a FastAPI test client with a bare in-memory Emperor."""
-    emperor = Emperor()
+    """Create a FastAPI test client with a bare in-memory Huanxin."""
+    emperor = Huanxin()
 
     app = create_app()
     app.extra["emperor"] = emperor

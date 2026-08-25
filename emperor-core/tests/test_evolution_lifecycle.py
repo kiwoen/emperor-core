@@ -16,12 +16,12 @@ from pathlib import Path
 
 import pytest
 
-from jarvis.court.config import SurvivalConfig
-from jarvis.court.evolution import SurvivalMechanism
-from jarvis.court.genome_redispersal import archetype_for_index
-from jarvis.court.genome_store import GenomeStore
-from jarvis.court.inspector import CourtInspector
-from jarvis.court.merit_board import MeritBoard
+from huanxin.court.config import SurvivalConfig
+from huanxin.court.evolution import SurvivalMechanism
+from huanxin.court.genome_redispersal import archetype_for_index
+from huanxin.court.genome_store import GenomeStore
+from huanxin.court.inspector import CourtInspector
+from huanxin.court.merit_board import MeritBoard
 
 
 # ── Helpers ───────────────────────────────────────────────────────────

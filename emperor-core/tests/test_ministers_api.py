@@ -3,8 +3,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from jarvis.court_api import create_app
-from jarvis.emperor import Emperor
+from huanxin.court_api import create_app
+from huanxin.core import Huanxin
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -14,10 +14,10 @@ from jarvis.emperor import Emperor
 
 @pytest.fixture
 def client():
-    emperor = Emperor()
+    emperor = Huanxin()
     emperor.register("turing", domain="math")
     emperor.register("ada", domain="code")
-    # Pass emperor's internal court so API and Emperor share the same Court
+    # Pass emperor's internal court so API and Huanxin share the same Court
     app = create_app(court=emperor.court)
     app.extra["emperor"] = emperor
     return TestClient(app)

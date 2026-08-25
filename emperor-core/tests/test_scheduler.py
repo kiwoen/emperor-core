@@ -1,4 +1,4 @@
-"""Tests for jarvis.court.scheduler — Scheduler lifecycle, job management,
+"""Tests for huanxin.court.scheduler — Scheduler lifecycle, job management,
 periodic evolution + task scheduling.
 """
 
@@ -9,7 +9,7 @@ import time
 import pytest
 from unittest.mock import MagicMock, patch
 
-from jarvis.court.scheduler import (
+from huanxin.court.scheduler import (
     Scheduler,
     SchedulerState,
     ScheduleEntry,
@@ -224,11 +224,11 @@ class TestExecution:
 
 
 # ══════════════════════════════════════════════════════════════════
-# Emperor integration
+# Huanxin integration
 # ══════════════════════════════════════════════════════════════════
 
 
-class TestEmperorIntegration:
+class TestHuanxinIntegration:
     def test_schedule_evolution(self, emperor_scheduler):
         name = emperor_scheduler.schedule_evolution(interval_minutes=1, cycles=5)
         assert name == "_auto_evolution"
@@ -269,9 +269,9 @@ class TestEmperorIntegration:
         assert emperor_scheduler._emperor.execute_batch.call_count >= 1
 
     def test_no_emperor_convenience_raises(self, scheduler):
-        with pytest.raises(RuntimeError, match="no Emperor"):
+        with pytest.raises(RuntimeError, match="no Huanxin"):
             scheduler.schedule_evolution(1)
-        with pytest.raises(RuntimeError, match="no Emperor"):
+        with pytest.raises(RuntimeError, match="no Huanxin"):
             scheduler.schedule_tasks(1)
 
 

@@ -12,7 +12,7 @@ Covers:
 
 import pytest
 
-from jarvis.model_router import (
+from huanxin.model_router import (
     Capability,
     ModelTier,
     SmartRouter,

@@ -1,7 +1,7 @@
 """Unit tests for Confidence Calibrator (置信校准器)."""
 
 import pytest
-from jarvis.court.calibration import (
+from huanxin.court.calibration import (
     CalibrationMode,
     CalibrationRecord,
     MinisterCalibration,

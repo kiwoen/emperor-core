@@ -8,9 +8,9 @@ import sys
 
 import pytest
 
-from jarvis.court.circuit_breaker import CircuitBreaker
-from jarvis.eval_bench.criteria import EvalReport
-from jarvis.telemetry import MinisterTelemetry, collect, write_js, write_json
+from huanxin.court.circuit_breaker import CircuitBreaker
+from huanxin.eval_bench.criteria import EvalReport
+from huanxin.telemetry import MinisterTelemetry, collect, write_js, write_json
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 import emit_telemetry  # noqa: E402

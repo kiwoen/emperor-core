@@ -14,7 +14,7 @@ import json
 import pytest
 from starlette.testclient import TestClient
 
-from jarvis.multi_model import (
+from huanxin.multi_model import (
     ModelConfig,
     MultiModelRouter,
     ParallelResult,
@@ -40,10 +40,10 @@ def empty_router():
 @pytest.fixture
 def client():
     """Test client for court_api."""
-    from jarvis.court_api import create_app
-    from jarvis.emperor import Emperor
+    from huanxin.court_api import create_app
+    from huanxin.core import Huanxin
 
-    emp = Emperor()
+    emp = Huanxin()
     app = create_app()
     app.extra["emperor"] = emp
     app.extra["multi_model_router"] = emp.multi_model_router

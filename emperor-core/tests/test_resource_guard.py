@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from jarvis.court.resource_guard import (
+from huanxin.court.resource_guard import (
     ResourceBudget,
     ResourceBudgetExceeded,
     resource_budget,
@@ -27,7 +27,7 @@ def test_max_operations_triggers():
 
 
 def test_timeout_triggers(monotonic_seq=(0.0, 1.0, 2.0)):
-    with patch("jarvis.court.resource_guard.time.monotonic",
+    with patch("huanxin.court.resource_guard.time.monotonic",
                side_effect=list(monotonic_seq)):
         with pytest.raises(ResourceBudgetExceeded):
             with ResourceBudget(seconds=1.0) as b:
@@ -42,7 +42,7 @@ def test_unlimited_budget_never_raises():
 
 
 def test_remaining_seconds_and_fraction():
-    with patch("jarvis.court.resource_guard.time.monotonic",
+    with patch("huanxin.court.resource_guard.time.monotonic",
                side_effect=[0.0, 0.5, 0.5, 0.5]):
         b = ResourceBudget(seconds=10.0)
         b.__enter__()

@@ -1,4 +1,4 @@
-"""Tests for jarvis.router — IntentClassifier, RouterEngine, and integration."""
+"""Tests for huanxin.router — IntentClassifier, RouterEngine, and integration."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ class TestIntentClassifierRuleFallback:
     """Tests that exercise the keyword‑based rule fallback (no LLM)."""
 
     def test_classify_code_generation(self):
-        from jarvis.router.classifier import IntentClassifier
+        from huanxin.router.classifier import IntentClassifier
 
         clf = IntentClassifier()  # no LLM → uses rules
         r = clf.classify("给我写一个Python快速排序算法")
@@ -22,56 +22,56 @@ class TestIntentClassifierRuleFallback:
         assert 0.0 < r.confidence <= 1.0
 
     def test_classify_data_analysis(self):
-        from jarvis.router.classifier import IntentClassifier
+        from huanxin.router.classifier import IntentClassifier
 
         clf = IntentClassifier()
         r = clf.classify("帮我分析这些销售数据并生成趋势图")
         assert r.intent == "data_analysis"
 
     def test_classify_math_calculation(self):
-        from jarvis.router.classifier import IntentClassifier
+        from huanxin.router.classifier import IntentClassifier
 
         clf = IntentClassifier()
         r = clf.classify("计算 sin(45°) + cos(30°) 的值")
         assert r.intent == "math_calculation"
 
     def test_classify_file_operation(self):
-        from jarvis.router.classifier import IntentClassifier
+        from huanxin.router.classifier import IntentClassifier
 
         clf = IntentClassifier()
         r = clf.classify("把桌面文件移到D盘projects目录")
         assert r.intent == "file_operation"
 
     def test_classify_web_search(self):
-        from jarvis.router.classifier import IntentClassifier
+        from huanxin.router.classifier import IntentClassifier
 
         clf = IntentClassifier()
         r = clf.classify("搜索最新的Transformer论文")
         assert r.intent == "web_search"
 
     def test_classify_document_qa(self):
-        from jarvis.router.classifier import IntentClassifier
+        from huanxin.router.classifier import IntentClassifier
 
         clf = IntentClassifier()
         r = clf.classify("这个PDF合同里写了哪些违约条款")
         assert r.intent == "document_qa"
 
     def test_classify_system_operation(self):
-        from jarvis.router.classifier import IntentClassifier
+        from huanxin.router.classifier import IntentClassifier
 
         clf = IntentClassifier()
         r = clf.classify("帮我重启一下系统服务")
         assert r.intent == "system_operation"
 
     def test_classify_general_chat(self):
-        from jarvis.router.classifier import IntentClassifier
+        from huanxin.router.classifier import IntentClassifier
 
         clf = IntentClassifier()
         r = clf.classify("你好呀，今天过得怎么样")
         assert r.intent == "general_chat"
 
     def test_classify_returns_confidence_bounds(self):
-        from jarvis.router.classifier import IntentClassifier
+        from huanxin.router.classifier import IntentClassifier
 
         clf = IntentClassifier()
         for text in ["写代码", "分析数据", "你好"]:
@@ -79,7 +79,7 @@ class TestIntentClassifierRuleFallback:
             assert 0.0 <= r.confidence <= 1.0, f"confidence out of range for: {text}"
 
     def test_classify_result_has_fields(self):
-        from jarvis.router.classifier import IntentClassifier
+        from huanxin.router.classifier import IntentClassifier
 
         clf = IntentClassifier()
         r = clf.classify("写一个排序算法")
@@ -89,14 +89,14 @@ class TestIntentClassifierRuleFallback:
         assert hasattr(r, "latency_ms")
 
     def test_classify_unknown_returns_general_chat(self):
-        from jarvis.router.classifier import IntentClassifier
+        from huanxin.router.classifier import IntentClassifier
 
         clf = IntentClassifier()
         r = clf.classify("嗯...这个嘛...让我想想...")
         assert r.intent == "general_chat"
 
     def test_classify_counts_correctly(self):
-        from jarvis.router.classifier import IntentClassifier
+        from huanxin.router.classifier import IntentClassifier
 
         clf = IntentClassifier()
         for _ in range(3):
@@ -107,7 +107,7 @@ class TestIntentClassifierRuleFallback:
         assert stats["per_intent"]["code_generation"] >= 1
 
     def test_get_minister_for_known_intents(self):
-        from jarvis.router.classifier import IntentClassifier
+        from huanxin.router.classifier import IntentClassifier
 
         clf = IntentClassifier()
         assert clf.get_minister_for("general_chat") == "turing"
@@ -117,13 +117,13 @@ class TestIntentClassifierRuleFallback:
         assert clf.get_minister_for("document_qa") == "confucius"
 
     def test_get_minister_for_unknown_intent_returns_turing(self):
-        from jarvis.router.classifier import IntentClassifier
+        from huanxin.router.classifier import IntentClassifier
 
         clf = IntentClassifier()
         assert clf.get_minister_for("nonexistent") == "turing"
 
     def test_fewshot_examples_included_in_prompt(self):
-        from jarvis.router.classifier import IntentClassifier
+        from huanxin.router.classifier import IntentClassifier
 
         clf = IntentClassifier()
         prompt = clf._build_prompt("测试输入")
@@ -131,13 +131,13 @@ class TestIntentClassifierRuleFallback:
         assert "快速排序" in prompt or "sales" in prompt.lower() or "天气" in prompt
 
     def test_custom_labels(self):
-        from jarvis.router.classifier import IntentClassifier
+        from huanxin.router.classifier import IntentClassifier
 
         clf = IntentClassifier(labels=["greeting", "code", "question"])
         assert clf.labels == ["greeting", "code", "question"]
 
     def test_custom_examples(self):
-        from jarvis.router.classifier import IntentClassifier
+        from huanxin.router.classifier import IntentClassifier
 
         ex = [{"text": "hello world", "intent": "greeting"}]
         clf = IntentClassifier(examples=ex, labels=["greeting", "other"])
@@ -165,7 +165,7 @@ class TestIntentClassifierLLM:
         return MockLLM()
 
     def test_mock_llm_classification(self, mock_llm):
-        from jarvis.router.classifier import IntentClassifier
+        from huanxin.router.classifier import IntentClassifier
 
         clf = IntentClassifier(llm_engine=mock_llm)
         r = clf.classify("帮我写一个快速排序")
@@ -174,14 +174,14 @@ class TestIntentClassifierLLM:
         assert r.reasoning == "用户要求编写代码"
 
     def test_mock_llm_prompt_contains_input(self, mock_llm):
-        from jarvis.router.classifier import IntentClassifier
+        from huanxin.router.classifier import IntentClassifier
 
         clf = IntentClassifier(llm_engine=mock_llm)
         clf.classify("帮我写一个快速排序")
         assert "快速排序" in mock_llm.last_prompt
 
     def test_mock_llm_unknown_intent_fallback(self, mock_llm):
-        from jarvis.router.classifier import IntentClassifier
+        from huanxin.router.classifier import IntentClassifier
 
         mock_llm.chat_sync = lambda prompt, system=None: '{"intent": "xyz_fake", "confidence": 0.99, "reasoning": "unknown"}'
         clf = IntentClassifier(llm_engine=mock_llm)
@@ -190,7 +190,7 @@ class TestIntentClassifierLLM:
         assert r.intent == "general_chat"
 
     def test_mock_llm_trims_json_fence(self, mock_llm):
-        from jarvis.router.classifier import IntentClassifier
+        from huanxin.router.classifier import IntentClassifier
 
         mock_llm.chat_sync = lambda prompt, system=None: '```json\n{"intent": "math_calculation", "confidence": 0.88, "reasoning": "计算题"}\n```'
         clf = IntentClassifier(llm_engine=mock_llm)
@@ -198,7 +198,7 @@ class TestIntentClassifierLLM:
         assert r.intent == "math_calculation"
 
     def test_mock_llm_error_fallback(self, mock_llm):
-        from jarvis.router.classifier import IntentClassifier
+        from huanxin.router.classifier import IntentClassifier
 
         mock_llm.chat_sync = lambda prompt, system=None: (_ for _ in ()).throw(RuntimeError("LLM down"))
         clf = IntentClassifier(llm_engine=mock_llm)
@@ -207,7 +207,7 @@ class TestIntentClassifierLLM:
         assert r.intent in [l for l in clf.labels]
 
     def test_mock_llm_latency_tracking(self, mock_llm):
-        from jarvis.router.classifier import IntentClassifier
+        from huanxin.router.classifier import IntentClassifier
 
         clf = IntentClassifier(llm_engine=mock_llm)
         r = clf.classify("测试")
@@ -224,8 +224,8 @@ class TestRouterEngine:
 
     @pytest.fixture
     def router(self):
-        from jarvis.router.classifier import IntentClassifier
-        from jarvis.router.engine import RouterEngine
+        from huanxin.router.classifier import IntentClassifier
+        from huanxin.router.engine import RouterEngine
 
         clf = IntentClassifier()
         return RouterEngine(classifier=clf, confidence_threshold=0.3)
@@ -274,8 +274,8 @@ class TestRouterEngine:
 
     def test_route_default_minister_for_low_confidence(self, router):
         # Set a high threshold so fallback triggers
-        from jarvis.router.engine import RouterEngine
-        from jarvis.router.classifier import IntentClassifier
+        from huanxin.router.engine import RouterEngine
+        from huanxin.router.classifier import IntentClassifier
 
         strict_router = RouterEngine(
             classifier=IntentClassifier(),
@@ -332,8 +332,8 @@ class TestRouterEngine:
 
 class TestMultiLevelRouting:
     def test_multi_level_code_to_lecun(self):
-        from jarvis.router.classifier import IntentClassifier
-        from jarvis.router.engine import RouterEngine
+        from huanxin.router.classifier import IntentClassifier
+        from huanxin.router.engine import RouterEngine
 
         clf = IntentClassifier()
         router = RouterEngine(classifier=clf)
@@ -347,8 +347,8 @@ class TestMultiLevelRouting:
         assert d.suggested_minister == "lecun"
 
     def test_multi_level_math_to_goodfellow(self):
-        from jarvis.router.classifier import IntentClassifier
-        from jarvis.router.engine import RouterEngine
+        from huanxin.router.classifier import IntentClassifier
+        from huanxin.router.engine import RouterEngine
 
         clf = IntentClassifier()
         router = RouterEngine(classifier=clf)
@@ -361,8 +361,8 @@ class TestMultiLevelRouting:
         assert d.suggested_minister == "goodfellow"
 
     def test_multi_level_data_to_hinton(self):
-        from jarvis.router.classifier import IntentClassifier
-        from jarvis.router.engine import RouterEngine
+        from huanxin.router.classifier import IntentClassifier
+        from huanxin.router.engine import RouterEngine
 
         clf = IntentClassifier()
         router = RouterEngine(classifier=clf)
@@ -375,8 +375,8 @@ class TestMultiLevelRouting:
         assert d.suggested_minister == "hinton"
 
     def test_multi_level_file_to_lovelace(self):
-        from jarvis.router.classifier import IntentClassifier
-        from jarvis.router.engine import RouterEngine
+        from huanxin.router.classifier import IntentClassifier
+        from huanxin.router.engine import RouterEngine
 
         clf = IntentClassifier()
         router = RouterEngine(classifier=clf)
@@ -389,8 +389,8 @@ class TestMultiLevelRouting:
         assert d.suggested_minister == "lovelace"
 
     def test_multi_level_doc_qa_to_confucius(self):
-        from jarvis.router.classifier import IntentClassifier
-        from jarvis.router.engine import RouterEngine
+        from huanxin.router.classifier import IntentClassifier
+        from huanxin.router.engine import RouterEngine
 
         clf = IntentClassifier()
         router = RouterEngine(classifier=clf)
@@ -403,8 +403,8 @@ class TestMultiLevelRouting:
         assert d.suggested_minister == "confucius"
 
     def test_multi_level_system_to_tesla(self):
-        from jarvis.router.classifier import IntentClassifier
-        from jarvis.router.engine import RouterEngine
+        from huanxin.router.classifier import IntentClassifier
+        from huanxin.router.engine import RouterEngine
 
         clf = IntentClassifier()
         router = RouterEngine(classifier=clf)
@@ -424,19 +424,19 @@ class TestMultiLevelRouting:
 
 class TestModuleIntegration:
     def test_import_router_package(self):
-        """jarvis.router package is importable."""
-        import jarvis.router  # noqa: F401
+        """huanxin.router package is importable."""
+        import huanxin.router  # noqa: F401
 
     def test_import_classifier(self):
-        from jarvis.router import IntentClassifier
+        from huanxin.router import IntentClassifier
         assert IntentClassifier is not None
 
     def test_import_router_engine(self):
-        from jarvis.router import RouterEngine
+        from huanxin.router import RouterEngine
         assert RouterEngine is not None
 
     def test_import_all_symbols(self):
-        from jarvis.router import (
+        from huanxin.router import (
             IntentClassifier,
             ClassificationResult,
             RouterEngine,
@@ -448,7 +448,7 @@ class TestModuleIntegration:
         assert isinstance(INTENT_TO_MINISTER, dict)
 
     def test_default_classifier_is_instantiable(self):
-        from jarvis.router import IntentClassifier
+        from huanxin.router import IntentClassifier
 
         clf = IntentClassifier()
         assert clf is not None
@@ -456,7 +456,7 @@ class TestModuleIntegration:
         assert clf.fallback_intent == "general_chat"
 
     def test_default_router_is_instantiable(self):
-        from jarvis.router import RouterEngine
+        from huanxin.router import RouterEngine
 
         router = RouterEngine()
         assert router is not None
@@ -464,7 +464,7 @@ class TestModuleIntegration:
         assert router.default_minister == "turing"
 
     def test_route_decision_dataclass(self):
-        from jarvis.router.engine import RouterDecision
+        from huanxin.router.engine import RouterDecision
 
         d = RouterDecision(
             target_type="minister",

@@ -1,6 +1,6 @@
 ---
 name: "task-router"
-description: "emperor-core 主路由分发器：将自然语言意图归类为任务类型，用大臣 can_handle 评分选优派发，支持类型感知加权与模型档建议。触发：路由、派发、任务分类、选大臣、调度。"
+description: "huanxin-ai 主路由分发器：将自然语言意图归类为任务类型，用大臣 can_handle 评分选优派发，支持类型感知加权与模型档建议。触发：路由、派发、任务分类、选大臣、调度。"
 triggers:
   - "路由"
   - "派发"
@@ -12,9 +12,9 @@ triggers:
 # Task Router · 主路由分发器
 
 ## 系统定位
-emperor-core 的「决策脑」，把多智能体技能集群的「主编路由 → 专项技能分发」模式工程化为通用任务路由。它不执行任务，只负责把对的意图送给对的承办者。
-- 上游：Emperor / Orchestrator
-- 下游：工部尚书等 8 大臣（`jarvis.court.ministers`）、工程等领域模块
+huanxin-ai 的「决策脑」，把多智能体技能集群的「主编路由 → 专项技能分发」模式工程化为通用任务路由。它不执行任务，只负责把对的意图送给对的承办者。
+- 上游：Huanxin / Orchestrator
+- 下游：工部尚书等 8 大臣（`huanxin.court.ministers`）、工程等领域模块
 
 ## 类型识别与路由
 `classify_task_type(intent)`：对 code/math/writing/research/security/planning 关键词做**命中数加权统计**，取命中最多者（并列按定义顺序稳定 tie-break），均未命中 → general。
@@ -50,5 +50,5 @@ emperor-core 的「决策脑」，把多智能体技能集群的「主编路由 
 | `code-reviewer` | code 类审查意图经本路由送达工部尚书 |
 
 ## 版本记录
-- v1.0 (2026-08)：从 storyboard-master-router 提炼「类型路由 + 互斥优先级」范式，落地 `jarvis/core/task_router.py`
+- v1.0 (2026-08)：从 storyboard-master-router 提炼「类型路由 + 互斥优先级」范式，落地 `huanxin/core/task_router.py`
 - v1.1 (2026-08-17)：固化主路由→大臣派发约定（见 `docs/ROUTING_AND_DISPATCH.md`）

@@ -1,7 +1,7 @@
 """多用户注册 + 数据隔离 + 管理员后台测试（PRD P0-1/P0-2/P1-2）。
 
 覆盖：
-* 注册开关默认开 → 200 自动登录；EMPEROR_OPEN_REGISTRATION=0 → 403
+* 注册开关默认开 → 200 自动登录；HUANXIN_OPEN_REGISTRATION=0 → 403
 * 重复用户名 409；密码 <6 拒绝；空用户名拒绝
 * 数据隔离：A 访问 B 的 conversation 404；列表仅返回自己
 * 封禁用户登录 401 / 会话 401；解封恢复
@@ -13,8 +13,8 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-import jarvis.court_api as court_api
-from jarvis.api import auth_store
+import huanxin.court_api as court_api
+from huanxin.api import auth_store
 
 ADMIN_USER = "rootadmin"
 ADMIN_PASS = "admin-secret-123"
@@ -24,10 +24,10 @@ ADMIN_PASS = "admin-secret-123"
 def client(tmp_path, monkeypatch):
     data_dir = tmp_path / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("EMPEROR_DATA_DIR", str(data_dir))
-    monkeypatch.setenv("EMPEROR_OPEN_REGISTRATION", "1")
-    monkeypatch.setenv("EMPEROR_ADMIN_USER", ADMIN_USER)
-    monkeypatch.setenv("EMPEROR_ADMIN_PASS", ADMIN_PASS)
+    monkeypatch.setenv("HUANXIN_DATA_DIR", str(data_dir))
+    monkeypatch.setenv("HUANXIN_OPEN_REGISTRATION", "1")
+    monkeypatch.setenv("HUANXIN_ADMIN_USER", ADMIN_USER)
+    monkeypatch.setenv("HUANXIN_ADMIN_PASS", ADMIN_PASS)
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
     monkeypatch.setattr(auth_store, "_conn", None)
     app = court_api.create_app()
@@ -83,7 +83,7 @@ class TestRegistration:
         assert r.status_code == 400
 
     def test_register_closed_returns_403(self, client, monkeypatch):
-        monkeypatch.setenv("EMPEROR_OPEN_REGISTRATION", "0")
+        monkeypatch.setenv("HUANXIN_OPEN_REGISTRATION", "0")
         r = client.post("/api/auth/register", json={"username": "blocked", "password": "secret123"})
         assert r.status_code == 403
 

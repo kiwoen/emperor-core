@@ -12,7 +12,7 @@ Coverage:
 """
 
 import pytest
-from jarvis.court.routing import (
+from huanxin.court.routing import (
     IntelligentRouter,
     RoutingPlan,
     RoutingSignal,

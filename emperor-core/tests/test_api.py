@@ -1,5 +1,5 @@
 """
-Tests for JARVIS API server.
+Tests for HUANXIN API server.
 Uses FastAPI TestClient and pytest-asyncio.
 """
 
@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from jarvis.api.server import app
+from huanxin.api.server import app
 
 
 @pytest.fixture
@@ -38,8 +38,8 @@ class TestHealth:
 
 class TestTokenAuth:
     def test_health_open_with_token_set(self, monkeypatch):
-        monkeypatch.setenv("EMPEROR_API_TOKEN", "abc")
-        from jarvis.api.server import app
+        monkeypatch.setenv("HUANXIN_API_TOKEN", "abc")
+        from huanxin.api.server import app
         c = TestClient(app)
         # /health 始终放行
         assert c.get("/health").status_code == 200

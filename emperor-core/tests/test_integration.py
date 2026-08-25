@@ -3,7 +3,7 @@ import asyncio
 
 import pytest
 
-from jarvis.core.integration import SystemIntegration
+from huanxin.core.integration import SystemIntegration
 
 
 # ── Lifecycle ───────────────────────────────────────────────────────────────
@@ -105,7 +105,7 @@ class TestBusRouting:
         integration = SystemIntegration()
         await integration.start()
 
-        from jarvis.hermes.bus import Message, MessageType, Topic
+        from huanxin.hermes.bus import Message, MessageType, Topic
 
         # Send a codex analyze request
         reply = await integration.bus.request(
@@ -127,7 +127,7 @@ class TestBusRouting:
         integration = SystemIntegration()
         await integration.start()
 
-        from jarvis.hermes.bus import Message, MessageType, Topic
+        from huanxin.hermes.bus import Message, MessageType, Topic
 
         reply = await integration.bus.request(
             Topic("vscode.file.open"),
@@ -233,7 +233,7 @@ class TestConcurrent:
         integration = SystemIntegration()
         await integration.start()
 
-        from jarvis.hermes.bus import Topic
+        from huanxin.hermes.bus import Topic
 
         async def request_codex(i: int) -> dict:
             try:
@@ -371,7 +371,7 @@ class TestKnowledgeGraphIntegration:
         integration = SystemIntegration()
         await integration.start()
 
-        await integration.execute("JARVIS 使用 Hermes 消息总线进行模块通信")
+        await integration.execute("HUANXIN 使用 Hermes 消息总线进行模块通信")
         await integration.execute("Codex Engine 分析 Python AST 树")
 
         kg = integration.knowledge_graph
@@ -383,7 +383,7 @@ class TestKnowledgeGraphIntegration:
             assert os.path.exists(snapshot_path)
 
             # Load into a fresh graph
-            from jarvis.knowledge.graph import KnowledgeGraph
+            from huanxin.knowledge.graph import KnowledgeGraph
             kg2 = KnowledgeGraph()
             await kg2.load_snapshot(snapshot_path)
 
@@ -401,11 +401,11 @@ class TestKnowledgeGraphIntegration:
 
         # Ingest enough data to make centrality meaningful
         for text in [
-            "JARVIS 使用 Codex Engine 分析代码",
+            "HUANXIN 使用 Codex Engine 分析代码",
             "Codex Engine 依赖 Vector Engine",
             "Vector Engine 通过 Hermes 通信",
             "Hermes 消息总线连接所有模块",
-            "JARVIS 通过 Hermes 进行跨领域路由",
+            "HUANXIN 通过 Hermes 进行跨领域路由",
         ]:
             await integration.execute(text)
 
@@ -413,7 +413,7 @@ class TestKnowledgeGraphIntegration:
         central = await kg.most_central(top_n=5)
         assert len(central) > 0
 
-        # "JARVIS" or "Hermes" should be among most central
+        # "HUANXIN" or "Hermes" should be among most central
         top_names = [c["entity"].lower() for c in central]
         assert len(top_names) > 0
 

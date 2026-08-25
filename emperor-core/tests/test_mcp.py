@@ -1,12 +1,12 @@
 """
-Tests for jarvis.mcp_client and jarvis.mcp_manager — MCP Client Integration.
+Tests for huanxin.mcp_client and huanxin.mcp_manager — MCP Client Integration.
 
 Covers:
   - MCPClient: connect, disconnect, list_tools, call_tool, list_servers
   - MCPManager: register_server, unregister_server, get_all_tools, discover_and_call
   - 3 built-in mock servers: filesystem-server, web-search-server, calculator-server
   - Error handling: connection failure, tool not found, timeout, division by zero
-  - Emperor integration: mcp_manager property, built-in mock servers auto-register
+  - Huanxin integration: mcp_manager property, built-in mock servers auto-register
 """
 
 import sys
@@ -19,7 +19,7 @@ import pytest
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from jarvis.mcp_client import (
+from huanxin.mcp_client import (
     MCPClient,
     MCPServerConfig,
     MCPTool,
@@ -29,7 +29,7 @@ from jarvis.mcp_client import (
     MCPTimeoutError,
 )
 
-from jarvis.mcp_manager import (
+from huanxin.mcp_manager import (
     MCPManager,
     MockFileSystemServer,
     MockWebSearchServer,
@@ -176,7 +176,7 @@ class TestMockFileSystemServer:
 
     def test_read_file_known(self, mock_fs):
         result = mock_fs.call_tool("read_file", {"path": "README.md"})
-        assert "Emperor Core" in result["result"]
+        assert "幻炘AI" in result["result"]
 
     def test_write_and_read_file(self, mock_fs):
         mock_fs.call_tool("write_file", {
@@ -358,17 +358,17 @@ class TestMCPManager:
 
 
 # ═══════════════════════════════════════════════════════════════════
-# Emperor Integration Tests
+# Huanxin Integration Tests
 # ═══════════════════════════════════════════════════════════════════
 
 
-class TestEmperorMCPIntegration:
-    """Test Emperor <-> MCPManager integration."""
+class TestHuanxinMCPIntegration:
+    """Test Huanxin <-> MCPManager integration."""
 
     def test_emperor_has_mcp_manager(self):
-        """Emperor instance should auto-register built-in mock servers."""
-        from jarvis.emperor import Emperor
-        emp = Emperor()
+        """Huanxin instance should auto-register built-in mock servers."""
+        from huanxin.core import Huanxin
+        emp = Huanxin()
         try:
             mgr = emp.mcp_manager
             assert mgr is not None
@@ -382,9 +382,9 @@ class TestEmperorMCPIntegration:
             emp.shutdown()
 
     def test_emperor_mcp_call_through_manager(self):
-        """Calling MCP tools through Emperor's mcp_manager should work."""
-        from jarvis.emperor import Emperor
-        emp = Emperor()
+        """Calling MCP tools through Huanxin's mcp_manager should work."""
+        from huanxin.core import Huanxin
+        emp = Huanxin()
         try:
             result = emp.mcp_manager.discover_and_call(
                 "multiply", {"a": 7, "b": 8}
@@ -444,7 +444,7 @@ class TestMCPDataClasses:
 # ═══════════════════════════════════════════════════════════════════
 
 
-from jarvis.mcp.tool_registry import ToolRegistry, ToolDef
+from huanxin.mcp.tool_registry import ToolRegistry, ToolDef
 
 
 class TestToolRegistryRegistration:
@@ -674,7 +674,7 @@ class TestToolRegistryThreadSafety:
 # ═══════════════════════════════════════════════════════════════════
 
 
-from jarvis.mcp.server import MCPServer
+from huanxin.mcp.server import MCPServer
 
 
 class TestMCPServerBuiltinTools:
@@ -848,13 +848,13 @@ class TestMCPServerImport:
     """Verify top-level imports work."""
 
     def test_import_from_mcp_package(self):
-        from jarvis.mcp import ToolRegistry, ToolDef, MCPServer
+        from huanxin.mcp import ToolRegistry, ToolDef, MCPServer
         assert ToolRegistry is not None
         assert ToolDef is not None
         assert MCPServer is not None
 
     def test_import_leaves_existing_exports(self):
-        from jarvis.mcp import CircuitBreaker, CircuitState, ResilientMCPClient
+        from huanxin.mcp import CircuitBreaker, CircuitState, ResilientMCPClient
         assert CircuitBreaker is not None
         assert CircuitState is not None
         assert ResilientMCPClient is not None

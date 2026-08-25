@@ -1,17 +1,17 @@
 """Tests for the multi-dimensional CodeReviewer (八维加权代码审查)."""
 import pytest
 
-from jarvis.codex.reviewer import (
+from huanxin.codex.reviewer import (
     CodeReviewer,
     Dimension,
     Severity,
     detect_language,
     detect_code_type,
 )
-from jarvis.hermes.bus import MessageBus, Topic
-from jarvis.codex.engine import CodexEngine
-from jarvis.codex.analyzer import Analyzer
-from jarvis.codex.generator import Generator
+from huanxin.hermes.bus import MessageBus, Topic
+from huanxin.codex.engine import CodexEngine
+from huanxin.codex.analyzer import Analyzer
+from huanxin.codex.generator import Generator
 
 
 # ============================================================================

@@ -10,9 +10,9 @@ from pathlib import Path
 
 import pytest
 
-from jarvis.plugin import Plugin
-from jarvis.plugins import LoggingPlugin, MetricsPlugin
-from jarvis.plugins.metrics import MetricsSummary, TaskSample, EvolutionSample
+from huanxin.plugin import Plugin
+from huanxin.plugins import LoggingPlugin, MetricsPlugin
+from huanxin.plugins.metrics import MetricsSummary, TaskSample, EvolutionSample
 
 
 # ══════════════════════════════════════════════════════════════════

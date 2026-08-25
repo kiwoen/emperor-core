@@ -2,7 +2,7 @@
 """
 P2.2 CI 反向校验脚本：拦截「绕过写回通道直推受保护分支」的非法代码。
 
-自进化系统唯一合法的代码写回路径是 ``jarvis/vcs/git_channel.py``
+自进化系统唯一合法的代码写回路径是 ``huanxin/vcs/git_channel.py``
 （GitWriteChannel，只开 PR 绝不直推 master）。本脚本在 CI 中对仓库源码做
 静态扫描，一旦发现**其他任何文件**出现以下模式，立即判红（exit 1）：
 
@@ -11,12 +11,12 @@ P2.2 CI 反向校验脚本：拦截「绕过写回通道直推受保护分支」
   3. ``gh api`` 使用 ``--method PUT|POST`` 且路径命中 master / main
      （例如改分支保护、直推受保护 ref）；但 ``.../pulls`` 创建 PR 属合法，放行。
 
-合法例外：``jarvis/vcs/git_channel.py`` 本身（它是受控的写回通道），
+合法例外：``huanxin/vcs/git_channel.py`` 本身（它是受控的写回通道），
 允许出现 ``push`` / ``gh api`` 调用——因为它的 push 目标永远是新建的
 absorb 分支，且内部有 ``_assert_no_protected_push`` 兜底。
 
 Usage::
-    python scripts/check_write_protect.py            # 扫描 jarvis/
+    python scripts/check_write_protect.py            # 扫描 huanxin/
     python scripts/check_write_protect.py --root .    # 指定根目录
 """
 
@@ -32,7 +32,7 @@ from typing import List
 PROTECTED = ("master", "main")
 
 # 合法例外文件（唯一受控写回通道）。用后缀匹配以兼容不同的扫描根目录。
-ALLOWED_FILES = ("vcs/git_channel.py", "jarvis/vcs/git_channel.py")
+ALLOWED_FILES = ("vcs/git_channel.py", "huanxin/vcs/git_channel.py")
 
 
 def _has_protected(line: str) -> bool:
@@ -109,9 +109,9 @@ def main(argv: List[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     root = args.root or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    # 只扫 jarvis/ 下的源码（self-evolving 后端）
-    jarvis_root = os.path.join(root, "jarvis")
-    scan_target = jarvis_root if os.path.isdir(jarvis_root) else root
+    # 只扫 huanxin/ 下的源码（self-evolving 后端）
+    huanxin_root = os.path.join(root, "huanxin")
+    scan_target = huanxin_root if os.path.isdir(huanxin_root) else root
 
     violations = scan_paths(scan_target)
     if violations:
@@ -119,7 +119,7 @@ def main(argv: List[str] | None = None) -> int:
         for v in violations:
             print("  -", v)
         print(
-            "\n唯一合法的代码写回路径是 jarvis/vcs/git_channel.py "
+            "\n唯一合法的代码写回路径是 huanxin/vcs/git_channel.py "
             "(GitWriteChannel, 只开 PR 绝不直推 master)。"
         )
         return 1

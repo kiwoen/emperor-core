@@ -12,7 +12,7 @@ from __future__ import annotations
 import pytest
 
 from fastapi.testclient import TestClient
-from jarvis.court_api import create_app
+from huanxin.court_api import create_app
 
 
 @pytest.fixture

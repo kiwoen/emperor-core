@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from jarvis.court.court import Court
-from jarvis.court.evolution import MinisterGenome, SurvivalMechanism
-from jarvis.court.merit_board import MeritBoard
-from jarvis.court.task_engine import TaskEngine, TaskRequest
+from huanxin.court.court import Court
+from huanxin.court.evolution import MinisterGenome, SurvivalMechanism
+from huanxin.court.merit_board import MeritBoard
+from huanxin.court.task_engine import TaskEngine, TaskRequest
 
 
 class MockCapabilityRegistry:

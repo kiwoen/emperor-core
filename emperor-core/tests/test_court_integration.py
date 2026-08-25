@@ -1,10 +1,10 @@
-"""Integration tests for Emperor pipeline with MeritBoard + SurvivalMechanism + ReflectionConsensus."""
+"""Integration tests for Sovereign pipeline with MeritBoard + SurvivalMechanism + ReflectionConsensus."""
 
 import pytest
-from jarvis.court.emperor import ImperialCourt
-from jarvis.court.minister import Minister, MinisterProfile
-from jarvis.court.merit_board import MeritBoard, MeritRank
-from jarvis.court.evolution import SurvivalMechanism
+from huanxin.court.sovereign import ImperialCourt
+from huanxin.court.minister import Minister, MinisterProfile
+from huanxin.court.merit_board import MeritBoard, MeritRank
+from huanxin.court.evolution import SurvivalMechanism
 
 
 # ── Fixtures ────────────────────────────────────────────────────────

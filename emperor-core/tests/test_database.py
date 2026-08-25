@@ -1,4 +1,4 @@
-"""Tests for jarvis.database — SQLite persistence layer.
+"""Tests for huanxin.database — SQLite persistence layer.
 
 Uses tempfile for isolated test databases that are cleaned up after each test.
 """
@@ -10,7 +10,7 @@ import tempfile
 
 import pytest
 
-from jarvis.database import Database
+from huanxin.database import Database
 
 
 # ══════════════════════════════════════════════════════════════════

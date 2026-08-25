@@ -1,5 +1,5 @@
 """
-Tests for ``jarvis.async_core`` — covering AsyncExecutor and QueueManager.
+Tests for ``huanxin.async_core`` — covering AsyncExecutor and QueueManager.
 
 Usage::
 
@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from jarvis.async_core import AsyncExecutor, Priority, QueueManager
+from huanxin.async_core import AsyncExecutor, Priority, QueueManager
 
 
 # ═══════════════════════════════════════════════════════════════════

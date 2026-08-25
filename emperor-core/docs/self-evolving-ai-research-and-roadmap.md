@@ -1,8 +1,8 @@
-# JARVIS / emperor-core 自进化能力调研与落地方案
+# HUANXIN / huanxin-ai 自进化能力调研与落地方案
 
 > **文档类型**：调研与方案设计（不含代码变更）
 > **生成日期**：2026-08-09
-> **适用仓库**：`github.com/kiwoen/emperor-core`
+> **适用仓库**：`github.com/kiwoen/huanxin-ai`
 > **证据基准日**：2026-08-09（开源项目数据实时抓取日）
 >
 > 本文档由调研、存量盘点、方案设计、事实核查四条独立工作线产出后合并而成。
@@ -20,10 +20,10 @@
 
 | 边界项 | 决定 | 含义 |
 |--------|------|------|
-| 交付形态 | 纯调研文档 | **不改动 emperor-core 任何代码**，不提交 PR，不修改配置 |
+| 交付形态 | 纯调研文档 | **不改动 huanxin-ai 任何代码**，不提交 PR，不修改配置 |
 | GitHub 同步机制 | 只设计流程，不动仓库 | 第 5 章给出同步策略、分支模型、审核流程的**设计稿**，不执行任何 push |
 | 检索深度 | 深度联网检索 | 论文/仓库数据均需可确证来源，禁止凭记忆填写 |
-| 落盘位置 | `emperor-core/docs/` | 与既有 `ARCHITECTURE.md` / `vision.md` 同级 |
+| 落盘位置 | `huanxin-ai/docs/` | 与既有 `ARCHITECTURE.md` / `vision.md` 同级 |
 
 **明确不在范围内**：代码实现、性能压测、生产部署、成本实测、法律合规意见。
 
@@ -42,7 +42,7 @@
 | A3 | 适应度评估基于任务完成质量 | ❌ **推翻**。主链路适应度实际由**响应文本长度**主导，正确性加分项在主链路永不触发 | 典型奖励黑客（reward hacking）结构，见 4.1 |
 | A4 | 三层安全护栏（bounded_autonomy / tool_guard / governance_agent）已接入主执行路径 | ❌ **推翻**。约 2280 行护栏代码仅被 API 端点与彼此引用，形成悬空子图，未挂载在主执行链上 | 4.6 风险边界改为"**先接线（激活存量）→ 再扩展**"两段式，而非直接扩展 |
 | A5 | PromptGuard 会拦截危险输入 | ❌ **推翻且更严重**。危险等级判定后向遥测上报 `blocked`，但执行流程继续，**监控数据与实际行为不一致** | 单列为安全项最高优先级：一个会"谎报战果"的护栏比没有护栏更危险 |
-| A6 | 路由层缺失，需要从零构建 | ⚠️ **部分修正**。`jarvis/router/` 是完整可用的包且已在主路径被调用，问题是**决策结果未被消费**（仅写入只读字段）；真正缺失的是 `jarvis/model_router.py`（SmartRouter），且其导入失败被 try/except 静默吞掉 | 工作量从"重建路由层"下调为"接通最后一公里"，数十行量级 |
+| A6 | 路由层缺失，需要从零构建 | ⚠️ **部分修正**。`huanxin/router/` 是完整可用的包且已在主路径被调用，问题是**决策结果未被消费**（仅写入只读字段）；真正缺失的是 `huanxin/model_router.py`（SmartRouter），且其导入失败被 try/except 静默吞掉 | 工作量从"重建路由层"下调为"接通最后一公里"，数十行量级 |
 | A7 | 系统对接真实 LLM 运行 | ❌ **推翻**。默认运行在 mock 模式下 | 所有"效果类"结论在接入真实模型前均不可信，需在路线图中前置 |
 | A8 | 系统具备代码自修改能力（自进化的题中之义） | ❌ **推翻，且影响需求可行性**。全库无 git 写操作、无 `.py` 文件写入、无 PR 创建，`gitpython` 零 import；进化对象仅 6 个 LLM 采样超参数，其中 `prompt_mutation_rate` 为装饰性基因（全库无消费点）；`evolution/controller` 三层均为 log-only 骨架 | **直接冲击需求第 5 项**（"将更新同步提交到 GitHub"）。该能力需从零构建，且是全方案危险等级最高的单项，见 5.1 与 4.6 |
 
@@ -124,7 +124,7 @@
 | GPTSwarm | 论文 | https://arxiv.org/abs/2402.16823 | 2024-02 | 将智能体工作流建模为可进化的计算图（Language Agents as Optimizable Graphs，Mingchen Zhuge 等，2024-02），节点/边可优化 |
 | AFlow | 论文 | https://arxiv.org/abs/2410.10762 | 2024-10 | 用蒙特卡洛树搜索（MCTS）自动优化 LLM 工作流，无需手工调参 |
 
-**可迁移结论（A）：** emperor-core 的 `court/`（genome_store / genome_injector / crossover / breeding / diversity）已具备"基因组式自我修改"雏形，建议直接借鉴 DGM 的"经验回放库 + 开放式进化"机制，把"修改自身配置 / 提示 / 代码"作为一等能力。ADAS / GPTSwarm / AFlow 共同证明"把工作流本身当作可搜索、可进化的空间"是有效范式，可作为进化引擎的搜索策略参考。AlphaEvolve 证明"量化目标 + 进化搜索"在代码优化上能持续超越基线，可作为 `court/` 进化目标函数设计的范本。
+**可迁移结论（A）：** huanxin-ai 的 `court/`（genome_store / genome_injector / crossover / breeding / diversity）已具备"基因组式自我修改"雏形，建议直接借鉴 DGM 的"经验回放库 + 开放式进化"机制，把"修改自身配置 / 提示 / 代码"作为一等能力。ADAS / GPTSwarm / AFlow 共同证明"把工作流本身当作可搜索、可进化的空间"是有效范式，可作为进化引擎的搜索策略参考。AlphaEvolve 证明"量化目标 + 进化搜索"在代码优化上能持续超越基线，可作为 `court/` 进化目标函数设计的范本。
 > 注（修订·据附录 A 存量盘点）：`court/` 当前仅能修改 6 个 LLM 采样超参数，`prompt_mutation_rate` 为装饰性基因、代码/提示词自修改均不存在、适应度=响应长度且实测 192/192 进化事件全淘汰。故 DGM 式"自改代码 → 沙箱验证 → 基准评测 → 存档"需**从零建设**；好消息是 `court/evolution.py` 的 GA 机制层（SBX/自适应变异/灾变/71 测试）与 `sandbox/`、`codex/analyzer.py` 可直接复用为地基。
 
 ### B. 自我反思与迭代（Self-Reflection & Iteration）
@@ -137,7 +137,7 @@
 | Self-Consistency | 论文 | https://arxiv.org/abs/2203.11171 | 2022-03 | 多次采样 + 共识聚合，提升推理稳定性与正确性 |
 | Multi-Agent Reflexion (MAR) | 论文 | https://arxiv.org/abs/2512.20845 | 2025-12 | 多智能体交叉反思（Actor + 多 Persona 批评者 + Judge 共识），比单智能体反思更不易陷入确认偏差 / 模式坍塌 |
 
-**可迁移结论（B）：** emperor-core 已有 `reflexion/` 模块，应补齐三类机制：Self-Refine 的"多轮生成—反馈—精炼"闭环、CRITIC 的"外部工具验证纠错"、以及 MAR 的多智能体交叉评审。可把现有 `llm_judge` 作为反馈生成器，将 `reflexion` 升级为"生成 → judge 评分 → 精炼 → 再生成"的自动循环，并用 Self-Consistency 的多次采样共识降低单次幻觉率。
+**可迁移结论（B）：** huanxin-ai 已有 `reflexion/` 模块，应补齐三类机制：Self-Refine 的"多轮生成—反馈—精炼"闭环、CRITIC 的"外部工具验证纠错"、以及 MAR 的多智能体交叉评审。可把现有 `llm_judge` 作为反馈生成器，将 `reflexion` 升级为"生成 → judge 评分 → 精炼 → 再生成"的自动循环，并用 Self-Consistency 的多次采样共识降低单次幻觉率。
 
 ### C. 自主智能体架构（Autonomous Agent Architecture）
 
@@ -149,7 +149,7 @@
 | deer-flow | 开源项目 | https://github.com/bytedance/deer-flow | 2025-05 | 长时程 SuperAgent：沙箱 + 记忆 + 工具 + 子智能体 + 消息网关，处理分钟到小时级任务 |
 | OpenAI Agents SDK (Python) | 开源项目 | https://github.com/openai/openai-agents-python | 2025-03 | 轻量多智能体工作流（handoff / guardrails / tracing） |
 
-**可迁移结论（C）：** emperor-core 已有 `core/orchestrator`、`pipeline`、`state_machine`、`handoff`、`consensus/`，编排骨架完整。建议借鉴 deer-flow 的"消息网关 + 技能 / 子智能体长时程编排"补齐长任务能力，参考 LangGraph 的状态图与人在环机制做可视化与中断恢复，并复用板块 2 中的 `mcp-python-sdk` 做工具标准化接入，减少自研工具协议成本。
+**可迁移结论（C）：** huanxin-ai 已有 `core/orchestrator`、`pipeline`、`state_machine`、`handoff`、`consensus/`，编排骨架完整。建议借鉴 deer-flow 的"消息网关 + 技能 / 子智能体长时程编排"补齐长任务能力，参考 LangGraph 的状态图与人在环机制做可视化与中断恢复，并复用板块 2 中的 `mcp-python-sdk` 做工具标准化接入，减少自研工具协议成本。
 
 ### D. 记忆与持续学习（Memory & Continual Learning）
 
@@ -161,7 +161,7 @@
 | FOREVER | 论文 | https://arxiv.org/abs/2601.03938 | 2026-01 | 受艾宾浩斯遗忘曲线启发的记忆回放持续学习框架，按"模型时间"调度回放以缓解灾难性遗忘 |
 | SuRe | 论文 | https://arxiv.org/abs/2404.13081 | 2024-04 | 对每个答案候选生成检索段落的条件摘要并验证其有效性 / 排序，提升开放域问答（RAG）答案可信度（ICLR 2024） |
 
-**可迁移结论（D）：** emperor-core 已有 `hierarchical_memory/` 与 `memory/`，分层记忆基础已具备。可引入 A-MEM 的"记忆节点动态链接 / 演化"增强知识关联度，引入 FOREVER 的"持续学习防遗忘"机制支撑长期自我改进（避免进化后丢失旧能力），并用 SuRe 式的"检索摘要 + 有效性验证"提升 `rag/` 与 `graph_rag` 的答案可信度。
+**可迁移结论（D）：** huanxin-ai 已有 `hierarchical_memory/` 与 `memory/`，分层记忆基础已具备。可引入 A-MEM 的"记忆节点动态链接 / 演化"增强知识关联度，引入 FOREVER 的"持续学习防遗忘"机制支撑长期自我改进（避免进化后丢失旧能力），并用 SuRe 式的"检索摘要 + 有效性验证"提升 `rag/` 与 `graph_rag` 的答案可信度。
 
 ### E. 评估与反馈闭环（Evaluation & Feedback Loop）
 
@@ -173,7 +173,7 @@
 | LLM-as-Judge | 论文 | https://arxiv.org/abs/2306.05685 | 2023-06 | 用 LLM 做自动评估，与人工评审高度一致 |
 | tau-bench | 基准 | https://github.com/sierra-research/tau-bench | 2024 | 多轮工具调用智能体基准，检验工具使用与用户指令遵循 |
 
-**可迁移结论（E）：** emperor-core 已有 `eval/`、`llm_judge`、`evaluation/agent_eval`，评估骨架具备。关键是补"可验证奖励（RLVR）+ 评分标准奖励（RaR）"作为进化引擎的自动反馈信号，用 SWE-bench / tau-bench 类基准做回归门禁，并把 `llm_judge` 升级为带过程奖励（PRM）的逐步评审，让 `court/` 进化拥有量化、可比较的目标函数。
+**可迁移结论（E）：** huanxin-ai 已有 `eval/`、`llm_judge`、`evaluation/agent_eval`，评估骨架具备。关键是补"可验证奖励（RLVR）+ 评分标准奖励（RaR）"作为进化引擎的自动反馈信号，用 SWE-bench / tau-bench 类基准做回归门禁，并把 `llm_judge` 升级为带过程奖励（PRM）的逐步评审，让 `court/` 进化拥有量化、可比较的目标函数。
 > 注（修订·据附录 A 存量盘点）：上述"评估骨架"经核实**不覆盖代码类任务**——`eval/` 四基准全是内置能力调用题、`agent_eval` 评的是硬编码常量 `_AGENT_OUTPUTS`、而 `llm_judge` 实为关键词重叠启发式；且主链路跑 mock LLM、适应度信号已损坏。因此 RLVR/RaR 式可验证奖励须**新建**评测基础设施（patch 应用 + 测试执行 + pass@k 判定）方能作为进化目标，不能简单"接入现有 judge"。
 
 ### F. 安全与可控性（Safety & Controllability）
@@ -186,7 +186,7 @@
 | Agent-SafetyBench | 基准 | https://github.com/thu-coai/Agent-SafetyBench | 2025-08 | 智能体安全评估基准（提示注入 / 隐私泄露 / 越权等）（清华 CoAI 实验室，MIT） |
 | E2B Sandboxing | 开源项目 | https://github.com/e2b-dev/E2B | 2023–2026 | 云端代码隔离执行沙箱，杜绝宿主环境越权 |
 
-**可迁移结论（F）：** emperor-core 已构建较完整安全栈（`tool_guard` / `prompt_guard` / `hallucination_guard` / `bounded_autonomy` / `rbac` / `approval` / `audit` / `governance_agent`）。建议补三件事：① 权限分层 + 人类审批闸门（参考 Claude Code 权限模型）；② 所有代码 / 命令强制经沙箱（板块 2 的 E2B）执行；③ 接入 Agent-SafetyBench 做安全回归，并把 OWASP LLM06 作为设计检查清单，防止进化出的新能力绕过既有护栏。
+**可迁移结论（F）：** huanxin-ai 已构建较完整安全栈（`tool_guard` / `prompt_guard` / `hallucination_guard` / `bounded_autonomy` / `rbac` / `approval` / `audit` / `governance_agent`）。建议补三件事：① 权限分层 + 人类审批闸门（参考 Claude Code 权限模型）；② 所有代码 / 命令强制经沙箱（板块 2 的 E2B）执行；③ 接入 Agent-SafetyBench 做安全回归，并把 OWASP LLM06 作为设计检查清单，防止进化出的新能力绕过既有护栏。
 
 ---
 
@@ -227,17 +227,17 @@
 
 ### 集成分类判定口径（v2 修订）
 
-- **可直接集成**：Python 实现 + 有稳定 SDK/pip 包 + 许可证宽松（MIT/Apache-2.0）+ 与 emperor-core 现有模块无架构冲突。
-- **需改造**：核心机制高价值，但数据模型/编排范式与 emperor-core 的 `core/orchestrator`、`court/` 冲突，需写适配层；**或者**核心是 Python 但整体是平台级产品、需摘取子模块。
+- **可直接集成**：Python 实现 + 有稳定 SDK/pip 包 + 许可证宽松（MIT/Apache-2.0）+ 与 huanxin-ai 现有模块无架构冲突。
+- **需改造**：核心机制高价值，但数据模型/编排范式与 huanxin-ai 的 `core/orchestrator`、`court/` 冲突，需写适配层；**或者**核心是 Python 但整体是平台级产品、需摘取子模块。
 - **仅参考**：核心实现确非 Python 且无服务化接口，**或**许可证有商业传染性（AGPL）/不明确（NOASSERTION）而本项目不打算以外部服务方式调用。
 
 ### 集成分类理由（新版：9 / 15 / 2）
 
 **可直接集成（9 个）：** langchain、mem0、mcp-python-sdk、E2B、SWE-bench、deepeval、LightRAG、graphrag、browser-use。
-理由：均为 Python 实现（或与 emperor-core 同栈）且许可证宽松（MIT/Apache-2.0），提供清晰 SDK / API，可作为记忆后端、检索后端、沙箱、评估基准、MCP 协议层、工具等直接挂载。emperor-core 已有 `mcp/`、`sandbox/`、`rag/`、`graph_rag`、`eval/` 等对应模块，复用成本最低；例如 `mcp-python-sdk` 可直接替换 / 增强自研 MCP 客户端，`mem0` 可旁路接入 `hierarchical_memory/`，`E2B` 可作 `sandbox/` 的强隔离后端。
+理由：均为 Python 实现（或与 huanxin-ai 同栈）且许可证宽松（MIT/Apache-2.0），提供清晰 SDK / API，可作为记忆后端、检索后端、沙箱、评估基准、MCP 协议层、工具等直接挂载。huanxin-ai 已有 `mcp/`、`sandbox/`、`rag/`、`graph_rag`、`eval/` 等对应模块，复用成本最低；例如 `mcp-python-sdk` 可直接替换 / 增强自研 MCP 客户端，`mem0` 可旁路接入 `hierarchical_memory/`，`E2B` 可作 `sandbox/` 的强隔离后端。
 
 **需改造（15 个）：** langgraph、autogen、crewAI、letta、dspy、MetaGPT、SWE-agent、NeMo Guardrails、DGM、deer-flow、openai-agents-python、adk-python、EvoAgentX、**OpenHands（改判）、ragflow（改判）**。
-理由：理念与 emperor-core 高度契合，但默认编排 / 数据模型 / 协议与既有 `core/orchestrator`、`state_machine`、`court/` 重叠，需写适配层；或核心为 Python 但整体是平台级产品、需摘取子模块。其中 **DGM、EvoAgentX、deer-flow** 是自进化主题最核心的参考实现，应优先阅读其"进化 / 工作流优化 / 长时程编排"源码，将其机制移植进 `court/` 进化引擎；**OpenHands 的 Python 智能体 SDK** 与 **ragflow 的 Python RAG 管线** 是最值得摘取的子模块（见下方 OpenHands 改判说明）。
+理由：理念与 huanxin-ai 高度契合，但默认编排 / 数据模型 / 协议与既有 `core/orchestrator`、`state_machine`、`court/` 重叠，需写适配层；或核心为 Python 但整体是平台级产品、需摘取子模块。其中 **DGM、EvoAgentX、deer-flow** 是自进化主题最核心的参考实现，应优先阅读其"进化 / 工作流优化 / 长时程编排"源码，将其机制移植进 `court/` 进化引擎；**OpenHands 的 Python 智能体 SDK** 与 **ragflow 的 Python RAG 管线** 是最值得摘取的子模块（见下方 OpenHands 改判说明）。
 
 **仅参考（2 个）：** firecrawl、AutoGPT。
 理由与合规边界提示：
@@ -252,16 +252,16 @@
 |---|---|---|
 | 🟢 纯增量（最高优先级，无重叠） | **SWE-bench**、**browser-use** | SWE-bench 补齐"代码类评测"空白、browser-use 补齐"浏览器操作"空白；仓库内无同类物，直接挂即可 |
 | 🔵 真补短板（有重叠但带来实质新能力） | **E2B**、**deepeval** | E2B 提供托管沙箱，对 Render free plan 无持久盘约束是真正补充（强于 `sandbox/` 本地 docker）；deepeval 带来真实 LLM-as-Judge，补 `llm_judge.py` 的假实现 |
-| 🟡 已有基础（属增强而非引入） | **mcp-python-sdk** | 仓库已依赖 `mcp>=1.0.0` 且 `jarvis/mcp/` 已实现熔断/注册/Server，直接替换/增强即可 |
+| 🟡 已有基础（属增强而非引入） | **mcp-python-sdk** | 仓库已依赖 `mcp>=1.0.0` 且 `huanxin/mcp/` 已实现熔断/注册/Server，直接替换/增强即可 |
 | 🟠 ⚠️ 引入前必须先内部收敛 | **mem0**、**LightRAG**、**graphrag**、**langchain** | mem0 与已有**五套**记忆重叠；LightRAG/graphrag 与 `graph_rag.py`+`knowledge/graph.py`+`rag/` 重叠（会变第 4、5 套 KG/RAG）；langchain 已在 dependencies 但主路径未用，引入需谨慎避免第 N 套抽象。建议先做内部冗余收敛，再决定引入 |
 
 > 含义：Part 2 方案设计应优先排 🟢 纯增量项与 🔵 真补短板项；🟡 项作为低风险的增强；🟠 项需先完成"内部收敛清单"（合并冗余记忆/KG/RAG/抽象层）后再评估，否则引入只会放大架构债。
 
 ### OpenHands 改判说明（重点）
 
-经核验，`OpenHands/OpenHands`（83K★）当前仓库以 TypeScript 为主（前端 + CLI + 桌面端，约 7.7M 字节），但真正有价值的 **Python 智能体核心已独立为 companion 仓库 `OpenHands/software-agent-sdk`**（MIT 许可证，`pip install openhands-sdk openhands-tools` 可装）。其设计以"推理-行动循环"为核心，是 emperor-core「代码自动生成与自测」能力域最直接的参考实现，值得移植 / 借鉴的模块包括：
+经核验，`OpenHands/OpenHands`（83K★）当前仓库以 TypeScript 为主（前端 + CLI + 桌面端，约 7.7M 字节），但真正有价值的 **Python 智能体核心已独立为 companion 仓库 `OpenHands/software-agent-sdk`**（MIT 许可证，`pip install openhands-sdk openhands-tools` 可装）。其设计以"推理-行动循环"为核心，是 huanxin-ai「代码自动生成与自测」能力域最直接的参考实现，值得移植 / 借鉴的模块包括：
 
-- **`openhands.sdk` 的 Agent（推理-行动循环）** 与 **Event Stream / Action-Observation 抽象**（typed event framework，Action/Observation/Executor 基类，含 MCP 集成）——对应 emperor-core 的 `codex/` 与 `tools/`；
+- **`openhands.sdk` 的 Agent（推理-行动循环）** 与 **Event Stream / Action-Observation 抽象**（typed event framework，Action/Observation/Executor 基类，含 MCP 集成）——对应 huanxin-ai 的 `codex/` 与 `tools/`；
 - **Condenser（对话历史压缩）**——对应 `context_compressor/`；
 - **Security（执行前 Action 风险评估与校验）**——对应 `tool_guard/`；
 - **Workspace / DockerWorkspace（沙箱执行）**——对应 `sandbox/`。
@@ -272,9 +272,9 @@
 
 ## 第 3 章 · 能力清单
 
-"emperor-core 是否已有"依据存量模块清单判断；判断依据不足者标注"待存量盘点确认"。
+"huanxin-ai 是否已有"依据存量模块清单判断；判断依据不足者标注"待存量盘点确认"。
 
-| 能力项 | 作用 | 前置依赖 | 推荐实现方案（指向板块 2 项目） | 集成方式 | emperor-core 是否已有 | 备注 |
+| 能力项 | 作用 | 前置依赖 | 推荐实现方案（指向板块 2 项目） | 集成方式 | huanxin-ai 是否已有 | 备注 |
 |---|---|---|---|---|---|---|
 | 任务规划与编排 | 将目标拆解为可执行的子任务与流程 | LLM、状态机、工具注册 | 复用 `core/orchestrator`+`state_machine`+`handoff`；参考 langgraph 状态图、deer-flow 长时程编排 | 增强自研编排 | 是 | 已有完整骨架，缺长任务（小时级）编排与可视化 |
 | 记忆存储 | 跨会话保留事实 / 经验 / 上下文 | 向量库、存储层 | 增强 `hierarchical_memory/`；参考 mem0（事实抽取）、A-MEM（动态链接） | 需改造（参考 mem0 SDK） | 是 | 分层记忆已有，缺"事实自动抽取 / 记忆演化" |
@@ -297,7 +297,7 @@
 ## 关键判断与存疑项（摘要，详见各板块）
 
 **最关键判断（用于 Part 2 方案设计）：**
-1. emperor-core 的"基础设施层"已相当完整（编排 / 记忆 / 工具 MCP / 安全 / 成本 / 沙箱 / 自愈 / 上下文），真正的短板在"进化闭环"——缺把评估信号反哺到自我修改的量化目标（RLVR / RaR）与经验回放机制（DGM）。（v3 补：经 #4 核实 `court/` 当前仅参数层、代码自修改不存在、适应度=响应长度且 192/192 进化事件全淘汰，故"进化引擎"须从"可用 GA 骨架 + 损坏适应度 + 零代码自修改"的真实起点重建，而非在既有引擎上增强。）
+1. huanxin-ai 的"基础设施层"已相当完整（编排 / 记忆 / 工具 MCP / 安全 / 成本 / 沙箱 / 自愈 / 上下文），真正的短板在"进化闭环"——缺把评估信号反哺到自我修改的量化目标（RLVR / RaR）与经验回放机制（DGM）。（v3 补：经 #4 核实 `court/` 当前仅参数层、代码自修改不存在、适应度=响应长度且 192/192 进化事件全淘汰，故"进化引擎"须从"可用 GA 骨架 + 损坏适应度 + 零代码自修改"的真实起点重建，而非在既有引擎上增强。）
 2. 自进化的"最小可行闭环"= `court/` 进化引擎 × SWE-bench/deepeval 量化评估 × E2B 沙箱执行 × mem0/memory 经验留存；这四个组件在板块 2 均有现成可集成项目。
 3. 非 Python 明星项目（如确需使用 firecrawl）不应源码集成，仅作外部服务调用；ragflow 经核验为 Go+Python 混合且提供 Docker 服务 API，**可摘取其 Python RAG 子模块**而非整体仅参考。
 4. 安全是进化的前提：任何"自我修改代码"能力上线前，必须接沙箱 + 人类审批闸门 + Agent-SafetyBench 回归。
@@ -324,8 +324,8 @@
 | 存疑项 | 结论 | 证据 |
 |---|---|---|
 | **Q1. `court/` 进化引擎能否"修改自身代码"？** | **不能。** 只能改 6 个 LLM 采样浮点（`court/evolution.py:229-252` 的 `MinisterGenome`）；`prompt_mutation_rate` 基因虽算出但 `genome_injector.py:179` 的 `prompt_mutation_active` 全库零消费 → 提示词文本从不真正变异；代码自修改完全不存在（附录 A §3.5-16：全库无 git 写、无 `.py` 写入、`gitpython` 声明却零 `import`）。`evolution/controller.py` 的 L1/L2/L3 三层全为 log-only 骨架。 | DGM 移植深度 = **GA 机制层复用 + 从零建"代码补丁生成→沙箱验证→经验回放"三段**（附录 A §3.2） |
-| **Q2. 多模型按成本/质量动态路由是否已具备？** | **不支持真实动态路由。** 分清三套：①`jarvis/multi_model.py` 的 `MultiModelRouter`（`emperor.py:249` 实例化、`:257` 绑定 `cost_tracker`）但其 `_simulate_call:394-457` 返回罐头响应、延迟 `hash(prompt)%200`，**未接真实 API**；②`jarvis/core/router.py` 的 `ModelRouter` 纯正则三档、`route()` 只返回 `model_id` 字符串不发起调用、不传给执行器（附录 A §1.9/§3.4）；③`jarvis/model_router.py` 的 `SmartRouter`（P2.9）**文件缺失**，`emperor.py:261` 被 `try/except ImportError` 静默吞掉，`_smart_router` 恒 None，`:838-841` 永不执行。 | 建议引入 **litellm Router**（已在 `dependencies` 中）或 RouteLLM，替换①+②，并补③文件 |
-| **Q3. `eval/` 与 `evaluation/agent_eval.py` 是否覆盖代码类任务（SWE-bench 式）？** | **完全不覆盖。** `eval/benchmarks.py` 四基准全为内置能力调用题（JarvisBench 20 题=日期/算术/UUID/哈希/天气…），无一道代码生成/修复；`evaluation/agent_eval.py` 的 `_simulate_agent_output` 从硬编码字典 `_AGENT_OUTPUTS` 取预置常量当"agent 输出"，`run()` 不接受真实 agent（附录 A §3.2/§3.6）。 | 需**新建 SWE-bench / tau-bench 接入**（板块 2 标"可直接集成"），并用 deepeval 替换假 `llm_judge` |
+| **Q2. 多模型按成本/质量动态路由是否已具备？** | **不支持真实动态路由。** 分清三套：①`huanxin/multi_model.py` 的 `MultiModelRouter`（`emperor.py:249` 实例化、`:257` 绑定 `cost_tracker`）但其 `_simulate_call:394-457` 返回罐头响应、延迟 `hash(prompt)%200`，**未接真实 API**；②`huanxin/core/router.py` 的 `ModelRouter` 纯正则三档、`route()` 只返回 `model_id` 字符串不发起调用、不传给执行器（附录 A §1.9/§3.4）；③`huanxin/model_router.py` 的 `SmartRouter`（P2.9）**文件缺失**，`emperor.py:261` 被 `try/except ImportError` 静默吞掉，`_smart_router` 恒 None，`:838-841` 永不执行。 | 建议引入 **litellm Router**（已在 `dependencies` 中）或 RouteLLM，替换①+②，并补③文件 |
+| **Q3. `eval/` 与 `evaluation/agent_eval.py` 是否覆盖代码类任务（SWE-bench 式）？** | **完全不覆盖。** `eval/benchmarks.py` 四基准全为内置能力调用题（HuanxinBench 20 题=日期/算术/UUID/哈希/天气…），无一道代码生成/修复；`evaluation/agent_eval.py` 的 `_simulate_agent_output` 从硬编码字典 `_AGENT_OUTPUTS` 取预置常量当"agent 输出"，`run()` 不接受真实 agent（附录 A §3.2/§3.6）。 | 需**新建 SWE-bench / tau-bench 接入**（板块 2 标"可直接集成"），并用 deepeval 替换假 `llm_judge` |
 
 #### 4.1.1 差距矩阵
 
@@ -353,7 +353,7 @@
 
 #### 4.1.3 单列：静默失效的"已发布特性"（系统性风险）
 
-本次盘点全量扫描了 `try/except ImportError` 静默兜底的"已发布特性"。实扫结果（`grep -rn "except ImportError" jarvis/` 全仓）：
+本次盘点全量扫描了 `try/except ImportError` 静默兜底的"已发布特性"。实扫结果（`grep -rn "except ImportError" huanxin/` 全仓）：
 
 | # | 位置 | 机制 | 性质 | 判定 |
 |---|---|---|---|---|
@@ -542,15 +542,15 @@ graph TD
 
 | 模块名 | 归属域 | 类型 | 依赖模块 | 对外接口 | 验收标准（可测量） |
 |---|---|---|---|---|---|
-| `emperor.execute_task`(真LLM接线) | 规划编排 | F | `jarvis/llm/engine.py` | `execute_task(prompt, llm=...)` | `jarvis.db` 新任务 `result` 字段 **0 条**含 `[mock-response]` |
+| `emperor.execute_task`(真LLM接线) | 规划编排 | F | `huanxin/llm/engine.py` | `execute_task(prompt, llm=...)` | `huanxin.db` 新任务 `result` 字段 **0 条**含 `[mock-response]` |
 | `RealLLMFitness` | 进化机制 | F | `court/evolution`, `ObjectiveFunction` | `compute_fitness(minister)→float` | 替换 `_simple_confidence` 后，进化 20 轮 `merit` 均值**单调不降** |
-| `RouterDecisionConsumer` | 规划编排 | F | `jarvis/router/`, `jarvis/model_router`(补) | `wire(_route_decision, req)` | 选臣与路由建议一致率 ≥ 90%，否则回退功勋第一；冒烟测试覆盖 P2.9/P3.10 |
+| `RouterDecisionConsumer` | 规划编排 | F | `huanxin/router/`, `huanxin/model_router`(补) | `wire(_route_decision, req)` | 选臣与路由建议一致率 ≥ 90%，否则回退功勋第一；冒烟测试覆盖 P2.9/P3.10 |
 | `SmartRouter`(补文件) | 规划编排 | N | `core/router`, `llm_engine` | `classify()/get_tier_for_capability()/get_fallback_chain_for_tier()` | `emperor.py:838-841` 实际执行（非 `_smart_router=None`） |
 | `ReflexionLoop` | 反思评估 | F | `reflexion`, `llm_engine` | `reflect(output)→improved` | 在 50 题集上，修正后准确率 **+≥10pp** |
 | `TrueLLMJudge` | 反思评估 | F | `llm_judge`, `llm_engine` | `judge(output)→score` | 与人工评分一致率 **≥0.8**（100 样本） |
 | `ObjectiveFunction` | 反思评估 | N | `eval/`, `deepeval`, `SWE-bench` | `score(outcome)→(reward, rubric)` | 与人工评分 Spearman ρ **≥0.7** |
 | `EvalSWEBench` | 反思评估 | N(接入) | `eval/runner`, `SWE-bench` | `run_swebench(split="lite")→metrics` | 跑通 **SWE-bench Lite(300)**，出 pass@1 |
-| `ExperienceReplayStore` | 进化机制 | N | `court/evolution`, `jarvis.db` | `add(episode)/sample(n)` | 回放 N 轮后进化多样性↑且 merit 单调不降 |
+| `ExperienceReplayStore` | 进化机制 | N | `court/evolution`, `huanxin.db` | `add(episode)/sample(n)` | 回放 N 轮后进化多样性↑且 merit 单调不降 |
 | `PatchGenerator` | 代码自生成 | N(接OH) | `codex/analyzer`, OpenHands SDK, `llm_engine` | `generate_patch(task, ctx)→Patch` | SWE-bench Lite 上生成补丁 **pass@1 ≥ 20%** |
 | `PatchVerifier` | 代码自生成 | N | `sandbox/`/`E2B`, `SWE-bench` harness | `verify(patch)→(passed, tests)` | 假阳性率 **<5%**（与人工标注比对 100 题） |
 | `PromotionPipeline` | 进化机制 | N | `sandbox/`, `audit`, `approval` | `promote(candidate)→bool` | 回滚成功率 **100%**；晋级变更 100% 留审计 |
@@ -593,7 +593,7 @@ graph TD
 
 | 重复组 | 留（单源） | 废/降级 | 迁移路径 |
 |---|---|---|---|
-| **双审计** `audit.py` vs `tools/audit_trail.py` | `audit.py`（接 `execute_task` 主链路，1494 条真实） | 合并 `audit_trail.py` 的 `AuditReplayer` 能力进 `audit.py`，原文件标记 deprecated | 加 `from jarvis.audit import AuditReplayer` 兼容导出，1 个版本后删 |
+| **双审计** `audit.py` vs `tools/audit_trail.py` | `audit.py`（接 `execute_task` 主链路，1494 条真实） | 合并 `audit_trail.py` 的 `AuditReplayer` 能力进 `audit.py`，原文件标记 deprecated | 加 `from huanxin.audit import AuditReplayer` 兼容导出，1 个版本后删 |
 | **双知识图谱** `graph_rag.py` vs `knowledge/graph.py` | `graph_rag.py`（`KnowledgeGraph` 主） | `knowledge/graph.py` 降级为 `graph_rag` 的轻量封装或删除 | `court/memory` 改用 `graph_rag` |
 | **双幻觉检测** `hallucination_guard.py` vs `hallucination_detector.py` | `hallucination_guard.py`（主链路调 `.check()`） | 合并 `hallucination_detector.py` 的 `FactualityVerifier` 进 guard；原文件 deprecated | 保留 `FactualityVerifier` 作为 guard 的一个策略 |
 | **三记忆** `memory/engine`+`vector_store`+`manager`+`hierarchical_memory`+`court/memory` | `memory/engine.py`（主检索）+ `hierarchical_memory.py`（认知层） | 废 `vector_store.py`/`manager.py` 冗余者；`court/memory` 改用 `memory/engine` | 统一检索入口 `MemoryEngine`，`court/memory` 包一层适配 |
@@ -619,9 +619,9 @@ graph TD
 | 任务 | 优先级 | 依赖前置 | 交付物 | 验收标准 |
 |---|---|---|---|---|
 | P0.1 修 Flask 风格 7 路由 | P0 | 无 | `court_api.py` `<param>`→`{param}` | `curl` 7 路由均 200 |
-| P0.2 主链路接真实 LLM | P0 | `jarvis/llm/engine.py`（已有） | `execute_task` 注入 `llm_engine`，去掉默认 mock | `jarvis.db` 新任务 0 条 `[mock-response]` |
+| P0.2 主链路接真实 LLM | P0 | `huanxin/llm/engine.py`（已有） | `execute_task` 注入 `llm_engine`，去掉默认 mock | `huanxin.db` 新任务 0 条 `[mock-response]` |
 | P0.3 修适应度信号 **+ 冻结自动淘汰** | P0 | P0.2 | ①替换 `_simple_confidence` 为最小可信信号（真实执行成功/失败 + 单测通过率）；②`SurvivalMechanism` 转 dry-run（`evolution.survival.enabled=false`），只记录不淘汰 | 进化 20 轮 merit 均值单调不降、不再全 0；**淘汰事件数 = 0**（解冻门槛：P1.4 可信评测通过） |
-| P0.4 路由决策消费 + 补 SmartRouter | P0 | P0.2 | `RouterDecisionConsumer` + `jarvis/model_router.py` | 选臣与路由建议一致率 ≥90% 或回退；P2.9 冒烟通过 |
+| P0.4 路由决策消费 + 补 SmartRouter | P0 | P0.2 | `RouterDecisionConsumer` + `huanxin/model_router.py` | 选臣与路由建议一致率 ≥90% 或回退；P2.9 冒烟通过 |
 | P0.5 护栏接线（拦截非日志） | P0 | P0.2 | `GuardrailWire`：`tool_guard`/`bounded_autonomy`/`governance`/`prompt_guard`/`hallucination_guard` 接 `execute_task` | 高危操作拦截率 100%；`PromptGuard`/`HallucinationGuard` 检出即阻断 |
 | P0.6 修成本 task_id 关联 | P0 | P0.2 | `CostTruth` | `cost_per_success` 非空率 100% |
 | P0.7 清模拟数据 | P0 | 无 | `multi_model._simulate_call`→真调用；`mcp_manager` 接真实/外部；`agent_eval` 删 `_AGENT_OUTPUTS` | `cost_records.json` 出现非空 `task_id`；评测接真实 agent |
@@ -648,7 +648,7 @@ graph TD
 | P2.2 新能力审批闸门 | P2 | P2.1 | `ApprovalGate` 接 `approval` | 自我修改变更 100% 人工审批 |
 | P2.3 安全回归基准 | P2 | P0.5 | Agent-SafetyBench 接入 CI | 安全回归门禁红则阻断 |
 | P2.4 真实多模型路由 | P2 | P0.2,P0.7,**P1.9-路由/成本组** | litellm Router 替换 `multi_model`/`core/router` | 按成本/质量真实选模型，成本可观测；**替换后路由实现数从 4 → 1** |
-| **P2.6 Git 写入通道（GitWriteChannel）** | P2 | **P0.5（护栏接线，硬前置）**, P2.2 | `jarvis/vcs/git_channel.py`：全仓唯一 git 写出口 + 路径白名单 + 细粒度 PAT + dry-run + 审计（详见 §5.5） | 全仓 git 写调用点 = 1；`master` 直推尝试 100% 被拒；每次写入有 `audit` 记录 |
+| **P2.6 Git 写入通道（GitWriteChannel）** | P2 | **P0.5（护栏接线，硬前置）**, P2.2 | `huanxin/vcs/git_channel.py`：全仓唯一 git 写出口 + 路径白名单 + 细粒度 PAT + dry-run + 审计（详见 §5.5） | 全仓 git 写调用点 = 1；`master` 直推尝试 100% 被拒；每次写入有 `audit` 记录 |
 | P2.5 持续吸收器 v1 | P2 | P1.4, **P2.6** | `AbsorptionPipeline`（采集→评估→转化→PR） | 每月 ≥1 经审核 PR |
 
 #### P3 · 锦上添花
@@ -793,9 +793,9 @@ P0.1 → P0.2(真LLM) → P0.3(适应度止血+冻结淘汰) → P1.9(评估组�
 
 | 边界 | 规则 | 实现 |
 |---|---|---|
-| **永不可自改的模块**（写保护） | 护栏自身、审批逻辑、RBAC、loop_guard、PromotionPipeline、配置加载器、持续吸收器的 PR 生成器、**`jarvis/vcs/git_channel.py`（git 写入通道自身）**、**`.github/workflows/`（CI 门禁自身）** | 在 `PromotionPipeline` 内置**写保护清单**（硬编码路径前缀白名单），任何补丁若触及这些路径直接拒绝，不经沙箱；并由 CI 的 `check_write_protect` 二次兜底。**理由**：若 AI 能改写入通道或 CI，它就能给自己拆闸——这是所有边界里唯一"一旦失守全盘失守"的一类 |
+| **永不可自改的模块**（写保护） | 护栏自身、审批逻辑、RBAC、loop_guard、PromotionPipeline、配置加载器、持续吸收器的 PR 生成器、**`huanxin/vcs/git_channel.py`（git 写入通道自身）**、**`.github/workflows/`（CI 门禁自身）** | 在 `PromotionPipeline` 内置**写保护清单**（硬编码路径前缀白名单），任何补丁若触及这些路径直接拒绝，不经沙箱；并由 CI 的 `check_write_protect` 二次兜底。**理由**：若 AI 能改写入通道或 CI，它就能给自己拆闸——这是所有边界里唯一"一旦失守全盘失守"的一类 |
 | **可自改的模块** | `codex/`、`court/evolution.py` 的基因映射表、`prompt_template` 模板、`domains/` 领域实现、`tools/` 内置工具 | 须走 `PromotionPipeline` 全流程 |
-| **受限自改** | `jarvis/llm/config.py`（模型路由）、`court/providers/registry.py`（大臣-模型绑定） | 改前强制 `ApprovalGate` 人工审批 + 灰度 |
+| **受限自改** | `huanxin/llm/config.py`（模型路由）、`court/providers/registry.py`（大臣-模型绑定） | 改前强制 `ApprovalGate` 人工审批 + 灰度 |
 | **三区模型复用** | `bounded_autonomy` 的 GREEN/YELLOW/RED 直接用来标注"自改动作"：改提示=GREEN 自动、改代码=YELLOW 审批、改护栏/审批=RED 禁止 | `PromotionPipeline` 调 `BoundedAutonomy.classify(action)` 决定路径 |
 
 #### 4.6.2 自改补丁的晋级流水线（沙箱→回归→审批→灰度→回滚）
@@ -825,10 +825,10 @@ graph TD
 
 | 信号 | 检测 | 熔断动作 | 存量基础 |
 |---|---|---|---|
-| 迭代失控 | 单任务循环次数超阈值 | `loop_guard.check_iteration`（迭代上限 20） | `jarvis/loop_guard.py` 已存在，需接进 agent loop（当前主链路无 loop） |
+| 迭代失控 | 单任务循环次数超阈值 | `loop_guard.check_iteration`（迭代上限 20） | `huanxin/loop_guard.py` 已存在，需接进 agent loop（当前主链路无 loop） |
 | 成本失控 | 单任务/单轮成本超 `$5` | `loop_guard.check_cost` | 同上加"真实成本关联"（修 F6）后才有效 |
 | 退化螺旋 | 连续 N 轮 merit 单调降 | `SurvivalMechanism` 检测 + 触发 `catastrophe`（已有灾变重置） | `court/diversity.py` 已实现 |
-| 安全事件突增 | `guardrail_telemetry` 的 POST_LLM 拦截率异常 | 暂停自动进化，转人工 | `jarvis/guardrail_telemetry.py` 已存在 |
+| 安全事件突增 | `guardrail_telemetry` 的 POST_LLM 拦截率异常 | 暂停自动进化，转人工 | `huanxin/guardrail_telemetry.py` 已存在 |
 | 护栏自检 | 定期跑 Agent-SafetyBench | 回归红则阻断晋级 | P2.3 新建 |
 
 #### 4.6.4 资源预算（分层配额与超限动作）
@@ -845,8 +845,8 @@ graph TD
 
 | 项 | 方案 | 存量基础 |
 |---|---|---|
-| 角色 | `rbac.py` 的 Role（admin/operator/viewer）+ 新增 `self_evolver`（仅能触发进化，不能改护栏） | `jarvis/rbac.py` 已存在 |
-| 审批人 | `approval.py` 的 `ApprovalEngine`：自我修改类变更路由到人类审批人（chat/邮件/webhook），**AI 自动生成的变更绝不允许自动合入 master**（第 5 章 写死） | `jarvis/approval.py` 已存在 |
+| 角色 | `rbac.py` 的 Role（admin/operator/viewer）+ 新增 `self_evolver`（仅能触发进化，不能改护栏） | `huanxin/rbac.py` 已存在 |
+| 审批人 | `approval.py` 的 `ApprovalEngine`：自我修改类变更路由到人类审批人（chat/邮件/webhook），**AI 自动生成的变更绝不允许自动合入 master**（第 5 章 写死） | `huanxin/approval.py` 已存在 |
 | 密钥隔离 | LLM API Key 仅存环境变量（`court/providers/registry.py`），不进版本库；进化产生的补丁不含密钥 | 现有约定 |
 | 最小权限 | 沙箱默认关网络、关写宿主；自改补丁运行在 E2B 隔离环境，不触宿主 | `sandbox/policy.py` + E2B |
 
@@ -869,7 +869,7 @@ graph TD
 
 | 项 | 设计 |
 |---|---|
-| 数据源 | GitHub trending / `kiwoen/emperor-core` 的 `watch` 依赖图 / arXiv cs.AI+cs.CL 新提交 / 重点仓库 release notes + CHANGELOG（langchain/langgraph/OpenHands/DGM/SWE-bench/deepeval/E2B 等板块 2 清单） |
+| 数据源 | GitHub trending / `kiwoen/huanxin-ai` 的 `watch` 依赖图 / arXiv cs.AI+cs.CL 新提交 / 重点仓库 release notes + CHANGELOG（langchain/langgraph/OpenHands/DGM/SWE-bench/deepeval/E2B 等板块 2 清单） |
 | 频率 | 每日增量（GitHub Events API / RSS），每周全量；arXiv 每日 `cs.AI` 新帖 |
 | 去重 | 按 `(repo, sha)` / `(arxiv_id)` 去重；已处理条目入 `absorption_state.db` |
 | 增量策略 | 仅拉 `since` 时间戳之后的事件；本地缓存 ETag |
@@ -902,7 +902,7 @@ graph TD
 
 ### 5.4 同步到 GitHub（设计，本次不创建分支/不提交/不推送）
 
-目标仓库：`https://github.com/kiwoen/emperor-core.git`（当前仅单一 `master`，无分支保护；已有 `.github/PULL_REQUEST_TEMPLATE.md` + ISSUE_TEMPLATE）。
+目标仓库：`https://github.com/kiwoen/huanxin-ai.git`（当前仅单一 `master`，无分支保护；已有 `.github/PULL_REQUEST_TEMPLATE.md` + ISSUE_TEMPLATE）。
 
 **分支模型**：
 
@@ -963,11 +963,11 @@ jobs:
         run: python -m pytest tests/ -q --tb=short -m "not network" --ignore=tests/test_core.py --ignore=tests/test_e2e_integration.py
       - name: PatchVerifier (code self-mod branches only)
         if: startsWith(github.head_ref, 'auto/')
-        run: python -m jarvis.tools.verify_pr --base ${{ github.base_ref }}
+        run: python -m huanxin.tools.verify_pr --base ${{ github.base_ref }}
       - name: Agent-SafetyBench regression
-        run: python -m jarvis.eval.safety_bench --gate
+        run: python -m huanxin.eval.safety_bench --gate
       - name: Write-protection check (never auto-edit guardrails/approval/rbac/loop_guard)
-        run: python -m jarvis.tools.check_write_protect --diff ${{ github.sha }}
+        run: python -m huanxin.tools.check_write_protect --diff ${{ github.sha }}
       - name: Block AI auto-merge to master
         if: github.base_ref == 'master' && contains(github.actor, 'bot')
         run: exit 1   # AI 生成的变更禁止自动合入 master
@@ -977,7 +977,7 @@ jobs:
 
 ```bash
 # master：强制 PR + 1 人工 review + CI 绿 + 禁止 force push + 禁止 AI bot 直接 push
-gh api repos/kiwoen/emperor-core/branches/master/protection \
+gh api repos/kiwoen/huanxin-ai/branches/master/protection \
   --method PUT --input - <<'JSON'
 {
   "required_status_checks": { "strict": true, "contexts": ["gate"] },
@@ -990,7 +990,7 @@ gh api repos/kiwoen/emperor-core/branches/master/protection \
 JSON
 
 # develop：允许 auto/* 提 PR，但同样需 CI 绿 + 写保护检查；禁止直接 push 到 master
-gh api repos/kiwoen/emperor-core/branches/develop/protection \
+gh api repos/kiwoen/huanxin-ai/branches/develop/protection \
   --method PUT --input - <<'JSON'
 {
   "required_status_checks": { "strict": true, "contexts": ["gate"] },
@@ -1027,14 +1027,14 @@ JSON
 **M1. 单一收口（全仓唯一 git 写出口）**
 
 ```
-jarvis/vcs/git_channel.py     # 新建，全仓唯一允许执行 git 写操作的模块
+huanxin/vcs/git_channel.py     # 新建，全仓唯一允许执行 git 写操作的模块
 ├── GitWriteChannel           # 门面类，所有写操作必须经此
 ├── WriteScope                # 路径白名单 + 写保护清单校验
 ├── CredentialBroker          # 令牌获取与隔离（永不落盘、永不进日志）
 └── ChannelAudit              # 每次写入落 audit.py
 ```
 
-CI 中以 `check_write_protect` 反向校验：**除 `jarvis/vcs/git_channel.py` 外，任何文件出现 `git push` / `gitpython` 写 API / `gh api ... --method PUT|POST` 即判红**。防止日后有人绕过通道自己写一条。
+CI 中以 `check_write_protect` 反向校验：**除 `huanxin/vcs/git_channel.py` 外，任何文件出现 `git push` / `gitpython` 写 API / `gh api ... --method PUT|POST` 即判红**。防止日后有人绕过通道自己写一条。
 
 **M2. 能力边界（"默认不能"而非"配置关掉"）**
 
@@ -1083,14 +1083,14 @@ CI 中以 `check_write_protect` 反向校验：**除 `jarvis/vcs/git_channel.py`
 
 **验收标准（可度量）**：① 全仓 git 写调用点数 = 1；② 对 `master`/`develop` 的直推尝试拒绝率 100%；③ 每次写入均可在 `audit` 中按 `task_id` 追溯；④ 令牌不出现在任何日志/PR 正文中（CI 加 secret-scan 断言）；⑤ 默认部署下 `mode == dry_run`。
 
-> 同样，本节仅为设计。**本次未创建 `jarvis/vcs/` 目录、未写入任何文件、未创建分支、未提交、未推送**，emperor-core 保持只读。
+> 同样，本节仅为设计。**本次未创建 `huanxin/vcs/` 目录、未写入任何文件、未创建分支、未提交、未推送**，huanxin-ai 保持只读。
 
 ---
 
 
 ---
 
-## 附录 A · emperor-core 存量能力盘点
+## 附录 A · huanxin-ai 存量能力盘点
 
 > 本附录保留其原始编号体系（A 内 1–5 章），与正文章节编号相互独立。
 > 附录 A 是第 4 章差距分析的证据来源，所有结论均附文件路径与行号。
@@ -1099,19 +1099,19 @@ CI 中以 `check_write_protect` 反向校验：**除 `jarvis/vcs/git_channel.py`
 
 ### 0. 阅读须知：本次盘点最重要的一条结论
 
-**主执行链路（`Emperor.execute_task`）跑的是 mock LLM，而非真实模型。**
+**主执行链路（`Huanxin.execute_task`）跑的是 mock LLM，而非真实模型。**
 
 证据链（全部为运行期硬证据，非推断）：
 
 | 证据 | 内容 |
 |---|---|
-| `jarvis/emperor.py:192-195` | `TaskEngine(self._court, capability_registry=...)` —— **未传 `llm=` 参数** |
-| `jarvis/court/task_engine.py:130` | `self._llm = llm or _default_llm_backend` |
-| `jarvis/court/task_engine.py:475-485` | `_default_llm_backend` 文档字符串即 `"""Mock LLM backend (logs prompt, returns placeholder)."""`，返回 `f"[mock-response] Understood: '{prompt[:80]}...'"` |
-| `jarvis.db` → `task_history` | 150/150 条记录的 `result` 字段均以 `[mock-response] Understood:` 开头 |
+| `huanxin/emperor.py:192-195` | `TaskEngine(self._court, capability_registry=...)` —— **未传 `llm=` 参数** |
+| `huanxin/court/task_engine.py:130` | `self._llm = llm or _default_llm_backend` |
+| `huanxin/court/task_engine.py:475-485` | `_default_llm_backend` 文档字符串即 `"""Mock LLM backend (logs prompt, returns placeholder)."""`，返回 `f"[mock-response] Understood: '{prompt[:80]}...'"` |
+| `huanxin.db` → `task_history` | 150/150 条记录的 `result` 字段均以 `[mock-response] Understood:` 开头 |
 | `outcome_records.json` | 205 条记录，`model_calls=0`、`tokens_in=0`、`tokens_out=0`、`cost_usd=0.0`、`success=true` 占比 **205/205** |
 
-系统里**确实存在**真实 LLM 能力（`jarvis/llm/engine.py` 基于 litellm，含 5 轮 function-calling 循环；`jarvis/court/providers/*` 支持 OpenAI/Anthropic/Google/DeepSeek），但它们挂在另一条链路上（`ImperialCourt.receive_petition` 议政链路 / `Emperor.llm_engine` 惰性属性），**与 `execute_task` 主链路不连通**。
+系统里**确实存在**真实 LLM 能力（`huanxin/llm/engine.py` 基于 litellm，含 5 轮 function-calling 循环；`huanxin/court/providers/*` 支持 OpenAI/Anthropic/Google/DeepSeek），但它们挂在另一条链路上（`ImperialCourt.receive_petition` 议政链路 / `Huanxin.llm_engine` 惰性属性），**与 `execute_task` 主链路不连通**。
 
 这条结论决定了后面所有"成熟度"判定的基调：**大量模块的算法实现是真的，但它们消费的输入信号是假的**。
 
@@ -1129,153 +1129,153 @@ CI 中以 `check_write_protect` 反向校验：**除 `jarvis/vcs/git_channel.py`
 
 | 能力域 | 模块路径 | 核心职责 | 成熟度 | 是否有对应测试 | 对外接口 | 关键局限 |
 |---|---|---|---|---|---|---|
-| 感知与输入 | `jarvis/capability.py` (1079) | 12 个内置能力：datetime/math/random/text/file_info/hash/json/uuid/weather/news/web_search/web_fetch | 生产可用 | ✅ `test_capability.py` (96 例) | `CapabilityRegistry.find_best/execute` | 关键词匹配选能力，无语义理解；web_search/news 依赖 duckduckgo/google-rss，`jarvis.db` 中实测 `<urlopen error timed out>` 失败 |
-| 感知与输入 | `jarvis/multimodal/` (505) | 视觉/语音/文档：VisionProcessor、SpeechProcessor(whisper+edge-tts)、DocumentProcessor(PyPDF2/docx/OCR) | 生产可用 | ✅ `test_multimodal.py` | `MultimodalEngine.see/hear/speak/read_document` | 依赖库缺失时返回 `{"error": "PyPDF2 not installed"}` 而非降级；未接入主链路 |
-| 感知与输入 | `jarvis/core/orchestrator.py:139-311` `IntentParser` | 正则+关键词的意图解析，产出 `Intent(domain, action, entities)` | 基本可用 | ✅ `test_orchestrator.py` (48 例) | `IntentParser.parse` | 纯正则；仅服务 JARVIS 侧链路，Emperor 侧不用 |
-| 感知与输入 | `jarvis/vscode/` (450) | VSCode 编辑器桥接（文件/光标/工作区/终端） | 基本可用 | ✅ `test_vscode.py` | Hermes 消息主题 | 需外部 VSCode 扩展配合，仓库内无扩展实现 |
+| 感知与输入 | `huanxin/capability.py` (1079) | 12 个内置能力：datetime/math/random/text/file_info/hash/json/uuid/weather/news/web_search/web_fetch | 生产可用 | ✅ `test_capability.py` (96 例) | `CapabilityRegistry.find_best/execute` | 关键词匹配选能力，无语义理解；web_search/news 依赖 duckduckgo/google-rss，`huanxin.db` 中实测 `<urlopen error timed out>` 失败 |
+| 感知与输入 | `huanxin/multimodal/` (505) | 视觉/语音/文档：VisionProcessor、SpeechProcessor(whisper+edge-tts)、DocumentProcessor(PyPDF2/docx/OCR) | 生产可用 | ✅ `test_multimodal.py` | `MultimodalEngine.see/hear/speak/read_document` | 依赖库缺失时返回 `{"error": "PyPDF2 not installed"}` 而非降级；未接入主链路 |
+| 感知与输入 | `huanxin/core/orchestrator.py:139-311` `IntentParser` | 正则+关键词的意图解析，产出 `Intent(domain, action, entities)` | 基本可用 | ✅ `test_orchestrator.py` (48 例) | `IntentParser.parse` | 纯正则；仅服务 HUANXIN 侧链路，Huanxin 侧不用 |
+| 感知与输入 | `huanxin/vscode/` (450) | VSCode 编辑器桥接（文件/光标/工作区/终端） | 基本可用 | ✅ `test_vscode.py` | Hermes 消息主题 | 需外部 VSCode 扩展配合，仓库内无扩展实现 |
 
 #### 1.2 规划与编排
 
 | 能力域 | 模块路径 | 核心职责 | 成熟度 | 是否有对应测试 | 对外接口 | 关键局限 |
 |---|---|---|---|---|---|---|
-| 规划与编排 | `jarvis/emperor.py` (1745) | 主门面：`execute_task` 串起 RBAC→loop_guard→压缩→审批→prompt_guard→路由→状态机→TaskEngine→handoff→审计→反思→幻觉检测→遥测→成本 | 基本可用 | ✅ `test_emperor*.py` ×5 | `Emperor.execute_task/deliberate/evolve/serve` | **单发调用，无 agent loop、无工具调用循环、无重规划**；见 §2 |
-| 规划与编排 | `jarvis/court/task_engine.py` (496) | 选臣 → 调 LLM → 打分 → 反馈 | 骨架 | ✅ `test_task_engine.py` | `TaskEngine.execute/execute_batch` | ①默认 mock LLM；②`_select_minister:352-376` 领域匹配循环体是 `pass`，实际只按功勋排第一；③打分器 `_simple_confidence` 见 §3.4 |
-| 规划与编排 | `jarvis/court/orchestrator.py` (670) | 8 阶段朝堂编排：分析→智能路由→置信校准→并行议政→合议→反馈→进化→记忆 | 生产可用 | ✅ `test_court_orchestration.py`/`test_court_integration.py` | `CourtOrchestrator.receive_petition` | 与 `Emperor.execute_task` 是**两条独立链路**；此链路才会接真实 provider |
-| 规划与编排 | `jarvis/core/orchestrator.py` (703) | JARVIS 侧编排器：Intent→DomainRegistry→domain.handle，支持 `execute_stream` 与 court 桥接 | 基本可用 | ✅ `test_orchestrator.py` | `Orchestrator.execute/execute_stream/set_court_mode` | 与 Emperor 侧重复；`self.sandbox` 赋值后在本文件内无消费点 |
-| 规划与编排 | `jarvis/court/routing.py` (587) | 智能路由：fitness + 校准信任 + 多样性奖励 + 负载均衡 | 生产可用 | ✅ `test_routing.py` (45 例) | `IntelligentRouter.select` | 仅 CourtOrchestrator 使用；`Emperor.execute_task` 不走它 |
-| 规划与编排 | `jarvis/router/` (615) | LLM zero-shot 意图分类 + 多级路由 | 基本可用 | ✅ `test_router.py` (46 例) | `RouterEngine.route` | **完整包（非缺失）**：`emperor.py:388` 实例化、`:855` 在 `execute_task` 内调用 `route(...)`，但 `_route_decision` 只流向 `:858` 的 `logger.debug` 与 `:893-895` 写入 result 字典字段，**真正执行用 `:880` 的 `minister=_preselected_minister`（与之无关）→ 决策未被消费（最后一公里未接通，数十行改动可修）**。注意区分三套路由：①本包 `jarvis/router/`（意图路由，已实现已调用、决策未消费）；②`jarvis/core/router.py`（成本三档路由，纯正则、决策未消费）；③`jarvis/model_router.py`（`SmartRouter`，P2.9 能力路由）——**该文件真正缺失**，`emperor.py:261` 导入被 `try/except ImportError` 静默吞掉，`_smart_router` 恒 None，`:838-841` 的 P2.9 Smart Routing 永不执行（已发布却静默失效）。 |
-| 规划与编排 | `jarvis/workflow/` (833) | DAG 编排：TaskNode/ConditionNode/ParallelNode/LoopNode/MergeNode | 生产可用 | ✅ `test_workflow.py` (55 例) | `WorkflowEngine.run(dag)` | 需人工构造 DAG，无自动规划器把自然语言变成 DAG |
-| 规划与编排 | `jarvis/core/workflow.py` (355) | 与上者同名同责的第二套工作流 | 基本可用 | ✅ `test_core.py`（CI 中被 `--ignore` 排除） | `WorkflowEngine` | 与 `jarvis/workflow/` 职责重叠 |
-| 规划与编排 | `jarvis/state_machine.py` (601) | LangGraph 式状态机：条件分支、回边、重试升级 | 生产可用 | ✅ `test_state_machine.py` | `StateMachine.start/trigger/stop` | 主链路里只用了固定四态 `planning→execution→reflection→completion`，条件分支/回边能力未被使用 |
-| 规划与编排 | `jarvis/pipeline.py` (732) + `pipeline_monitor.py` (520) + `pipeline_store.py` (119) | 服务流水线：能力串联、DAG 监控、持久化 | 生产可用 | ✅ `test_pipeline*.py` ×4 | `/api/pipelines/*` (12 路由) | 流水线模板需人工定义 |
-| 规划与编排 | `jarvis/async_core/` (775) | 优先级并发执行器 + 多优先级队列 | 生产可用 | ✅ `test_async_core.py` (50 例) | `AsyncExecutor.submit` / `QueueManager` | 未接入主链路 |
-| 规划与编排 | `jarvis/handoff.py` (782) | 多智能体交接协议（OpenAI Agents SDK 风格） | 生产可用 | ✅ `test_handoff.py` | `HandoffEngine.handoff`、`/api/handoff/*` (6 路由) | 触发条件依赖 `req.meta["handoff_target"]`，而 `TaskRequest.meta` 在主链路中从未被写入 → 实际永不触发 |
-| 规划与编排 | `jarvis/court/scheduler.py` (491) | 后台定时：周期进化 + 周期任务批 | 生产可用 | ✅ `test_scheduler.py` | `Scheduler.schedule_evolution/schedule_tasks/start` | 任务来自**固定模板列表**，非自主生成目标；这是当前"自主运行"的全部含义 |
+| 规划与编排 | `huanxin/emperor.py` (1745) | 主门面：`execute_task` 串起 RBAC→loop_guard→压缩→审批→prompt_guard→路由→状态机→TaskEngine→handoff→审计→反思→幻觉检测→遥测→成本 | 基本可用 | ✅ `test_emperor*.py` ×5 | `Huanxin.execute_task/deliberate/evolve/serve` | **单发调用，无 agent loop、无工具调用循环、无重规划**；见 §2 |
+| 规划与编排 | `huanxin/court/task_engine.py` (496) | 选臣 → 调 LLM → 打分 → 反馈 | 骨架 | ✅ `test_task_engine.py` | `TaskEngine.execute/execute_batch` | ①默认 mock LLM；②`_select_minister:352-376` 领域匹配循环体是 `pass`，实际只按功勋排第一；③打分器 `_simple_confidence` 见 §3.4 |
+| 规划与编排 | `huanxin/court/orchestrator.py` (670) | 8 阶段朝堂编排：分析→智能路由→置信校准→并行议政→合议→反馈→进化→记忆 | 生产可用 | ✅ `test_court_orchestration.py`/`test_court_integration.py` | `CourtOrchestrator.receive_petition` | 与 `Huanxin.execute_task` 是**两条独立链路**；此链路才会接真实 provider |
+| 规划与编排 | `huanxin/core/orchestrator.py` (703) | HUANXIN 侧编排器：Intent→DomainRegistry→domain.handle，支持 `execute_stream` 与 court 桥接 | 基本可用 | ✅ `test_orchestrator.py` | `Orchestrator.execute/execute_stream/set_court_mode` | 与 Huanxin 侧重复；`self.sandbox` 赋值后在本文件内无消费点 |
+| 规划与编排 | `huanxin/court/routing.py` (587) | 智能路由：fitness + 校准信任 + 多样性奖励 + 负载均衡 | 生产可用 | ✅ `test_routing.py` (45 例) | `IntelligentRouter.select` | 仅 CourtOrchestrator 使用；`Huanxin.execute_task` 不走它 |
+| 规划与编排 | `huanxin/router/` (615) | LLM zero-shot 意图分类 + 多级路由 | 基本可用 | ✅ `test_router.py` (46 例) | `RouterEngine.route` | **完整包（非缺失）**：`emperor.py:388` 实例化、`:855` 在 `execute_task` 内调用 `route(...)`，但 `_route_decision` 只流向 `:858` 的 `logger.debug` 与 `:893-895` 写入 result 字典字段，**真正执行用 `:880` 的 `minister=_preselected_minister`（与之无关）→ 决策未被消费（最后一公里未接通，数十行改动可修）**。注意区分三套路由：①本包 `huanxin/router/`（意图路由，已实现已调用、决策未消费）；②`huanxin/core/router.py`（成本三档路由，纯正则、决策未消费）；③`huanxin/model_router.py`（`SmartRouter`，P2.9 能力路由）——**该文件真正缺失**，`emperor.py:261` 导入被 `try/except ImportError` 静默吞掉，`_smart_router` 恒 None，`:838-841` 的 P2.9 Smart Routing 永不执行（已发布却静默失效）。 |
+| 规划与编排 | `huanxin/workflow/` (833) | DAG 编排：TaskNode/ConditionNode/ParallelNode/LoopNode/MergeNode | 生产可用 | ✅ `test_workflow.py` (55 例) | `WorkflowEngine.run(dag)` | 需人工构造 DAG，无自动规划器把自然语言变成 DAG |
+| 规划与编排 | `huanxin/core/workflow.py` (355) | 与上者同名同责的第二套工作流 | 基本可用 | ✅ `test_core.py`（CI 中被 `--ignore` 排除） | `WorkflowEngine` | 与 `huanxin/workflow/` 职责重叠 |
+| 规划与编排 | `huanxin/state_machine.py` (601) | LangGraph 式状态机：条件分支、回边、重试升级 | 生产可用 | ✅ `test_state_machine.py` | `StateMachine.start/trigger/stop` | 主链路里只用了固定四态 `planning→execution→reflection→completion`，条件分支/回边能力未被使用 |
+| 规划与编排 | `huanxin/pipeline.py` (732) + `pipeline_monitor.py` (520) + `pipeline_store.py` (119) | 服务流水线：能力串联、DAG 监控、持久化 | 生产可用 | ✅ `test_pipeline*.py` ×4 | `/api/pipelines/*` (12 路由) | 流水线模板需人工定义 |
+| 规划与编排 | `huanxin/async_core/` (775) | 优先级并发执行器 + 多优先级队列 | 生产可用 | ✅ `test_async_core.py` (50 例) | `AsyncExecutor.submit` / `QueueManager` | 未接入主链路 |
+| 规划与编排 | `huanxin/handoff.py` (782) | 多智能体交接协议（OpenAI Agents SDK 风格） | 生产可用 | ✅ `test_handoff.py` | `HandoffEngine.handoff`、`/api/handoff/*` (6 路由) | 触发条件依赖 `req.meta["handoff_target"]`，而 `TaskRequest.meta` 在主链路中从未被写入 → 实际永不触发 |
+| 规划与编排 | `huanxin/court/scheduler.py` (491) | 后台定时：周期进化 + 周期任务批 | 生产可用 | ✅ `test_scheduler.py` | `Scheduler.schedule_evolution/schedule_tasks/start` | 任务来自**固定模板列表**，非自主生成目标；这是当前"自主运行"的全部含义 |
 
 #### 1.3 记忆与知识
 
 | 能力域 | 模块路径 | 核心职责 | 成熟度 | 是否有对应测试 | 对外接口 | 关键局限 |
 |---|---|---|---|---|---|---|
-| 记忆与知识 | `jarvis/memory/engine.py` (565) | 混合检索：ChromaDB → TF-IDF → Jaccard 三级降级 | 生产可用 | ✅ `test_memory.py` (44 例) | `MemoryEngine.add/search` | — |
-| 记忆与知识 | `jarvis/memory/vector_store.py` (221) | 独立 ChromaDB 向量库，可插拔 embedding | 生产可用 | ✅ | `VectorMemory` | 与 engine 内的 Chroma 分支重复 |
-| 记忆与知识 | `jarvis/memory/manager.py` (236) | 带类型槽位与时间衰减的语义记忆 | 生产可用 | ✅ | `MemoryManager` | 第三套记忆抽象 |
-| 记忆与知识 | `jarvis/hierarchical_memory.py` (798) | 五层认知记忆：Working/Episodic/Semantic/Procedural/GraphRAG + 艾宾浩斯遗忘 + 递归摘要 + 巩固周期 | 生产可用 | ✅ `test_hierarchical_memory.py` | `/memory/*` (5 路由) | 包装 `MemoryEngine`+`GraphRAG`；**未接入 `execute_task`**，主链路不读写它 |
-| 记忆与知识 | `jarvis/court/memory.py` (611) | 朝堂记忆：关键词相似 + 指数时间衰减，用于路由加权 | 基本可用 | ✅ `test_court_kg.py` 等 | `CourtMemory.record/query/apply_decay` | 关键词相似度，**完全不复用 `memory/engine.py`**，第五套记忆 |
-| 记忆与知识 | `jarvis/graph_rag.py` (726) | 知识图谱检索（实体/关系/多跳） | 生产可用 | ✅ `test_graph_rag.py` | `/api/memory/graph/*` (4 路由) | — |
-| 记忆与知识 | `jarvis/knowledge/graph.py` (494) | 第二套知识图谱（Entity/Edge），供 Minister 注入上下文 | 生产可用 | ✅ `test_knowledge.py` | `KnowledgeGraph.ingest/get_neighbors` | 与 `graph_rag.py` 职责重叠 |
-| 记忆与知识 | `jarvis/rag/` (794) | Dense(ChromaDB) + Sparse(BM25) + RRF 融合 + LLM 重排；PDF/DOCX/MD 加载与切分 | 生产可用 | ✅ `test_rag.py` | `RAGEngine.query` | `rank-bm25` 缺失时降级到自实现 BM25（有 warning）；未接入主链路 |
-| 记忆与知识 | `jarvis/context_compressor.py` (569) | 上下文压缩：SUMMARIZE/EXTRACT/PRUNE/HYBRID | 基本可用 | ✅ `test_context_compressor.py` | 主链路 `emperor.py:764-783` | 模块头明确写 **"All strategies are LLM-free, running purely on statistical and heuristic rules"** —— 所谓 SUMMARIZE 是规则截断而非语义摘要 |
-| 记忆与知识 | `jarvis/context_versioning.py` (758) | 不可变系统状态快照 + 组件级回滚 + diff | 基本可用 | ✅ `test_context_versioning.py` (42 例) | `/api/dashboard/versions/*` | **实测 324 个快照全部为空**：`components.plugins.data={}`、`components.templates.data={}`，`description` 均为 `auto: emperor-init`；且无清理策略，无限增长 |
+| 记忆与知识 | `huanxin/memory/engine.py` (565) | 混合检索：ChromaDB → TF-IDF → Jaccard 三级降级 | 生产可用 | ✅ `test_memory.py` (44 例) | `MemoryEngine.add/search` | — |
+| 记忆与知识 | `huanxin/memory/vector_store.py` (221) | 独立 ChromaDB 向量库，可插拔 embedding | 生产可用 | ✅ | `VectorMemory` | 与 engine 内的 Chroma 分支重复 |
+| 记忆与知识 | `huanxin/memory/manager.py` (236) | 带类型槽位与时间衰减的语义记忆 | 生产可用 | ✅ | `MemoryManager` | 第三套记忆抽象 |
+| 记忆与知识 | `huanxin/hierarchical_memory.py` (798) | 五层认知记忆：Working/Episodic/Semantic/Procedural/GraphRAG + 艾宾浩斯遗忘 + 递归摘要 + 巩固周期 | 生产可用 | ✅ `test_hierarchical_memory.py` | `/memory/*` (5 路由) | 包装 `MemoryEngine`+`GraphRAG`；**未接入 `execute_task`**，主链路不读写它 |
+| 记忆与知识 | `huanxin/court/memory.py` (611) | 朝堂记忆：关键词相似 + 指数时间衰减，用于路由加权 | 基本可用 | ✅ `test_court_kg.py` 等 | `CourtMemory.record/query/apply_decay` | 关键词相似度，**完全不复用 `memory/engine.py`**，第五套记忆 |
+| 记忆与知识 | `huanxin/graph_rag.py` (726) | 知识图谱检索（实体/关系/多跳） | 生产可用 | ✅ `test_graph_rag.py` | `/api/memory/graph/*` (4 路由) | — |
+| 记忆与知识 | `huanxin/knowledge/graph.py` (494) | 第二套知识图谱（Entity/Edge），供 Minister 注入上下文 | 生产可用 | ✅ `test_knowledge.py` | `KnowledgeGraph.ingest/get_neighbors` | 与 `graph_rag.py` 职责重叠 |
+| 记忆与知识 | `huanxin/rag/` (794) | Dense(ChromaDB) + Sparse(BM25) + RRF 融合 + LLM 重排；PDF/DOCX/MD 加载与切分 | 生产可用 | ✅ `test_rag.py` | `RAGEngine.query` | `rank-bm25` 缺失时降级到自实现 BM25（有 warning）；未接入主链路 |
+| 记忆与知识 | `huanxin/context_compressor.py` (569) | 上下文压缩：SUMMARIZE/EXTRACT/PRUNE/HYBRID | 基本可用 | ✅ `test_context_compressor.py` | 主链路 `emperor.py:764-783` | 模块头明确写 **"All strategies are LLM-free, running purely on statistical and heuristic rules"** —— 所谓 SUMMARIZE 是规则截断而非语义摘要 |
+| 记忆与知识 | `huanxin/context_versioning.py` (758) | 不可变系统状态快照 + 组件级回滚 + diff | 基本可用 | ✅ `test_context_versioning.py` (42 例) | `/api/dashboard/versions/*` | **实测 324 个快照全部为空**：`components.plugins.data={}`、`components.templates.data={}`，`description` 均为 `auto: emperor-init`；且无清理策略，无限增长 |
 
 #### 1.4 工具与执行
 
 | 能力域 | 模块路径 | 核心职责 | 成熟度 | 是否有对应测试 | 对外接口 | 关键局限 |
 |---|---|---|---|---|---|---|
-| 工具与执行 | `jarvis/tools/base.py` (274) + `registry.py` (194) | `@tool` 装饰器、`ToolDef`/`ToolResult`、OpenAI/Anthropic schema 生成、注册表 | 生产可用 | ✅ `test_tools.py` (45 例) | `get_registry().execute_tool` | `execute_tool:148-193` **无任何校验/护栏/审计**，直接 `tool.func(**arguments)` |
-| 工具与执行 | `jarvis/tools/builtin.py` (352) | 12 个内置工具 | 生产可用 | ✅ | — | 与 `capability.py` 的 12 能力高度重复 |
-| 工具与执行 | `jarvis/tools/validator.py` (659) | Pydantic 参数校验 + 重试 + `safe_execute` | 基本可用 | ✅ `test_tool_validator.py` | `ToolCallValidator.validate` | **未接入 `ToolRegistry.execute_tool`**，只被 `agent_eval.py` 与 `audit_trail.py` 引用 |
-| 工具与执行 | `jarvis/tool_guard.py` (1195) | 三层工具护栏中间件：输入校验/权限分级/输出脱敏 | 基本可用 | ✅ `test_tool_guard.py`+`test_tool_guard_tiers.py` | `/tools/guard/stats` | **未接入任何执行路径**，仅 `court_api.py` 与 `agent_eval.py` 引用 |
-| 工具与执行 | `jarvis/tools/audit_trail.py` (485) | SQLite 工具调用审计 + 轨迹回放 | 生产可用 | ✅ `test_audit_trail.py` | `AuditTrail`/`AuditReplayer` | 依赖调用方主动记录 |
-| 工具与执行 | `jarvis/sandbox/` (995) | 三模式代码执行：`local_direct`(exec)/`subprocess`/`docker`，超时+内存+CPU 限制 | 生产可用 | ✅ `test_sandbox.py` (72 例) | `/api/dashboard/sandbox/run|shell` | `sandbox/manager.py` 是**只有一行 docstring 的空文件**，真实 `SandboxManager` 在 `__init__.py:44`；主链路不调用沙箱 |
-| 工具与执行 | `jarvis/sandbox/policy.py` (351) | 三级安全策略 READ_ONLY/RESTRICTED/FULL，危险模式黑名单 | 生产可用 | ✅ | `SecurityPolicy.validate` | 黑名单式（可绕过），非白名单 |
-| 工具与执行 | `jarvis/mcp/` (1807) | MCP 熔断器、工具注册表、MCP Server（12 能力，stdio/SSE） | 生产可用 | ✅ `test_mcp.py` (98 例)+`test_mcp_circuit_breaker.py` | MCP 协议 | — |
-| 工具与执行 | `jarvis/mcp_client.py` (522) | JSON-RPC 2.0 MCP 客户端，stdio(子进程)/http | 生产可用 | ✅ | `MCPClient.connect/call` | — |
-| 工具与执行 | `jarvis/mcp_manager.py` (624) | 多 MCP Server 管理 | 基本可用 | ✅ | `/api/mcp/*` (5 路由) | 内置的是 `MockFileSystemServer`/`MockWebSearchServer`/`MockCalculatorServer`，返回 `[Mock] Content of {path} (simulated)` |
-| 工具与执行 | `jarvis/plugin.py` (265) | 生命周期钩子插件（`ON_TASK_BEFORE/AFTER/ERROR`） | 生产可用 | ✅ `test_plugin.py` | `PluginManager.register/dispatch` | 主链路真实调用 |
-| 工具与执行 | `jarvis/plugin_system.py` (412) | 第二套插件：manifest、热加载、版本、依赖隔离 | 生产可用 | ✅ `test_plugin_system.py` | `/api/plugins/load` | 与 `plugin.py` **同名类 `PluginManager`**，命名空间冲突风险 |
-| 工具与执行 | `jarvis/plugin_marketplace.py` (277) | 第三套：内置插件目录 + 安装状态持久化 | 生产可用 | ✅ | `/api/dashboard/plugins/*` (4 路由) | 只有本地内置清单，无远端市场 |
-| 工具与执行 | `jarvis/plugins/` (374) | 2 个实体插件（logger/metrics） | 生产可用 | ✅ `test_builtin_plugins.py` | — | 仅横切关注点，无业务插件 |
+| 工具与执行 | `huanxin/tools/base.py` (274) + `registry.py` (194) | `@tool` 装饰器、`ToolDef`/`ToolResult`、OpenAI/Anthropic schema 生成、注册表 | 生产可用 | ✅ `test_tools.py` (45 例) | `get_registry().execute_tool` | `execute_tool:148-193` **无任何校验/护栏/审计**，直接 `tool.func(**arguments)` |
+| 工具与执行 | `huanxin/tools/builtin.py` (352) | 12 个内置工具 | 生产可用 | ✅ | — | 与 `capability.py` 的 12 能力高度重复 |
+| 工具与执行 | `huanxin/tools/validator.py` (659) | Pydantic 参数校验 + 重试 + `safe_execute` | 基本可用 | ✅ `test_tool_validator.py` | `ToolCallValidator.validate` | **未接入 `ToolRegistry.execute_tool`**，只被 `agent_eval.py` 与 `audit_trail.py` 引用 |
+| 工具与执行 | `huanxin/tool_guard.py` (1195) | 三层工具护栏中间件：输入校验/权限分级/输出脱敏 | 基本可用 | ✅ `test_tool_guard.py`+`test_tool_guard_tiers.py` | `/tools/guard/stats` | **未接入任何执行路径**，仅 `court_api.py` 与 `agent_eval.py` 引用 |
+| 工具与执行 | `huanxin/tools/audit_trail.py` (485) | SQLite 工具调用审计 + 轨迹回放 | 生产可用 | ✅ `test_audit_trail.py` | `AuditTrail`/`AuditReplayer` | 依赖调用方主动记录 |
+| 工具与执行 | `huanxin/sandbox/` (995) | 三模式代码执行：`local_direct`(exec)/`subprocess`/`docker`，超时+内存+CPU 限制 | 生产可用 | ✅ `test_sandbox.py` (72 例) | `/api/dashboard/sandbox/run|shell` | `sandbox/manager.py` 是**只有一行 docstring 的空文件**，真实 `SandboxManager` 在 `__init__.py:44`；主链路不调用沙箱 |
+| 工具与执行 | `huanxin/sandbox/policy.py` (351) | 三级安全策略 READ_ONLY/RESTRICTED/FULL，危险模式黑名单 | 生产可用 | ✅ | `SecurityPolicy.validate` | 黑名单式（可绕过），非白名单 |
+| 工具与执行 | `huanxin/mcp/` (1807) | MCP 熔断器、工具注册表、MCP Server（12 能力，stdio/SSE） | 生产可用 | ✅ `test_mcp.py` (98 例)+`test_mcp_circuit_breaker.py` | MCP 协议 | — |
+| 工具与执行 | `huanxin/mcp_client.py` (522) | JSON-RPC 2.0 MCP 客户端，stdio(子进程)/http | 生产可用 | ✅ | `MCPClient.connect/call` | — |
+| 工具与执行 | `huanxin/mcp_manager.py` (624) | 多 MCP Server 管理 | 基本可用 | ✅ | `/api/mcp/*` (5 路由) | 内置的是 `MockFileSystemServer`/`MockWebSearchServer`/`MockCalculatorServer`，返回 `[Mock] Content of {path} (simulated)` |
+| 工具与执行 | `huanxin/plugin.py` (265) | 生命周期钩子插件（`ON_TASK_BEFORE/AFTER/ERROR`） | 生产可用 | ✅ `test_plugin.py` | `PluginManager.register/dispatch` | 主链路真实调用 |
+| 工具与执行 | `huanxin/plugin_system.py` (412) | 第二套插件：manifest、热加载、版本、依赖隔离 | 生产可用 | ✅ `test_plugin_system.py` | `/api/plugins/load` | 与 `plugin.py` **同名类 `PluginManager`**，命名空间冲突风险 |
+| 工具与执行 | `huanxin/plugin_marketplace.py` (277) | 第三套：内置插件目录 + 安装状态持久化 | 生产可用 | ✅ | `/api/dashboard/plugins/*` (4 路由) | 只有本地内置清单，无远端市场 |
+| 工具与执行 | `huanxin/plugins/` (374) | 2 个实体插件（logger/metrics） | 生产可用 | ✅ `test_builtin_plugins.py` | — | 仅横切关注点，无业务插件 |
 
 #### 1.5 代码自生成
 
 | 能力域 | 模块路径 | 核心职责 | 成熟度 | 是否有对应测试 | 对外接口 | 关键局限 |
 |---|---|---|---|---|---|---|
-| 代码自生成 | `jarvis/codex/analyzer.py` (302) | 基于 `ast` 的真实静态分析：函数/类/导入抽取、圈复杂度、嵌套深度、坏味道检测 | 生产可用 | ✅ `test_codex.py` | `Analyzer.analyze/review_diff` | 仅 Python；只分析不修改 |
-| 代码自生成 | `jarvis/codex/generator.py` (168) | "代码生成" | **骨架** | ✅ | `Generator.generate/refactor` | **纯字符串模板** 5 个（python_module/class/test/fastapi/cli）+ `str.format`；`refactor` 仅支持去尾空格、正则改名；`_refactor_extract` 直接返回原文并附 `"note": "Automatic method extraction requires LLM integration (placeholder)"`。**无任何 LLM 调用** |
-| 代码自生成 | `jarvis/codex/engine.py` (114) | Hermes 总线上的 codex.* 消息路由 | 生产可用 | ✅ | `codex.analyze/generate/review/refactor` 主题 | 只是转发层 |
+| 代码自生成 | `huanxin/codex/analyzer.py` (302) | 基于 `ast` 的真实静态分析：函数/类/导入抽取、圈复杂度、嵌套深度、坏味道检测 | 生产可用 | ✅ `test_codex.py` | `Analyzer.analyze/review_diff` | 仅 Python；只分析不修改 |
+| 代码自生成 | `huanxin/codex/generator.py` (168) | "代码生成" | **骨架** | ✅ | `Generator.generate/refactor` | **纯字符串模板** 5 个（python_module/class/test/fastapi/cli）+ `str.format`；`refactor` 仅支持去尾空格、正则改名；`_refactor_extract` 直接返回原文并附 `"note": "Automatic method extraction requires LLM integration (placeholder)"`。**无任何 LLM 调用** |
+| 代码自生成 | `huanxin/codex/engine.py` (114) | Hermes 总线上的 codex.* 消息路由 | 生产可用 | ✅ | `codex.analyze/generate/review/refactor` 主题 | 只是转发层 |
 | 代码自生成 | **（缺失）** | 自我代码修改 / 补丁生成 / 自动 PR | **不存在** | — | — | 全库 **无 git 写操作、无 `.py` 文件写入、无 PR 创建**；`gitpython>=3.1.0` 声明为依赖但 **`import git` 零引用**；唯一的 `.py` 写入是 `sandbox/engine.py:276-284` 写临时目录脚本 |
 
 #### 1.6 反思与评估
 
 | 能力域 | 模块路径 | 核心职责 | 成熟度 | 是否有对应测试 | 对外接口 | 关键局限 |
 |---|---|---|---|---|---|---|
-| 反思与评估 | `jarvis/reflexion.py` (564) | 三维输出质检（完整性/一致性/事实性）+ 最多 3 轮自动纠错 | 基本可用 | ✅ `test_reflexion.py` | 主链路 `emperor.py:999-1020`、`/api/reflexion/*` | **纯正则规则**，非 Reflexion 论文的 LLM 言语反思；`_builtin_correct:520-548` 的"纠错"是往文末追加 `[Note: response was too short; auto-expanded with placeholder.]` 之类的说明文字，**不改变实质内容** |
-| 反思与评估 | `jarvis/court/reflection.py` (721) | 三省合议五阶段：交叉批评→加权投票→草案综合→自我反思→定稿 | 基本可用 | ✅ `test_reflection.py` | `ReflectionConsensus.synthesize` | **全文件零 LLM 调用**。`_compare_outputs:264-336` 依据「置信度差值 / 文本长度比 / 词集合重叠率」判定 SUPPORT/CHALLENGE/REFINE；`_self_reflect:576-648` 依据「换行数<2」「同时出现'推荐'和'不推荐'」等启发式，改进方式是在文末追加"--- 修订说明 ---"，注释原文：`# Append improvements as a note (in production, this would re-generate)` |
-| 反思与评估 | `jarvis/hallucination_guard.py` (898) | 后置幻觉检测 + SelfCorrectionLoop（最多 3 轮 LLM 重写） | 基本可用 | ✅ `test_hallucination_guard.py` (54 例) | 主链路 `emperor.py:1023-1042` | 主链路调的是 `check()` → `detect_sync()`（**启发式，无 LLM**）；`correct()`/`SelfCorrectionLoop` 需要 `llm_callback`，**全库无任何调用点**。检出后主链路**只 `logger.warning`，不拦截不修正**，原文照常返回 |
-| 反思与评估 | `jarvis/hallucination_detector.py` (829) | 静默幻觉检测：多次采样一致性 + 声明抽取交叉验证 + 风险分级 | 基本可用 | ✅ `test_hallucination_detector.py` | `/hallucination/stats` | 与上一模块**职责重叠**（两个同名类 `HallucinationDetector`）；正则+常识规则实现；未接入主链路 |
-| 反思与评估 | `jarvis/llm_judge.py` (413) | LLM-as-Judge 输出质量评分 | 基本可用 | ✅ `test_llm_judge.py` | `/api/evals/judge`、`/api/evals/judge/compare` | 模块头自述：**"Uses lightweight rule-based heuristics (keyword overlap, semantic similarity, structural completeness) as a stand-in for real LLM calls"** —— 名为 LLM Judge，实为关键词重叠打分 |
-| 反思与评估 | `jarvis/eval/` (2011, 4 文件) | Eval 框架：EvalCase/EvalSuite/EvalRunner + 4 个基准（JarvisBench 20 题 / RouterBench / MultiStepBench / SelfHealingBench）+ 指标 | 生产可用 | ✅ `test_eval.py` (90 例) | `/api/dashboard/evals/run|report` | 基准题目全部是**内置能力调用题**（日期/算术/UUID/哈希/天气），**无一道代码任务**；无 SWE-bench 式仓库级修复评测 |
-| 反思与评估 | `jarvis/evaluation/agent_eval.py` (719) | Per-Agent Eval：7 个 agent × 精度/延迟 P50-99/成本/幻觉率/工具成功率 | 基本可用 | ✅ `test_agent_eval.py` | `AgentEvalSuite.run` / `eval_all_agents` | `_simulate_agent_output:553-558` 从**硬编码字典 `_AGENT_OUTPUTS` 取预置 JSON 字符串**作为"agent 输出"；`run()` 不接受任何真实 agent 实例。即：**评的是常量，不是系统** |
-| 反思与评估 | `jarvis/court/censorate.py` (472) | 御史台：独立质量监督、弹劾 | 生产可用 | ✅ `test_censorate.py` | `Censorate.audit` | 依赖 memorial 的 confidence 字段，而该字段上游是长度启发式 |
-| 反思与评估 | `jarvis/court/calibration.py` (430) | 置信校准：学习各臣「宣称置信 vs 实际正确率」的偏差 | 生产可用 | ✅ `test_calibration.py` | `ConfidenceCalibrator.calibrate/update` | 算法真实；但"实际正确率"的来源同样是 `_simple_confidence` |
-| 反思与评估 | `jarvis/feedback.py` (286) | 用户反馈收集与分析 | 生产可用 | ✅ `test_task_feedback.py` | `/api/feedback/*` | 需人工提交 |
+| 反思与评估 | `huanxin/reflexion.py` (564) | 三维输出质检（完整性/一致性/事实性）+ 最多 3 轮自动纠错 | 基本可用 | ✅ `test_reflexion.py` | 主链路 `emperor.py:999-1020`、`/api/reflexion/*` | **纯正则规则**，非 Reflexion 论文的 LLM 言语反思；`_builtin_correct:520-548` 的"纠错"是往文末追加 `[Note: response was too short; auto-expanded with placeholder.]` 之类的说明文字，**不改变实质内容** |
+| 反思与评估 | `huanxin/court/reflection.py` (721) | 三省合议五阶段：交叉批评→加权投票→草案综合→自我反思→定稿 | 基本可用 | ✅ `test_reflection.py` | `ReflectionConsensus.synthesize` | **全文件零 LLM 调用**。`_compare_outputs:264-336` 依据「置信度差值 / 文本长度比 / 词集合重叠率」判定 SUPPORT/CHALLENGE/REFINE；`_self_reflect:576-648` 依据「换行数<2」「同时出现'推荐'和'不推荐'」等启发式，改进方式是在文末追加"--- 修订说明 ---"，注释原文：`# Append improvements as a note (in production, this would re-generate)` |
+| 反思与评估 | `huanxin/hallucination_guard.py` (898) | 后置幻觉检测 + SelfCorrectionLoop（最多 3 轮 LLM 重写） | 基本可用 | ✅ `test_hallucination_guard.py` (54 例) | 主链路 `emperor.py:1023-1042` | 主链路调的是 `check()` → `detect_sync()`（**启发式，无 LLM**）；`correct()`/`SelfCorrectionLoop` 需要 `llm_callback`，**全库无任何调用点**。检出后主链路**只 `logger.warning`，不拦截不修正**，原文照常返回 |
+| 反思与评估 | `huanxin/hallucination_detector.py` (829) | 静默幻觉检测：多次采样一致性 + 声明抽取交叉验证 + 风险分级 | 基本可用 | ✅ `test_hallucination_detector.py` | `/hallucination/stats` | 与上一模块**职责重叠**（两个同名类 `HallucinationDetector`）；正则+常识规则实现；未接入主链路 |
+| 反思与评估 | `huanxin/llm_judge.py` (413) | LLM-as-Judge 输出质量评分 | 基本可用 | ✅ `test_llm_judge.py` | `/api/evals/judge`、`/api/evals/judge/compare` | 模块头自述：**"Uses lightweight rule-based heuristics (keyword overlap, semantic similarity, structural completeness) as a stand-in for real LLM calls"** —— 名为 LLM Judge，实为关键词重叠打分 |
+| 反思与评估 | `huanxin/eval/` (2011, 4 文件) | Eval 框架：EvalCase/EvalSuite/EvalRunner + 4 个基准（HuanxinBench 20 题 / RouterBench / MultiStepBench / SelfHealingBench）+ 指标 | 生产可用 | ✅ `test_eval.py` (90 例) | `/api/dashboard/evals/run|report` | 基准题目全部是**内置能力调用题**（日期/算术/UUID/哈希/天气），**无一道代码任务**；无 SWE-bench 式仓库级修复评测 |
+| 反思与评估 | `huanxin/evaluation/agent_eval.py` (719) | Per-Agent Eval：7 个 agent × 精度/延迟 P50-99/成本/幻觉率/工具成功率 | 基本可用 | ✅ `test_agent_eval.py` | `AgentEvalSuite.run` / `eval_all_agents` | `_simulate_agent_output:553-558` 从**硬编码字典 `_AGENT_OUTPUTS` 取预置 JSON 字符串**作为"agent 输出"；`run()` 不接受任何真实 agent 实例。即：**评的是常量，不是系统** |
+| 反思与评估 | `huanxin/court/censorate.py` (472) | 御史台：独立质量监督、弹劾 | 生产可用 | ✅ `test_censorate.py` | `Censorate.audit` | 依赖 memorial 的 confidence 字段，而该字段上游是长度启发式 |
+| 反思与评估 | `huanxin/court/calibration.py` (430) | 置信校准：学习各臣「宣称置信 vs 实际正确率」的偏差 | 生产可用 | ✅ `test_calibration.py` | `ConfidenceCalibrator.calibrate/update` | 算法真实；但"实际正确率"的来源同样是 `_simple_confidence` |
+| 反思与评估 | `huanxin/feedback.py` (286) | 用户反馈收集与分析 | 生产可用 | ✅ `test_task_feedback.py` | `/api/feedback/*` | 需人工提交 |
 
 #### 1.7 进化机制
 
 | 能力域 | 模块路径 | 核心职责 | 成熟度 | 是否有对应测试 | 对外接口 | 关键局限 |
 |---|---|---|---|---|---|---|
-| 进化机制 | `jarvis/court/evolution.py` (2079) | 遗传算法主体：晋升/降级/试用/淘汰、克隆变异、SBX & 均匀交叉、自适应精英数、自适应变异率、灾变重置、系统性缺口探测 | 生产可用（机制层） | ✅ `test_evolution.py` (71 例)、`test_crossover.py`、`test_adaptive_evolution_rate.py`、`test_evolution_lifecycle.py` | `SurvivalMechanism.run_evolution_cycle/emperor_evolve` | **进化对象只有 6 个浮点数**（见下行）；**适应度输入损坏**（见 §3.4）；实测退化（见 §3.1） |
+| 进化机制 | `huanxin/court/evolution.py` (2079) | 遗传算法主体：晋升/降级/试用/淘汰、克隆变异、SBX & 均匀交叉、自适应精英数、自适应变异率、灾变重置、系统性缺口探测 | 生产可用（机制层） | ✅ `test_evolution.py` (71 例)、`test_crossover.py`、`test_adaptive_evolution_rate.py`、`test_evolution_lifecycle.py` | `SurvivalMechanism.run_evolution_cycle/emperor_evolve` | **进化对象只有 6 个浮点数**（见下行）；**适应度输入损坏**（见 §3.4）；实测退化（见 §3.1） |
 | 进化机制 | `MinisterGenome` (`evolution.py:229-252`) | 基因组定义 | — | ✅ `test_genome_store.py` | `GenomeStore.save/load` | 全部基因 = `temperature`/`confidence_baseline`/`exploration_rate`/`conservatism`/`prompt_mutation_rate`/`specialization_weight` + `generation`/`parent`。**没有提示词文本、没有工具集、没有策略结构、没有代码** |
-| 进化机制 | `jarvis/court/genome_injector.py` (240) | 基因 → `GenerationParams`（temperature/top_p/penalty/max_tokens）确定性映射 | 生产可用 | ✅ | `GenomeInjector.inject` | `prompt_mutation_active`（`:179`）计算后**在全库无任何消费点** —— 即"提示词变异"从未真正发生 |
-| 进化机制 | `jarvis/court/breeding.py` (1022) | 主动育种：缺口分析 → 策略选择 → 基因组生成 → 结果追踪 | 生产可用 | ✅ `test_breeding.py` (47 例) | `AutoBreeder.breed` | 同样只产出 6 维浮点基因组 |
-| 进化机制 | `jarvis/court/diversity.py` (341) | 种群多样性监控 + 灾变（大灭绝后重建） | 生产可用 | ✅ `test_diversity.py` | `DiversityMonitor.snapshot` | 多样性度量基于 6 维浮点向量 |
-| 进化机制 | `jarvis/court/merit_board.py` (422) | 功勋 = 成功率×40 + 平均置信×30 + 反馈×20 + 时近性×10，下限 10 | 生产可用 | ✅ `test_merit_board.py` | `MeritBoard.compute_merit` | 三项输入（成功/置信/反馈）在主链路中都退化为长度函数 |
-| 进化机制 | `jarvis/court/sliding_merit.py` (472) | 滑动窗口功勋，对近期表现更敏感 | 生产可用 | ✅ `test_sliding_merit.py` (56 例) | — | 同上 |
-| 进化机制 | `jarvis/court/history.py` (262) + `genome_store.py` (109) | 进化历史时序 + 基因组 JSON 原子持久化 | 生产可用 | ✅ `test_history.py`/`test_genome_store.py` | CSV/JSON 导出 | — |
-| 进化机制 | `jarvis/evolution/controller.py` (311) | **L1 提示词优化 / L2 模型选择 / L3 能力生长** 三层自进化 | **骨架** | ✅ `test_evolution.py` 部分 | `EvolutionController.optimize_prompts/optimize_model_routing/propose_capabilities` | ①`optimize_prompts:161-186`：识别出低成功率后注释 `# In production, this would invoke a meta-LLM to refine prompts / For now, log the optimization intent`，**只写一行 jsonl**；②`optimize_model_routing:188-208`：算出最佳模型后注释 `# In production, this updates config.model.task_model_map`，**不写回**；③`propose_capabilities:210-232`：返回中文建议字符串，**无执行**；④`PromptVariant` 类与 `self.prompt_variants` 定义后**全库零使用** |
-| 进化机制 | `jarvis/prompt_template.py` (537) | 提示词模板版本化 + 自动优化 | **骨架** | ✅ `test_...`(经 `/api/dashboard/templates/*`) | `auto_optimize(capability)` | `auto_optimize:336-410` 的"优化"= 从 8 条固定套话 `_OPTIMIZATION_PHRASES`（如"请确保回答准确、简洁、条理清晰。"）里 `random.choice` 追加一句 + 从固定示例池随机加一条 few-shot + **把 performance_score 直接强制抬到 0.62**（`max(score, 0.62)`）。这是伪进化：分数上升与效果无关 |
-| 进化机制 | `jarvis/evolution/__init__.py` | 包导出 | **空壳** | — | — | 仅一行 docstring，无任何导出 |
+| 进化机制 | `huanxin/court/genome_injector.py` (240) | 基因 → `GenerationParams`（temperature/top_p/penalty/max_tokens）确定性映射 | 生产可用 | ✅ | `GenomeInjector.inject` | `prompt_mutation_active`（`:179`）计算后**在全库无任何消费点** —— 即"提示词变异"从未真正发生 |
+| 进化机制 | `huanxin/court/breeding.py` (1022) | 主动育种：缺口分析 → 策略选择 → 基因组生成 → 结果追踪 | 生产可用 | ✅ `test_breeding.py` (47 例) | `AutoBreeder.breed` | 同样只产出 6 维浮点基因组 |
+| 进化机制 | `huanxin/court/diversity.py` (341) | 种群多样性监控 + 灾变（大灭绝后重建） | 生产可用 | ✅ `test_diversity.py` | `DiversityMonitor.snapshot` | 多样性度量基于 6 维浮点向量 |
+| 进化机制 | `huanxin/court/merit_board.py` (422) | 功勋 = 成功率×40 + 平均置信×30 + 反馈×20 + 时近性×10，下限 10 | 生产可用 | ✅ `test_merit_board.py` | `MeritBoard.compute_merit` | 三项输入（成功/置信/反馈）在主链路中都退化为长度函数 |
+| 进化机制 | `huanxin/court/sliding_merit.py` (472) | 滑动窗口功勋，对近期表现更敏感 | 生产可用 | ✅ `test_sliding_merit.py` (56 例) | — | 同上 |
+| 进化机制 | `huanxin/court/history.py` (262) + `genome_store.py` (109) | 进化历史时序 + 基因组 JSON 原子持久化 | 生产可用 | ✅ `test_history.py`/`test_genome_store.py` | CSV/JSON 导出 | — |
+| 进化机制 | `huanxin/evolution/controller.py` (311) | **L1 提示词优化 / L2 模型选择 / L3 能力生长** 三层自进化 | **骨架** | ✅ `test_evolution.py` 部分 | `EvolutionController.optimize_prompts/optimize_model_routing/propose_capabilities` | ①`optimize_prompts:161-186`：识别出低成功率后注释 `# In production, this would invoke a meta-LLM to refine prompts / For now, log the optimization intent`，**只写一行 jsonl**；②`optimize_model_routing:188-208`：算出最佳模型后注释 `# In production, this updates config.model.task_model_map`，**不写回**；③`propose_capabilities:210-232`：返回中文建议字符串，**无执行**；④`PromptVariant` 类与 `self.prompt_variants` 定义后**全库零使用** |
+| 进化机制 | `huanxin/prompt_template.py` (537) | 提示词模板版本化 + 自动优化 | **骨架** | ✅ `test_...`(经 `/api/dashboard/templates/*`) | `auto_optimize(capability)` | `auto_optimize:336-410` 的"优化"= 从 8 条固定套话 `_OPTIMIZATION_PHRASES`（如"请确保回答准确、简洁、条理清晰。"）里 `random.choice` 追加一句 + 从固定示例池随机加一条 few-shot + **把 performance_score 直接强制抬到 0.62**（`max(score, 0.62)`）。这是伪进化：分数上升与效果无关 |
+| 进化机制 | `huanxin/evolution/__init__.py` | 包导出 | **空壳** | — | — | 仅一行 docstring，无任何导出 |
 
 #### 1.8 安全与治理
 
 | 能力域 | 模块路径 | 核心职责 | 成熟度 | 是否有对应测试 | 对外接口 | 关键局限 |
 |---|---|---|---|---|---|---|
-| 安全与治理 | `jarvis/approval.py` (503) | HITL 审批闸门：风险分级 + 策略匹配 + 审批生命周期 | 生产可用 | ✅ `test_approval.py` | 主链路 `emperor.py:785-803`、`/api/approvals/*` (6 路由) | **主链路唯一真正会中断执行的护栏**（返回 `pending_approval`）。风险分级 `classify_risk` 为关键词规则 |
-| 安全与治理 | `jarvis/rbac.py` (384) | 角色-权限模型 | 生产可用 | ✅ `test_rbac.py` | 主链路（仅当显式传 `required_permission`）、`/api/rbac/*` | **`required_permission` 默认 `None`**，主链路默认不做 RBAC 检查 |
-| 安全与治理 | `jarvis/prompt_guard.py` (708) | 前置注入防御：指令覆盖/角色劫持/提示提取/越狱/编码混淆 | 基本可用 | ✅ `test_prompt_guard.py` | 主链路 `emperor.py:805-830` | **检出 `dangerous` 后只 `logger.warning`，没有 `return`/`raise`，执行继续**（`emperor.py:824-829`）—— 名为 Guard，实为 Logger |
-| 安全与治理 | `jarvis/bounded_autonomy.py` (579) | 三区行动空间 GREEN(自动)/YELLOW(审批)/RED(禁止) | 基本可用 | ✅（间接） | `/autonomy/spaces`、`/autonomy/stats` | **全库执行路径零调用**，仅 `court_api.py` 与 `__init__.py` 引用。三区模型目前是一个"可通过 REST 查询的分类器"，不是闸门 |
-| 安全与治理 | `jarvis/governance_agent.py` (506) | 治理规则引擎（政策合规/RBAC/法规/业务逻辑 4 类，4 级优先级）+ 审批联动 + 审计 | 基本可用 | ✅ `test_governance_api.py` | `/governance/rules`、`/api/governance/rules` | 同样**未接入执行路径**，只被 `bounded_autonomy`/`hallucination_detector`/`tool_guard` 这三个同样未接线的模块引用 —— 形成一个**互相引用但整体悬空的治理子图** |
-| 安全与治理 | `jarvis/governance_store.py` (137) | 治理规则持久化 | 生产可用 | ✅ | — | — |
-| 安全与治理 | `jarvis/loop_guard.py` (415) | 迭代上限(20) + 成本上限($5) + 死循环检测(3 次相同动作) | 基本可用 | ✅ `test_loop_guard.py` | 主链路 `emperor.py:731`、`:1096-1103` | 设计给 agent loop 用，但**主链路无循环**，`check_iteration` 每任务只调一次；`check_cost` 的成本来自 `_task_cost`，而该值恒为 0（见下） |
-| 安全与治理 | `jarvis/audit.py` (448) | 不可篡改审计日志 | 生产可用 | ✅ | `/api/dashboard/audit/*` (3 路由) | `audit.db` 实测 1,494 条真实记录 |
+| 安全与治理 | `huanxin/approval.py` (503) | HITL 审批闸门：风险分级 + 策略匹配 + 审批生命周期 | 生产可用 | ✅ `test_approval.py` | 主链路 `emperor.py:785-803`、`/api/approvals/*` (6 路由) | **主链路唯一真正会中断执行的护栏**（返回 `pending_approval`）。风险分级 `classify_risk` 为关键词规则 |
+| 安全与治理 | `huanxin/rbac.py` (384) | 角色-权限模型 | 生产可用 | ✅ `test_rbac.py` | 主链路（仅当显式传 `required_permission`）、`/api/rbac/*` | **`required_permission` 默认 `None`**，主链路默认不做 RBAC 检查 |
+| 安全与治理 | `huanxin/prompt_guard.py` (708) | 前置注入防御：指令覆盖/角色劫持/提示提取/越狱/编码混淆 | 基本可用 | ✅ `test_prompt_guard.py` | 主链路 `emperor.py:805-830` | **检出 `dangerous` 后只 `logger.warning`，没有 `return`/`raise`，执行继续**（`emperor.py:824-829`）—— 名为 Guard，实为 Logger |
+| 安全与治理 | `huanxin/bounded_autonomy.py` (579) | 三区行动空间 GREEN(自动)/YELLOW(审批)/RED(禁止) | 基本可用 | ✅（间接） | `/autonomy/spaces`、`/autonomy/stats` | **全库执行路径零调用**，仅 `court_api.py` 与 `__init__.py` 引用。三区模型目前是一个"可通过 REST 查询的分类器"，不是闸门 |
+| 安全与治理 | `huanxin/governance_agent.py` (506) | 治理规则引擎（政策合规/RBAC/法规/业务逻辑 4 类，4 级优先级）+ 审批联动 + 审计 | 基本可用 | ✅ `test_governance_api.py` | `/governance/rules`、`/api/governance/rules` | 同样**未接入执行路径**，只被 `bounded_autonomy`/`hallucination_detector`/`tool_guard` 这三个同样未接线的模块引用 —— 形成一个**互相引用但整体悬空的治理子图** |
+| 安全与治理 | `huanxin/governance_store.py` (137) | 治理规则持久化 | 生产可用 | ✅ | — | — |
+| 安全与治理 | `huanxin/loop_guard.py` (415) | 迭代上限(20) + 成本上限($5) + 死循环检测(3 次相同动作) | 基本可用 | ✅ `test_loop_guard.py` | 主链路 `emperor.py:731`、`:1096-1103` | 设计给 agent loop 用，但**主链路无循环**，`check_iteration` 每任务只调一次；`check_cost` 的成本来自 `_task_cost`，而该值恒为 0（见下） |
+| 安全与治理 | `huanxin/audit.py` (448) | 不可篡改审计日志 | 生产可用 | ✅ | `/api/dashboard/audit/*` (3 路由) | `audit.db` 实测 1,494 条真实记录 |
 
 #### 1.9 可观测与成本
 
 | 能力域 | 模块路径 | 核心职责 | 成熟度 | 是否有对应测试 | 对外接口 | 关键局限 |
 |---|---|---|---|---|---|---|
-| 可观测与成本 | `jarvis/tracer.py` (446) | OTel 风格 Span 生命周期 + 父子上下文 + 可插拔 exporter | 生产可用 | ✅ `test_tracer.py` | `/api/traces/*` (3 路由) | 自实现，非真 OTel SDK，无法接 Jaeger/Tempo |
-| 可观测与成本 | `jarvis/guardrail_telemetry.py` (285) | 护栏事件遥测（PRE_LLM/POST_LLM/loop_guard） | 生产可用 | ✅ `test_guardrail_telemetry.py` | `/api/dashboard/guardrail-health` | 记录的多是 "allowed"，因为护栏本身不拦截 |
-| 可观测与成本 | `jarvis/cost_tracker.py` (267) | 按模型记录 token 与费用 | 生产可用 | ✅ `test_cost_tracker.py` | `/api/costs/*` (3 路由) | **实测 `cost_records.json` 18 条记录的 `task_id` 全为空串**，来源是 `multi_model._simulate_call:437-443` 的模拟调用 |
-| 可观测与成本 | `jarvis/cost_per_success.py` (457) | 单次成功成本、成功率、token 效率 | 生产可用 | ✅ `test_cost_per_success.py` | `/api/dashboard/cost-efficiency` | 主链路 `emperor.py:1073-1082` 用 `r.task_id == task_id` 关联成本，而成本记录 `task_id=""` → **恒不匹配 → `_task_cost` 恒为 0**（205 条 outcome 记录印证） |
-| 可观测与成本 | `jarvis/multi_model.py` (588) | 多模型路由（cheapest/fastest/best/consensus）+ 并行/集成调用 + 基准 | 基本可用 | ✅ `test_multi_model.py` | `/api/models`、`/api/models/benchmark` | `_simulate_call:394-457` —— **"Simulate a model call (returns canned response for testing). In production, this would be replaced with actual API calls."** 返回 `f"[{model.display_name}] Response to: {prompt}..."`，延迟用 `hash(prompt)%200` 模拟 |
-| 可观测与成本 | `jarvis/core/router.py` (218) | 成本感知三档路由 cheap/standard/premium | 基本可用 | ✅ `test_router.py` | `ModelRouter.route/report` | **纯正则**（`_CHEAP_PATTERNS`/`_PREMIUM_PATTERNS` 各 9-10 条）；`route()` 只返回 `model_id` 字符串并累加统计，**不发起任何调用、不把 model_id 传给任何执行器**；"节省成本"是按 `premium_cost - tier_cost` 累加的**推算值**，非实测 |
-| 可观测与成本 | `jarvis/dashboard_html.py` (6997) | 单文件内嵌仪表盘（面板/图表/SSE） | 生产可用 | ✅ `test_dashboard*.py` ×3 | `/dashboard` | 单文件 7k 行、HTML/CSS/JS 内嵌于 Python 字符串，维护性极差 |
-| 可观测与成本 | `jarvis/health.py` (192) / `alerts.py` (467) / `alert_rule_store.py` (145) | 健康检查、阈值告警、规则持久化 | 生产可用 | ✅ `test_health.py`/`test_alerts*.py` | `/api/health`、`/api/alerts/rules` | — |
-| 可观测与成本 | `jarvis/event_bus.py` (87) / `event_publisher.py` (161) / `events/stream.py` | 内部事件总线 + SSE 推送 | 生产可用 | ✅ `test_event_bus.py`/`test_sse_endpoint.py` | `/api/events` | 与 `hermes/bus.py` 是两套总线 |
+| 可观测与成本 | `huanxin/tracer.py` (446) | OTel 风格 Span 生命周期 + 父子上下文 + 可插拔 exporter | 生产可用 | ✅ `test_tracer.py` | `/api/traces/*` (3 路由) | 自实现，非真 OTel SDK，无法接 Jaeger/Tempo |
+| 可观测与成本 | `huanxin/guardrail_telemetry.py` (285) | 护栏事件遥测（PRE_LLM/POST_LLM/loop_guard） | 生产可用 | ✅ `test_guardrail_telemetry.py` | `/api/dashboard/guardrail-health` | 记录的多是 "allowed"，因为护栏本身不拦截 |
+| 可观测与成本 | `huanxin/cost_tracker.py` (267) | 按模型记录 token 与费用 | 生产可用 | ✅ `test_cost_tracker.py` | `/api/costs/*` (3 路由) | **实测 `cost_records.json` 18 条记录的 `task_id` 全为空串**，来源是 `multi_model._simulate_call:437-443` 的模拟调用 |
+| 可观测与成本 | `huanxin/cost_per_success.py` (457) | 单次成功成本、成功率、token 效率 | 生产可用 | ✅ `test_cost_per_success.py` | `/api/dashboard/cost-efficiency` | 主链路 `emperor.py:1073-1082` 用 `r.task_id == task_id` 关联成本，而成本记录 `task_id=""` → **恒不匹配 → `_task_cost` 恒为 0**（205 条 outcome 记录印证） |
+| 可观测与成本 | `huanxin/multi_model.py` (588) | 多模型路由（cheapest/fastest/best/consensus）+ 并行/集成调用 + 基准 | 基本可用 | ✅ `test_multi_model.py` | `/api/models`、`/api/models/benchmark` | `_simulate_call:394-457` —— **"Simulate a model call (returns canned response for testing). In production, this would be replaced with actual API calls."** 返回 `f"[{model.display_name}] Response to: {prompt}..."`，延迟用 `hash(prompt)%200` 模拟 |
+| 可观测与成本 | `huanxin/core/router.py` (218) | 成本感知三档路由 cheap/standard/premium | 基本可用 | ✅ `test_router.py` | `ModelRouter.route/report` | **纯正则**（`_CHEAP_PATTERNS`/`_PREMIUM_PATTERNS` 各 9-10 条）；`route()` 只返回 `model_id` 字符串并累加统计，**不发起任何调用、不把 model_id 传给任何执行器**；"节省成本"是按 `premium_cost - tier_cost` 累加的**推算值**，非实测 |
+| 可观测与成本 | `huanxin/dashboard_html.py` (6997) | 单文件内嵌仪表盘（面板/图表/SSE） | 生产可用 | ✅ `test_dashboard*.py` ×3 | `/dashboard` | 单文件 7k 行、HTML/CSS/JS 内嵌于 Python 字符串，维护性极差 |
+| 可观测与成本 | `huanxin/health.py` (192) / `alerts.py` (467) / `alert_rule_store.py` (145) | 健康检查、阈值告警、规则持久化 | 生产可用 | ✅ `test_health.py`/`test_alerts*.py` | `/api/health`、`/api/alerts/rules` | — |
+| 可观测与成本 | `huanxin/event_bus.py` (87) / `event_publisher.py` (161) / `events/stream.py` | 内部事件总线 + SSE 推送 | 生产可用 | ✅ `test_event_bus.py`/`test_sse_endpoint.py` | `/api/events` | 与 `hermes/bus.py` 是两套总线 |
 
 #### 1.10 运维与自愈
 
 | 能力域 | 模块路径 | 核心职责 | 成熟度 | 是否有对应测试 | 对外接口 | 关键局限 |
 |---|---|---|---|---|---|---|
-| 运维与自愈 | `jarvis/healing.py` (547) | 告警驱动自愈：动作注册、冷却、降级链、策略切换、效果追踪 | 生产可用 | ✅ `test_healing*.py` ×3 | `/api/healing/*` (6 路由) | 自愈动作是**预定义**的运维动作，非自主生成 |
-| 运维与自愈 | `jarvis/healing_actions.py` (251) | 预置动作：重启调度器、紧急进化等 | 生产可用 | ✅ | — | 动作集固定 |
-| 运维与自愈 | `jarvis/failure_recovery.py` (618) | 步骤级恢复：错误分类(TRANSIENT/PERMANENT/DEGRADABLE) + 指数退避 + 三态熔断 + 降级策略 | 生产可用 | ✅ `test_failure_recovery.py` (64 例) | `/recovery/*` (2 路由) | 已接入 `ServicePipeline`；**未接入 `execute_task`** |
-| 运维与自愈 | `jarvis/database.py` (286) | sqlite3 持久化（task/evolution/alert 历史） | 生产可用 | ✅ `test_database.py` | — | 单文件 sqlite，WAL 已达 2.9MB/4.1MB，无归档策略 |
+| 运维与自愈 | `huanxin/healing.py` (547) | 告警驱动自愈：动作注册、冷却、降级链、策略切换、效果追踪 | 生产可用 | ✅ `test_healing*.py` ×3 | `/api/healing/*` (6 路由) | 自愈动作是**预定义**的运维动作，非自主生成 |
+| 运维与自愈 | `huanxin/healing_actions.py` (251) | 预置动作：重启调度器、紧急进化等 | 生产可用 | ✅ | — | 动作集固定 |
+| 运维与自愈 | `huanxin/failure_recovery.py` (618) | 步骤级恢复：错误分类(TRANSIENT/PERMANENT/DEGRADABLE) + 指数退避 + 三态熔断 + 降级策略 | 生产可用 | ✅ `test_failure_recovery.py` (64 例) | `/recovery/*` (2 路由) | 已接入 `ServicePipeline`；**未接入 `execute_task`** |
+| 运维与自愈 | `huanxin/database.py` (286) | sqlite3 持久化（task/evolution/alert 历史） | 生产可用 | ✅ `test_database.py` | — | 单文件 sqlite，WAL 已达 2.9MB/4.1MB，无归档策略 |
 
 #### 1.11 接口与集成
 
 | 能力域 | 模块路径 | 核心职责 | 成熟度 | 是否有对应测试 | 对外接口 | 关键局限 |
 |---|---|---|---|---|---|---|
-| 接口与集成 | `jarvis/court_api.py` (3901) | FastAPI 主服务，**172 个路由** | 生产可用 | ✅ `test_court_api.py` (44 例) 等 | 见 §4.5 | 单文件 3.9k 行；**7 个路由误用 Flask 风格 `<param>`**（见 §3.5）；`/api/*` 与无前缀路由双份并存 |
-| 接口与集成 | `jarvis/api/` (695) | JARVIS 侧第二套 FastAPI（`/api/execute`、`/ws`） | 生产可用 | ✅ `test_api.py` | REST + WebSocket | 与 `court_api.py` 完全独立、职责重叠 |
-| 接口与集成 | `jarvis/cli.py` (319) / `emperor_cli.py` (840) | 两套 CLI | 生产可用 | ✅ `test_cli.py` | `jarvis serve/task/status/ministers/evolve/alerts` | `pyproject` 的 `jarvis` 与 `emperor` 两个 entry point 都指向 `jarvis.cli:main`，`emperor_cli.py`(840 行) **未被 entry point 引用** |
-| 接口与集成 | `jarvis/hermes/` (457) | 异步 pub/sub + request/reply 消息总线，事件溯源 | 生产可用 | ✅ `test_hermes.py` | Topic 通配订阅 | — |
-| 接口与集成 | `jarvis/hermes_agent/` (484) | 把 Hermes 主题暴露为 MCP 工具 | 生产可用 | ✅ `test_hermes_agent.py` | MCP stdio | — |
-| 接口与集成 | `jarvis/consensus/` (820) | 多智能体辩论与共识（多数/加权/辩论轮） | 生产可用 | ✅ `test_consensus.py` | `Emperor.deliberate` | `strategies.py:385-459` 的 `llm_callback` 默认 `None`，无 LLM 时走规则合并 |
-| 接口与集成 | `jarvis/domains/` (382, 8 域) | 8 个领域模块（personal/research/engineering/creator/security/health/finance/home） | **骨架** | ✅ `test_domains.py` | `DomainModule.handle` | 每个域 42-64 行；实现模式统一为「中文关键词 if-elif 填一个 `data` 字典 → `await get_llm().complete(text, domain=...)`」，**无领域专属工具、无领域知识** |
-| 接口与集成 | `jarvis/compat/` (555) | 信创适配：算力设备检测、平台/芯片识别 | 生产可用 | ✅ `test_compat.py` (46 例) | `ComputeAdapter.detect` | — |
-| 接口与集成 | `jarvis/i18n/` (270) | 中英双语 | 生产可用 | ✅ `test_i18n.py` (45 例) | `I18nEngine.get` | — |
-| 接口与集成 | `jarvis/demo.py` (105) | 演示模式 | 生产可用 | ✅ | `main.py --mode demo` | — |
+| 接口与集成 | `huanxin/court_api.py` (3901) | FastAPI 主服务，**172 个路由** | 生产可用 | ✅ `test_court_api.py` (44 例) 等 | 见 §4.5 | 单文件 3.9k 行；**7 个路由误用 Flask 风格 `<param>`**（见 §3.5）；`/api/*` 与无前缀路由双份并存 |
+| 接口与集成 | `huanxin/api/` (695) | HUANXIN 侧第二套 FastAPI（`/api/execute`、`/ws`） | 生产可用 | ✅ `test_api.py` | REST + WebSocket | 与 `court_api.py` 完全独立、职责重叠 |
+| 接口与集成 | `huanxin/cli.py` (319) / `emperor_cli.py` (840) | 两套 CLI | 生产可用 | ✅ `test_cli.py` | `huanxin serve/task/status/ministers/evolve/alerts` | `pyproject` 的 `huanxin` 与 `emperor` 两个 entry point 都指向 `huanxin.cli:main`，`emperor_cli.py`(840 行) **未被 entry point 引用** |
+| 接口与集成 | `huanxin/hermes/` (457) | 异步 pub/sub + request/reply 消息总线，事件溯源 | 生产可用 | ✅ `test_hermes.py` | Topic 通配订阅 | — |
+| 接口与集成 | `huanxin/hermes_agent/` (484) | 把 Hermes 主题暴露为 MCP 工具 | 生产可用 | ✅ `test_hermes_agent.py` | MCP stdio | — |
+| 接口与集成 | `huanxin/consensus/` (820) | 多智能体辩论与共识（多数/加权/辩论轮） | 生产可用 | ✅ `test_consensus.py` | `Huanxin.deliberate` | `strategies.py:385-459` 的 `llm_callback` 默认 `None`，无 LLM 时走规则合并 |
+| 接口与集成 | `huanxin/domains/` (382, 8 域) | 8 个领域模块（personal/research/engineering/creator/security/health/finance/home） | **骨架** | ✅ `test_domains.py` | `DomainModule.handle` | 每个域 42-64 行；实现模式统一为「中文关键词 if-elif 填一个 `data` 字典 → `await get_llm().complete(text, domain=...)`」，**无领域专属工具、无领域知识** |
+| 接口与集成 | `huanxin/compat/` (555) | 信创适配：算力设备检测、平台/芯片识别 | 生产可用 | ✅ `test_compat.py` (46 例) | `ComputeAdapter.detect` | — |
+| 接口与集成 | `huanxin/i18n/` (270) | 中英双语 | 生产可用 | ✅ `test_i18n.py` (45 例) | `I18nEngine.get` | — |
+| 接口与集成 | `huanxin/demo.py` (105) | 演示模式 | 生产可用 | ✅ | `main.py --mode demo` | — |
 
 #### 1.12 成熟度汇总
 
@@ -1284,7 +1284,7 @@ CI 中以 `check_write_protect` 反向校验：**除 `jarvis/vcs/git_channel.py`
 | **生产可用** | **62** | court GA 机制层、capability、tools、sandbox、mcp、memory/rag/graph_rag、workflow、pipeline、audit、tracer、healing、failure_recovery、court_api、hermes、approval、rbac、database |
 | **基本可用** | **26** | reflexion、court/reflection、hallucination_guard/detector、llm_judge、agent_eval、prompt_guard、bounded_autonomy、governance_agent、tool_guard、tool validator、multi_model、core/router、mcp_manager、context_compressor、context_versioning、loop_guard、court/memory、router、core/orchestrator、core/workflow、multimodal(未接线)、vscode、handoff(不触发)、IntentParser、consensus、eval(题库偏窄) |
 | **骨架** | **6** | `evolution/controller.py`、`codex/generator.py`、`prompt_template.auto_optimize`、`court/task_engine.py`、`domains/*`(8 个域按 1 条计)、`sandbox/manager.py` |
-| **空壳** | **5** | `jarvis/domains/__init__.py`(0 字节)、`jarvis/evolution/__init__.py`(仅 docstring)、`PromptVariant`/`prompt_variants`(定义未用)、`prompt_mutation_active`(计算未消费)、`jarvis/eval.py.bak`(残留) |
+| **空壳** | **5** | `huanxin/domains/__init__.py`(0 字节)、`huanxin/evolution/__init__.py`(仅 docstring)、`PromptVariant`/`prompt_variants`(定义未用)、`prompt_mutation_active`(计算未消费)、`huanxin/eval.py.bak`(残留) |
 | **不存在** | — | 自我代码修改 / 补丁生成 / 自动 PR / 自主目标生成 / 真实 agent loop |
 
 合计条目 **99**（含"不存在"项另计）。
@@ -1375,10 +1375,10 @@ graph LR
 
 | # | 断边 | 具体位置 | 断裂原因 |
 |---|---|---|---|
-| B1 | **执行 → 真实 LLM** | `emperor.py:192-195` → `task_engine.py:130,475` | `TaskEngine` 构造时未注入 `llm`，落到 `_default_llm_backend` mock。`jarvis/llm/engine.py` 的真实引擎与 `court/providers/*` 只服务 `ImperialCourt.receive_petition`，主链路不经过 |
+| B1 | **执行 → 真实 LLM** | `emperor.py:192-195` → `task_engine.py:130,475` | `TaskEngine` 构造时未注入 `llm`，落到 `_default_llm_backend` mock。`huanxin/llm/engine.py` 的真实引擎与 `court/providers/*` 只服务 `ImperialCourt.receive_petition`，主链路不经过 |
 | B2 | **执行 → 无循环** | `emperor.py:881` | `outcome = self._task_engine.execute(req, ...)` 是**单次调用**，其后无 while/for。因此 ReAct/Plan-Act-Observe 不存在，`loop_guard.check_iteration` 每任务恒调用 1 次 |
 | B3 | **路由决策 → 执行** | `emperor.py:834-844`、`:850-866`、`:881` | `_smart_cap/_smart_tier/_smart_chain` 三个变量算完只进 `logger.debug`；`_route_decision` 只写入返回 dict 的 `route_*` 字段。真正传给 `execute()` 的 `minister=_preselected_minister` 仅在显式传 `required_permission` 时非 None。**两套路由对实际选臣零影响** |
-| B4 | **选臣 → 领域匹配** | `task_engine.py:352-376` | 领域匹配循环体是字面量 `pass`（带注释 "We can't easily access genome domain from active list"），直接 fallback 到 `merit_ranking[0]`。实测 `jarvis.db` 中 150/150 任务全由 `confucius` 一人执行 |
+| B4 | **选臣 → 领域匹配** | `task_engine.py:352-376` | 领域匹配循环体是字面量 `pass`（带注释 "We can't easily access genome domain from active list"），直接 fallback 到 `merit_ranking[0]`。实测 `huanxin.db` 中 150/150 任务全由 `confucius` 一人执行 |
 | B5 | **观察 → 成本** | `emperor.py:1073-1078` vs `multi_model.py:437-443` | 成本记录写入时 `task_id=""`，主链路按 `r.task_id == task_id` 过滤 → 永不匹配 → `_task_cost` 恒 0 → `loop_guard.check_cost` 与 `cost_per_success` 双双失效。`outcome_records.json` 中 205/205 条 `cost_usd=0.0` 为证 |
 | B6 | **观察 → 评估（适应度）** | `task_engine.py:96-110` | `_simple_confidence = 0.3 + min(len/2000, 0.3) (+0.35 若 expected 命中)`。主链路不传 `expected` → **置信度纯粹是响应长度的单调函数**；`success = confidence > 0.3` → 只要有非空输出就成功。实测 205/205 成功、confidence 集中在 0.34~0.39 |
 | B7 | **评估 → 进化（信号污染）** | `merit_board.py:170-205` | merit = 成功率×40 + 平均置信×30 + 反馈×20 + 时近×10。前两项来自 B6 的长度函数，第三项默认 0.5。**GA 实际在优化"输出更长"** |
@@ -1416,7 +1416,7 @@ graph LR
 
 #### 3.1 实测：进化机制已进入退化状态
 
-`jarvis.db.evolution_history` 全表统计：
+`huanxin.db.evolution_history` 全表统计：
 
 | 指标 | 实测值 |
 |---|---|
@@ -1430,15 +1430,15 @@ graph LR
 
 #### 3.2 真的能跑的核心资产（建议保留并作为地基）
 
-1. **`jarvis/court/evolution.py` 的 GA 机制层**（2079 行）—— SBX/均匀交叉、自适应精英数、自适应变异率、多样性监控、灾变重置，算法实现完整且有 71 个测试。**问题只在输入信号，不在机制本身**。这是全库最有价值的资产。
-2. **`jarvis/capability.py`** —— 12 个能力有真实外部副作用，`jarvis.db` 中天气能力实测返回真实数据（"📍 上海 🌡 28°C…"）。
-3. **`jarvis/sandbox/`** —— 三模式（exec/subprocess/docker）执行器 + 三级安全策略，72 个测试，是未来"验证"环节的现成基础设施。
-4. **`jarvis/llm/engine.py`** —— 基于 litellm 的多 provider 引擎，**已内建 5 轮 function-calling 循环**（`_MAX_FC_ROUNDS = 5`）。这意味着"真实 agent loop"的零件已经有了，只是没插上。
-5. **`jarvis/tools/` + `jarvis/mcp/`** —— 工具抽象、schema 生成、MCP 熔断/注册/Server，98+45 个测试。
-6. **`jarvis/rag/` + `memory/engine.py` + `graph_rag.py`** —— 真实的 Chroma/BM25/RRF/KG 检索栈。
-7. **`jarvis/failure_recovery.py`** —— 错误分类 + 退避 + 三态熔断 + 降级，64 个测试，工程质量高。
-8. **`jarvis/codex/analyzer.py`** —— 真实 AST 分析（圈复杂度、嵌套深度、坏味道），是未来代码自进化的可用零件。
-9. **审计/追踪/持久化三件套** —— `audit.db` 1494 条、`jarvis.db` 150+192 条真实记录，说明系统确实跑起来过。
+1. **`huanxin/court/evolution.py` 的 GA 机制层**（2079 行）—— SBX/均匀交叉、自适应精英数、自适应变异率、多样性监控、灾变重置，算法实现完整且有 71 个测试。**问题只在输入信号，不在机制本身**。这是全库最有价值的资产。
+2. **`huanxin/capability.py`** —— 12 个能力有真实外部副作用，`huanxin.db` 中天气能力实测返回真实数据（"📍 上海 🌡 28°C…"）。
+3. **`huanxin/sandbox/`** —— 三模式（exec/subprocess/docker）执行器 + 三级安全策略，72 个测试，是未来"验证"环节的现成基础设施。
+4. **`huanxin/llm/engine.py`** —— 基于 litellm 的多 provider 引擎，**已内建 5 轮 function-calling 循环**（`_MAX_FC_ROUNDS = 5`）。这意味着"真实 agent loop"的零件已经有了，只是没插上。
+5. **`huanxin/tools/` + `huanxin/mcp/`** —— 工具抽象、schema 生成、MCP 熔断/注册/Server，98+45 个测试。
+6. **`huanxin/rag/` + `memory/engine.py` + `graph_rag.py`** —— 真实的 Chroma/BM25/RRF/KG 检索栈。
+7. **`huanxin/failure_recovery.py`** —— 错误分类 + 退避 + 三态熔断 + 降级，64 个测试，工程质量高。
+8. **`huanxin/codex/analyzer.py`** —— 真实 AST 分析（圈复杂度、嵌套深度、坏味道），是未来代码自进化的可用零件。
+9. **审计/追踪/持久化三件套** —— `audit.db` 1494 条、`huanxin.db` 150+192 条真实记录，说明系统确实跑起来过。
 
 #### 3.3 看起来有、实际是骨架的模块
 
@@ -1480,7 +1480,7 @@ merit   = confidence * 100
 
 | 怀疑对象 | 核实结论 | 依据 |
 |---|---|---|
-| `eval/` vs `evaluation/` | ✅ **确实重叠但不完全**。`eval/`(2011 行) 是通用 Eval 框架 + 4 个基准；`evaluation/`(736 行) 是 Per-Agent 评测。后者在 docstring 里声明"Integrates with jarvis.eval.EvalSuite/EvalRunner"，但代码中**未 import** `jarvis.eval` 的任何符号，是平行的第二套。建议合并 | `eval/__init__.py:1-30`、`evaluation/agent_eval.py:16-21` |
+| `eval/` vs `evaluation/` | ✅ **确实重叠但不完全**。`eval/`(2011 行) 是通用 Eval 框架 + 4 个基准；`evaluation/`(736 行) 是 Per-Agent 评测。后者在 docstring 里声明"Integrates with huanxin.eval.EvalSuite/EvalRunner"，但代码中**未 import** `huanxin.eval` 的任何符号，是平行的第二套。建议合并 | `eval/__init__.py:1-30`、`evaluation/agent_eval.py:16-21` |
 | `plugin` vs `plugin_system` vs `plugin_marketplace` | ✅ **三套并存 + 命名冲突**。`plugin.py`(生命周期钩子，主链路真实使用) / `plugin_system.py`(manifest+热加载，**同样定义了 `PluginManager` 类**，`emperor.py:210` 需 `as PluginSystemManager` 别名规避) / `plugin_marketplace.py`(安装状态目录)。另有 `plugins/`(2 个实体插件) 和 `capability.py`(第四套扩展机制) 和 `tools/registry`(第五套) 和 `mcp`(第六套) | `emperor.py:206-215` |
 | `hallucination_guard` vs `hallucination_detector` | ✅ **确实重叠且类名冲突**。两个文件各自定义了名为 `HallucinationDetector` 的类（898 行 / 829 行）。`hallucination_guard` 走"逐句检测+自纠正循环"，`hallucination_detector` 走"多次采样一致性+声明验证+风险分级+治理联动"。主链路只用前者的 `check()` | 两文件 docstring 与 `grep -rn HallucinationDetector` |
 | `memory` vs `hierarchical_memory` | ✅ **重叠，且实际是五套**。①`memory/engine.py`(Chroma/TF-IDF/Jaccard) ②`memory/vector_store.py`(独立 Chroma) ③`memory/manager.py`(类型槽位+衰减) ④`hierarchical_memory.py`(五层认知，包装 ①+graph_rag) ⑤`court/memory.py`(关键词相似+时间衰减，**完全不复用前四者**)。另有两套 KG：`graph_rag.py` 与 `knowledge/graph.py` | `memory/__init__.py`、`hierarchical_memory.py:12`、`court/memory.py:16-20` |
@@ -1489,9 +1489,9 @@ merit   = confidence * 100
 
 | 重叠 | 说明 |
 |---|---|
-| **两套完整系统并存** | Track A "JARVIS"：`jarvis/main.py` → `core.integration.SystemIntegration` → `core/orchestrator` + Hermes + Codex + VSCode + `evolution/controller` + `api/`。Track B "Emperor"：根 `main.py` / `jarvis/cli.py` → `emperor.Emperor` → `court/*` + `court_api.py` + dashboard。**两者几乎不共享执行路径**，Dockerfile 只启动 Track B |
+| **两套完整系统并存** | Track A "HUANXIN"：`huanxin/main.py` → `core.integration.SystemIntegration` → `core/orchestrator` + Hermes + Codex + VSCode + `evolution/controller` + `api/`。Track B "Huanxin"：根 `main.py` / `huanxin/cli.py` → `emperor.Huanxin` → `court/*` + `court_api.py` + dashboard。**两者几乎不共享执行路径**，Dockerfile 只启动 Track B |
 | 两套编排器 | `core/orchestrator.Orchestrator` vs `court/orchestrator.CourtOrchestrator` |
-| 两套工作流引擎 | `jarvis/workflow/` vs `jarvis/core/workflow.py`（同名 `WorkflowEngine`） |
+| 两套工作流引擎 | `huanxin/workflow/` vs `huanxin/core/workflow.py`（同名 `WorkflowEngine`） |
 | 两套 API 服务 | `court_api.py`(172 路由) vs `api/`(REST+WS) |
 | 两套消息总线 | `hermes/bus.py` vs `event_bus.py` |
 | 两套 CLI | `cli.py`(319) vs `emperor_cli.py`(840，**未被任何 entry point 引用**) |
@@ -1514,11 +1514,11 @@ merit   = confidence * 100
 | 10 | CI 排除了 `test_core.py` 与 `test_e2e_integration.py`（两个最偏集成的文件） | 🟠 中 | `.github/workflows/ci.yml:53-54` |
 | 11 | CI 使用 `--timeout 120`，但 `pytest-timeout` **未在 `[dev]` 或 requirements 中声明** → CI 测试步骤大概率报 `unrecognized arguments`（未实跑验证，标记为高置信推断） | 🟠 中 | `pyproject.toml:[dev]`、`ci.yml:53` |
 | 12 | 声明依赖但零使用：`gitpython`、`textgrad`、`celery`、`asyncpg`、`redis`（`textgrad` 在 mypy overrides 中列出却无 import） | 🟡 低中 | `grep -rn "import git\|textgrad"` |
-| 13 | 数据库无归档：`audit.db-wal` 4.1MB、`jarvis.db-wal` 2.9MB，且 `.db` 文件被提交进仓库 | 🟠 中 | `ls -la` |
+| 13 | 数据库无归档：`audit.db-wal` 4.1MB、`huanxin.db-wal` 2.9MB，且 `.db` 文件被提交进仓库 | 🟠 中 | `ls -la` |
 | 14 | `versions/` 累积 324 个空快照且无清理策略 | 🟡 低中 | §1.3 |
-| 15 | 残留文件 `jarvis/eval.py.bak`、`docs/architecture.md` 与 `docs/ARCHITECTURE.md` 并存（Windows 大小写不敏感，Linux 上会是两个文件） | 🟡 低 | `ls` |
-| 16 | `Dockerfile` 运行时阶段 `pip install -e . 2>/dev/null \|\| true` 静默吞错；只 COPY `pyproject.toml`+`jarvis/`，不含 `requirements.txt`/`main.py` | 🟠 中 | `Dockerfile:39` |
-| 17 | `Dockerfile EXPOSE 8000` + `render.yaml EMPEROR_PORT=8000`，但 `cli serve` 默认 9020、`DashboardConfig.port=9020` | 🟡 低中 | `Dockerfile:46`、`cli.py:49`、`config.py:29` |
+| 15 | 残留文件 `huanxin/eval.py.bak`、`docs/architecture.md` 与 `docs/ARCHITECTURE.md` 并存（Windows 大小写不敏感，Linux 上会是两个文件） | 🟡 低 | `ls` |
+| 16 | `Dockerfile` 运行时阶段 `pip install -e . 2>/dev/null \|\| true` 静默吞错；只 COPY `pyproject.toml`+`huanxin/`，不含 `requirements.txt`/`main.py` | 🟠 中 | `Dockerfile:39` |
+| 17 | `Dockerfile EXPOSE 8000` + `render.yaml HUANXIN_PORT=8000`，但 `cli serve` 默认 9020、`DashboardConfig.port=9020` | 🟡 低中 | `Dockerfile:46`、`cli.py:49`、`config.py:29` |
 | 18 | `mypy strict = true` 但同时 `disallow_untyped_defs = false`，且大量模块用 `Any` 穿透，类型保障名不副实 | 🟡 低 | `pyproject.toml` |
 | 19 | 存在裸 `except Exception: pass`（如 `task_engine.py:284-285`、`emperor.py:1079-1080`）掩盖故障 | 🟠 中 | 源码 |
 | 20 | 大量"名不副实"的命名（LLMJudge/PromptGuard/HallucinationGuard/AutoEvolution/BoundedAutonomy），对后续维护者构成认知陷阱 | 🟠 中 | §3.3 |
@@ -1549,7 +1549,7 @@ merit   = confidence * 100
 - Docker 基镜像 `python:3.11-slim`
 - Lint：`ruff` line-length 120、target py311、规则集 `E,F,I,N,W,UP,B,C4,SIM`（ignore `E501`）
 - Format：`black` line-length 120
-- Type：`mypy strict`（但 `disallow_untyped_defs = false`），CI 跑 `mypy jarvis/ --ignore-missing-imports`
+- Type：`mypy strict`（但 `disallow_untyped_defs = false`），CI 跑 `mypy huanxin/ --ignore-missing-imports`
 - **约束**：新增代码必须过 ruff + mypy；不得引入 py3.11 以下不兼容语法
 
 #### 4.2 依赖
@@ -1562,15 +1562,15 @@ dev 6 个：`pytest / pytest-asyncio / black / ruff / mypy / pre-commit`
 - 大量可选依赖（chromadb/sentence-transformers/playwright/pyautogui）应保持**软依赖 + 降级**模式，现有代码已有此惯例（如 `rag/retriever.py:160-166`）
 
 #### 4.3 部署
-- **Dockerfile**：两阶段构建；runtime 非 root 用户 `emperor`；`EXPOSE 8000`；`HEALTHCHECK curl /health`；`CMD ["python", "-m", "jarvis.cli"]`
-- **render.yaml**：Render Blueprint，`type: web`、`env: docker`、`region: singapore`、`plan: free`、`healthCheckPath: /health`；环境变量 `EMPEROR_MODE=server`、`EMPEROR_PORT=8000`、`EMPEROR_HOST=0.0.0.0`、`EMPEROR_ENABLE_FEEDBACK=true`；密钥 `EMPEROR_LLM_PROVIDER`/`OPENAI_API_KEY`/`ANTHROPIC_API_KEY` 走 `sync: false`
+- **Dockerfile**：两阶段构建；runtime 非 root 用户 `emperor`；`EXPOSE 8000`；`HEALTHCHECK curl /health`；`CMD ["python", "-m", "huanxin.cli"]`
+- **render.yaml**：Render Blueprint，`type: web`、`env: docker`、`region: singapore`、`plan: free`、`healthCheckPath: /health`；环境变量 `HUANXIN_MODE=server`、`HUANXIN_PORT=8000`、`HUANXIN_HOST=0.0.0.0`、`HUANXIN_ENABLE_FEEDBACK=true`；密钥 `HUANXIN_LLM_PROVIDER`/`OPENAI_API_KEY`/`ANTHROPIC_API_KEY` 走 `sync: false`
 - **deploy.sh**（5.2K）、**setup.sh/setup.bat**、**Makefile**
 - **约束**：必须保留 `/health` 健康检查端点；容器内 CMD 与端口约定不可随意改；Render free plan 意味着**无常驻磁盘**，任何"进化状态持久化"不能只依赖本地文件
 
 #### 4.4 数据库与持久化
 | 载体 | 用途 | 现状 |
 |---|---|---|
-| `jarvis.db` (sqlite3, stdlib) | `task_history` / `evolution_history` / `alert_history` | 150 / 192 / 5 条 |
+| `huanxin.db` (sqlite3, stdlib) | `task_history` / `evolution_history` / `alert_history` | 150 / 192 / 5 条 |
 | `audit.db` (sqlite3) | `audit_trail` | 1,494 条 |
 | `approval.db` (sqlite3) | 审批请求 | — |
 | `cost_records.json` / `outcome_records.json` | 成本 / 成功率 | 18 / 205 条 |
@@ -1586,17 +1586,17 @@ dev 6 个：`pytest / pytest-asyncio / black / ruff / mypy / pre-commit`
 #### 4.5 API 契约（不可随意破坏）
 - `court_api.py` 暴露 **172 个路由**，dashboard 前端（`dashboard_html.py` 内嵌 JS）与之强耦合
 - 关键路由族：`/health`、`/dashboard`、`/api/dashboard/*`(约 20)、`/court/*`(6)、`/api/ministers`(3)、`/api/pipelines/*`(12)、`/api/approvals/*`(6)、`/api/handoff/*`(6)、`/api/healing/*`(6)、`/api/mcp/*`(5)、`/api/costs/*`(3)、`/api/traces/*`(3)、`/api/memory/graph/*`(4)、`/memory/*`(5)、`/governance/*`+`/api/governance/*`、`/autonomy/*`(5)、`/api/reflexion/*`(2)、`/api/evals/*`(3)、`/api/rbac/*`(3)、`/api/alerts/rules`、`/api/events`(SSE)
-- `jarvis/api/` 另有一套 `/api/execute`、`/api/status`、`/api/domains`、`/api/memory`、`/api/evolution`、`/api/feedback/*`、`WS /ws`
+- `huanxin/api/` 另有一套 `/api/execute`、`/api/status`、`/api/domains`、`/api/memory`、`/api/evolution`、`/api/feedback/*`、`WS /ws`
 - **约束**：改造时对既有路由做**加法而非减法**；`/api/*` 与无前缀双份路由的收敛需分阶段（先 301/别名，再废弃）；7 个 `<param>` 路由是 bug，修复属于**修正而非破坏**
 
 #### 4.6 配置体系
-- 主配置 `jarvis.yaml`（**JSON-inside-YAML**，仅用 Python stdlib 解析），首次运行由 `save_default_config()` 自动生成；当前仓库中**不存在该文件**（走全默认）
-- Schema 在 `jarvis/config.py`：`DashboardConfig`(host/port=9020/open_browser/refresh=15s/theme/weather_city) / `SchedulerConfig`(auto_schedule=True, evolve_interval=5min, task_interval=3min, batch=5) / `EvolutionConfig`(merit_delta_range/stability_delta_range/streak_bonus_threshold/high_hit_rate_threshold) / `CapabilityConfig`(12 项 enabled_capabilities + 超时) / `DatabaseConfig` …
-- 第二套配置 `jarvis/core/config.py`：`JARVISConfig` + `SandboxConfig`(image=`jarvis-sandbox:latest`) + `MemoryConfig` 等，服务 Track A
-- 第三套 `jarvis/court/config.py`：`SurvivalConfig`（进化全部可调参数，支持 YAML 读写）
-- 第四套 `jarvis/llm/config.py`：`LLMConfig`(pydantic BaseModel) + `ModelProvider` enum
-- 环境变量：`OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GOOGLE_API_KEY` / `DEEPSEEK_API_KEY`（`court/providers/registry.py`），`EMPEROR_*`（render）
-- **约束**：**四套配置体系并存**是必须处理的债；统一时需保持 `jarvis.yaml` 向后兼容与 `SurvivalConfig` 的 YAML 契约
+- 主配置 `huanxin.yaml`（**JSON-inside-YAML**，仅用 Python stdlib 解析），首次运行由 `save_default_config()` 自动生成；当前仓库中**不存在该文件**（走全默认）
+- Schema 在 `huanxin/config.py`：`DashboardConfig`(host/port=9020/open_browser/refresh=15s/theme/weather_city) / `SchedulerConfig`(auto_schedule=True, evolve_interval=5min, task_interval=3min, batch=5) / `EvolutionConfig`(merit_delta_range/stability_delta_range/streak_bonus_threshold/high_hit_rate_threshold) / `CapabilityConfig`(12 项 enabled_capabilities + 超时) / `DatabaseConfig` …
+- 第二套配置 `huanxin/core/config.py`：`HUANXINConfig` + `SandboxConfig`(image=`huanxin-sandbox:latest`) + `MemoryConfig` 等，服务 Track A
+- 第三套 `huanxin/court/config.py`：`SurvivalConfig`（进化全部可调参数，支持 YAML 读写）
+- 第四套 `huanxin/llm/config.py`：`LLMConfig`(pydantic BaseModel) + `ModelProvider` enum
+- 环境变量：`OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GOOGLE_API_KEY` / `DEEPSEEK_API_KEY`（`court/providers/registry.py`），`HUANXIN_*`（render）
+- **约束**：**四套配置体系并存**是必须处理的债；统一时需保持 `huanxin.yaml` 向后兼容与 `SurvivalConfig` 的 YAML 契约
 
 #### 4.7 既有大臣-模型绑定契约
 `court/providers/registry.py:MINISTER_PROVIDER_CONFIG` 硬编码了大臣→模型映射（如 `丞相→gpt-5`(fallback `gpt-4o`)、`御史大夫→claude-sonnet-4-20250514`），并按环境变量决定可用性。改造多模型路由时需兼容此结构。
@@ -1607,22 +1607,22 @@ dev 6 个：`pytest / pytest-asyncio / black / ruff / mypy / pre-commit`
 
 | 结论 | 复核命令 |
 |---|---|
-| 主链路 mock | `grep -n "TaskEngine(" -A 3 jarvis/emperor.py`；`sed -n '475,486p' jarvis/court/task_engine.py` |
-| 150/150 mock 响应 | `sqlite3 jarvis.db "select count(*) from task_history where result like '%mock-response%'"` |
+| 主链路 mock | `grep -n "TaskEngine(" -A 3 huanxin/emperor.py`；`sed -n '475,486p' huanxin/court/task_engine.py` |
+| 150/150 mock 响应 | `sqlite3 huanxin.db "select count(*) from task_history where result like '%mock-response%'"` |
 | 205/205 零成本零调用 | `python -c "import json;d=json.load(open('outcome_records.json'));print(set((r['model_calls'],r['cost_usd']) for r in d['records']))"` |
-| 192/192 淘汰 | `sqlite3 jarvis.db "select merit_after,count(*) from evolution_history group by merit_after"` |
-| 单臣垄断 | `sqlite3 jarvis.db "select minister,count(*) from task_history group by minister"` |
-| 适应度=长度 | `sed -n '96,110p' jarvis/court/task_engine.py` |
-| 选臣 `pass` | `sed -n '352,376p' jarvis/court/task_engine.py` |
-| 路由层判定（复核修正） | 意图路由 `jarvis/router/` 是**完整包**（`emperor.py:387` 导入、`emperor.py:388` 实例化、`emperor.py:855` 在 `execute_task` 内调用 `route(...)`），`_route_decision` 仅流向 `:858` 的 `logger.debug` 与 `:893-895` 写入 result 字典字段，`_preselected_minister`(`:880`) 与之无关 → **决策未被消费（最后一公里未接通）**。**仅 `jarvis/model_router.py`（SmartRouter，P2.9 能力路由）真缺失**：`emperor.py:261` 导入被 `try/except ImportError` 静默吞掉，`_smart_router` 恒 None，`:838-841` 的 P2.9 Smart Routing 永不执行（已发布却静默失效）。复核命令：`grep -n "from jarvis.router\|from jarvis.model_router\|_route_decision\|_preselected_minister\|_smart_router" jarvis/emperor.py` |
-| PromptGuard 不拦截 | `sed -n '805,830p' jarvis/emperor.py` |
-| 护栏未接线 | `grep -rln "bounded_autonomy\|tool_guard" jarvis/ --include=*.py` |
-| 无代码自修改 | `grep -rn "^import git\|^from git" jarvis/`（空） |
-| 三层进化骨架 | `sed -n '155,235p' jarvis/evolution/controller.py` |
-| 提示词伪优化 | `sed -n '159,168p' jarvis/prompt_template.py`；`sed -n '383,405p' jarvis/prompt_template.py` |
-| agent_eval 评常量 | `sed -n '495,560p' jarvis/evaluation/agent_eval.py` |
+| 192/192 淘汰 | `sqlite3 huanxin.db "select merit_after,count(*) from evolution_history group by merit_after"` |
+| 单臣垄断 | `sqlite3 huanxin.db "select minister,count(*) from task_history group by minister"` |
+| 适应度=长度 | `sed -n '96,110p' huanxin/court/task_engine.py` |
+| 选臣 `pass` | `sed -n '352,376p' huanxin/court/task_engine.py` |
+| 路由层判定（复核修正） | 意图路由 `huanxin/router/` 是**完整包**（`emperor.py:387` 导入、`emperor.py:388` 实例化、`emperor.py:855` 在 `execute_task` 内调用 `route(...)`），`_route_decision` 仅流向 `:858` 的 `logger.debug` 与 `:893-895` 写入 result 字典字段，`_preselected_minister`(`:880`) 与之无关 → **决策未被消费（最后一公里未接通）**。**仅 `huanxin/model_router.py`（SmartRouter，P2.9 能力路由）真缺失**：`emperor.py:261` 导入被 `try/except ImportError` 静默吞掉，`_smart_router` 恒 None，`:838-841` 的 P2.9 Smart Routing 永不执行（已发布却静默失效）。复核命令：`grep -n "from huanxin.router\|from huanxin.model_router\|_route_decision\|_preselected_minister\|_smart_router" huanxin/emperor.py` |
+| PromptGuard 不拦截 | `sed -n '805,830p' huanxin/emperor.py` |
+| 护栏未接线 | `grep -rln "bounded_autonomy\|tool_guard" huanxin/ --include=*.py` |
+| 无代码自修改 | `grep -rn "^import git\|^from git" huanxin/`（空） |
+| 三层进化骨架 | `sed -n '155,235p' huanxin/evolution/controller.py` |
+| 提示词伪优化 | `sed -n '159,168p' huanxin/prompt_template.py`；`sed -n '383,405p' huanxin/prompt_template.py` |
+| agent_eval 评常量 | `sed -n '495,560p' huanxin/evaluation/agent_eval.py` |
 | 324 空快照 | `python -c "import json,glob;print(json.load(open(sorted(glob.glob('versions/*.json'))[0]))['components'])"` |
-| Flask 风格路由 | `grep -n '<snapshot_id>\|<pipeline_id>\|<job_id>' jarvis/court_api.py` |
+| Flask 风格路由 | `grep -n '<snapshot_id>\|<pipeline_id>\|<job_id>' huanxin/court_api.py` |
 | CI 排除与依赖缺口 | `sed -n '50,56p' .github/workflows/ci.yml`；`grep -n "pytest-timeout" pyproject.toml`（空） |
 
 ---
@@ -1858,7 +1858,7 @@ dev 6 个：`pytest / pytest-asyncio / black / ruff / mypy / pre-commit`
 
 ---
 
-*报告完 · 核查方：独立核查线 · 2026-08-09 · 本次交付未修改 `emperor-core` 任何源码文件*
+*报告完 · 核查方：独立核查线 · 2026-08-09 · 本次交付未修改 `huanxin-ai` 任何源码文件*
 
 ---
 

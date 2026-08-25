@@ -1,4 +1,4 @@
-"""Tests for jarvis.memory — VectorMemory & MemoryManager."""
+"""Tests for huanxin.memory — VectorMemory & MemoryManager."""
 
 from __future__ import annotations
 
@@ -27,33 +27,33 @@ def _safe_rmtree(path: str) -> None:
 
 class TestModuleImports:
     def test_import_vector_memory(self):
-        from jarvis.memory import VectorMemory
+        from huanxin.memory import VectorMemory
 
         assert VectorMemory is not None
 
     def test_import_memory_manager(self):
-        from jarvis.memory import MemoryManager
+        from huanxin.memory import MemoryManager
 
         assert MemoryManager is not None
 
     def test_import_memory_engine_still_works(self):
         """Existing MemoryEngine must still be importable."""
-        from jarvis.memory import MemoryEngine, MemoryEntry
+        from huanxin.memory import MemoryEngine, MemoryEntry
 
         assert MemoryEngine is not None
         assert MemoryEntry is not None
 
     def test_exports(self):
-        from jarvis.memory import (
+        from huanxin.memory import (
             MemoryEngine,
             MemoryEntry,
             MemoryManager,
             VectorMemory,
         )
 
-        assert VectorMemory.__module__ == "jarvis.memory.vector_store"
-        assert MemoryManager.__module__ == "jarvis.memory.manager"
-        assert MemoryEngine.__module__ == "jarvis.memory.engine"
+        assert VectorMemory.__module__ == "huanxin.memory.vector_store"
+        assert MemoryManager.__module__ == "huanxin.memory.manager"
+        assert MemoryEngine.__module__ == "huanxin.memory.engine"
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -70,9 +70,9 @@ class TestVectorMemory:
             _safe_rmtree(d)
 
     def _make_store(self, **kwargs) -> "VectorMemory":
-        from jarvis.memory.vector_store import VectorMemory
+        from huanxin.memory.vector_store import VectorMemory
 
-        tmp = tempfile.mkdtemp(prefix="jarvis_vm_test_")
+        tmp = tempfile.mkdtemp(prefix="huanxin_vm_test_")
         self._tmpdirs.append(tmp)
         return VectorMemory(persist_dir=tmp, **kwargs)
 
@@ -177,14 +177,14 @@ class TestMemoryManager:
             _safe_rmtree(d)
 
     def _make_vm(self) -> "VectorMemory":
-        from jarvis.memory.vector_store import VectorMemory
+        from huanxin.memory.vector_store import VectorMemory
 
-        tmp = tempfile.mkdtemp(prefix="jarvis_mm_test_")
+        tmp = tempfile.mkdtemp(prefix="huanxin_mm_test_")
         self._tmpdirs.append(tmp)
         return VectorMemory(persist_dir=tmp)
 
     def _make_mgr(self, **kwargs):
-        from jarvis.memory.manager import MemoryManager
+        from huanxin.memory.manager import MemoryManager
 
         return MemoryManager(vector_store=self._make_vm(), **kwargs)
 

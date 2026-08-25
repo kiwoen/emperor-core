@@ -1,5 +1,5 @@
 """
-test_tools.py — Tests for JARVIS Function Calling standardisation.
+test_tools.py — Tests for HUANXIN Function Calling standardisation.
 
 Covers:
     1. ToolDef creation and properties
@@ -36,7 +36,7 @@ if str(PROJECT_ROOT) not in sys.path:
 @pytest.fixture(autouse=True)
 def reset_global_registry():
     """Reset the global ToolRegistry singleton before each test."""
-    from jarvis.tools.registry import reset_registry
+    from huanxin.tools.registry import reset_registry
 
     reset_registry()
 
@@ -44,12 +44,12 @@ def reset_global_registry():
 @pytest.fixture
 def fresh_builtin():
     """Force-reload builtin module so 12 tools register into current global registry."""
-    from jarvis.tools.registry import reset_registry
+    from huanxin.tools.registry import reset_registry
 
     reset_registry()
     # Force fresh re-import so @tool(auto_register=True) re-fires
-    sys.modules.pop("jarvis.tools.builtin", None)
-    import jarvis.tools.builtin as builtin_mod
+    sys.modules.pop("huanxin.tools.builtin", None)
+    import huanxin.tools.builtin as builtin_mod
 
     return builtin_mod
 
@@ -63,7 +63,7 @@ class TestToolDef:
     """Tests for ToolDef dataclass."""
 
     def test_create_minimal(self):
-        from jarvis.tools.base import ToolDef
+        from huanxin.tools.base import ToolDef
 
         td = ToolDef(name="test_tool", description="A test tool")
         assert td.name == "test_tool"
@@ -73,7 +73,7 @@ class TestToolDef:
         assert td.category == "general"
 
     def test_create_full(self):
-        from jarvis.tools.base import ToolDef
+        from huanxin.tools.base import ToolDef
 
         def dummy():
             pass
@@ -92,7 +92,7 @@ class TestToolDef:
         assert td.category == "math"
 
     def test_to_openai_schema(self):
-        from jarvis.tools.base import ToolDef
+        from huanxin.tools.base import ToolDef
 
         td = ToolDef(
             name="add",
@@ -114,7 +114,7 @@ class TestToolDef:
         assert "b" in schema["function"]["parameters"]["properties"]
 
     def test_to_anthropic_schema(self):
-        from jarvis.tools.base import ToolDef
+        from huanxin.tools.base import ToolDef
 
         td = ToolDef(
             name="add",
@@ -145,7 +145,7 @@ class TestToolDecorator:
     """Tests for @tool decorator."""
 
     def test_basic_decorator(self):
-        from jarvis.tools.base import tool, ToolDef, ToolResult
+        from huanxin.tools.base import tool, ToolDef, ToolResult
 
         @tool(category="utility")
         def greet(name: str) -> str:
@@ -161,7 +161,7 @@ class TestToolDecorator:
         assert td.parameters["type"] == "object"
 
     def test_decorator_parameter_extraction(self):
-        from jarvis.tools.base import tool
+        from huanxin.tools.base import tool
 
         @tool(category="math")
         def add(a: int, b: float = 0.0) -> float:
@@ -178,7 +178,7 @@ class TestToolDecorator:
         assert "b" not in td.parameters.get("required", [])
 
     def test_decorator_optional_types(self):
-        from jarvis.tools.base import tool
+        from huanxin.tools.base import tool
 
         @tool(category="test")
         def opt_func(name: str = "default", count: int = 0) -> str:
@@ -189,7 +189,7 @@ class TestToolDecorator:
         assert td.parameters.get("required", []) == []
 
     def test_decorator_wraps_result(self):
-        from jarvis.tools.base import tool, ToolResult
+        from huanxin.tools.base import tool, ToolResult
 
         @tool(category="utility")
         def echo(msg: str) -> str:
@@ -203,7 +203,7 @@ class TestToolDecorator:
         assert result.duration_ms >= 0
 
     def test_decorator_catches_exceptions(self):
-        from jarvis.tools.base import tool, ToolResult
+        from huanxin.tools.base import tool, ToolResult
 
         @tool(category="test")
         def fail():
@@ -216,8 +216,8 @@ class TestToolDecorator:
         assert "intentional error" in result.error
 
     def test_decorator_auto_register(self):
-        from jarvis.tools.base import tool
-        from jarvis.tools.registry import get_registry
+        from huanxin.tools.base import tool
+        from huanxin.tools.registry import get_registry
 
         @tool(category="utility", auto_register=True)
         def auto_reg(x: int) -> int:
@@ -231,7 +231,7 @@ class TestToolDecorator:
         assert tool_def.func is not None
 
     def test_decorator_custom_name_desc(self):
-        from jarvis.tools.base import tool
+        from huanxin.tools.base import tool
 
         @tool(name="custom_name", description="Custom description", category="util")
         def whatever():
@@ -252,7 +252,7 @@ class TestToolRegistry:
     """Tests for ToolRegistry."""
 
     def test_singleton_same_instance(self):
-        from jarvis.tools.registry import get_registry, ToolRegistry
+        from huanxin.tools.registry import get_registry, ToolRegistry
 
         r1 = get_registry()
         r2 = get_registry()
@@ -260,8 +260,8 @@ class TestToolRegistry:
         assert isinstance(r1, ToolRegistry)
 
     def test_register_and_get(self):
-        from jarvis.tools.registry import get_registry
-        from jarvis.tools.base import ToolDef
+        from huanxin.tools.registry import get_registry
+        from huanxin.tools.base import ToolDef
 
         reg = get_registry()
         td = ToolDef(name="tool_a", description="Tool A", category="cat1")
@@ -272,8 +272,8 @@ class TestToolRegistry:
         assert retrieved.name == "tool_a"
 
     def test_register_duplicate_raises(self):
-        from jarvis.tools.registry import get_registry
-        from jarvis.tools.base import ToolDef
+        from huanxin.tools.registry import get_registry
+        from huanxin.tools.base import ToolDef
 
         reg = get_registry()
         reg.register_tool(ToolDef(name="dup", description="First"))
@@ -281,8 +281,8 @@ class TestToolRegistry:
             reg.register_tool(ToolDef(name="dup", description="Second"))
 
     def test_unregister(self):
-        from jarvis.tools.registry import get_registry
-        from jarvis.tools.base import ToolDef
+        from huanxin.tools.registry import get_registry
+        from huanxin.tools.base import ToolDef
 
         reg = get_registry()
         reg.register_tool(ToolDef(name="temp_tool", description="Temp"))
@@ -293,8 +293,8 @@ class TestToolRegistry:
         assert reg.unregister_tool("nonexistent") is False
 
     def test_list_tools(self):
-        from jarvis.tools.registry import get_registry
-        from jarvis.tools.base import ToolDef
+        from huanxin.tools.registry import get_registry
+        from huanxin.tools.base import ToolDef
 
         reg = get_registry()
         reg.register_tool(ToolDef(name="a", description="A", category="cat1"))
@@ -314,8 +314,8 @@ class TestToolRegistry:
         assert len(cat_none) == 0
 
     def test_list_categories(self):
-        from jarvis.tools.registry import get_registry
-        from jarvis.tools.base import ToolDef
+        from huanxin.tools.registry import get_registry
+        from huanxin.tools.base import ToolDef
 
         reg = get_registry()
         reg.register_tool(ToolDef(name="x", description="X", category="alpha"))
@@ -326,8 +326,8 @@ class TestToolRegistry:
         assert cats == ["alpha", "beta"]
 
     def test_tool_count(self):
-        from jarvis.tools.registry import get_registry
-        from jarvis.tools.base import ToolDef
+        from huanxin.tools.registry import get_registry
+        from huanxin.tools.base import ToolDef
 
         reg = get_registry()
         assert reg.tool_count() == 0
@@ -337,8 +337,8 @@ class TestToolRegistry:
 
     def test_thread_safety(self):
         """Ensure concurrent registrations don't corrupt the registry."""
-        from jarvis.tools.registry import get_registry, reset_registry
-        from jarvis.tools.base import ToolDef
+        from huanxin.tools.registry import get_registry, reset_registry
+        from huanxin.tools.base import ToolDef
 
         reset_registry()
         reg = get_registry()
@@ -371,8 +371,8 @@ class TestSchemaGeneration:
     """Tests for to_openai_schema / to_anthropic_schema."""
 
     def test_openai_schema(self):
-        from jarvis.tools.registry import get_registry
-        from jarvis.tools.base import ToolDef
+        from huanxin.tools.registry import get_registry
+        from huanxin.tools.base import ToolDef
 
         reg = get_registry()
         reg.register_tool(ToolDef(
@@ -392,8 +392,8 @@ class TestSchemaGeneration:
         assert schema[0]["function"]["name"] == "search"
 
     def test_anthropic_schema(self):
-        from jarvis.tools.registry import get_registry
-        from jarvis.tools.base import ToolDef
+        from huanxin.tools.registry import get_registry
+        from huanxin.tools.base import ToolDef
 
         reg = get_registry()
         reg.register_tool(ToolDef(
@@ -425,8 +425,8 @@ class TestToolExecution:
     """Tests for execute_tool."""
 
     def test_execute_successful(self):
-        from jarvis.tools.registry import ToolRegistry
-        from jarvis.tools.base import ToolDef, ToolResult
+        from huanxin.tools.registry import ToolRegistry
+        from huanxin.tools.base import ToolDef, ToolResult
 
         def add(a, b):
             return a + b
@@ -445,8 +445,8 @@ class TestToolExecution:
 
     def test_execute_tool_with_toolresult_return(self):
         """When execute_tool calls a @tool-wrapped function, it should pass through ToolResult."""
-        from jarvis.tools.registry import ToolRegistry
-        from jarvis.tools.base import tool, ToolResult
+        from huanxin.tools.registry import ToolRegistry
+        from huanxin.tools.base import tool, ToolResult
 
         @tool(category="math")
         def multiply(a: int, b: int) -> int:
@@ -461,7 +461,7 @@ class TestToolExecution:
         assert result.data == 42
 
     def test_execute_unknown_tool(self):
-        from jarvis.tools.registry import get_registry
+        from huanxin.tools.registry import get_registry
 
         reg = get_registry()
         result = reg.execute_tool("nonexistent", {})
@@ -469,8 +469,8 @@ class TestToolExecution:
         assert "not registered" in result.error
 
     def test_execute_type_error(self):
-        from jarvis.tools.registry import ToolRegistry
-        from jarvis.tools.base import ToolDef
+        from huanxin.tools.registry import ToolRegistry
+        from huanxin.tools.base import ToolDef
 
         def required_args(a, b):
             return f"{a}{b}"
@@ -483,8 +483,8 @@ class TestToolExecution:
         assert result.success is False
 
     def test_execute_with_timing(self):
-        from jarvis.tools.registry import ToolRegistry
-        from jarvis.tools.base import ToolDef
+        from huanxin.tools.registry import ToolRegistry
+        from huanxin.tools.base import ToolDef
 
         def fast():
             return "done"
@@ -497,8 +497,8 @@ class TestToolExecution:
         assert result.duration_ms >= 0
 
     def test_execute_no_func(self):
-        from jarvis.tools.registry import ToolRegistry
-        from jarvis.tools.base import ToolDef
+        from huanxin.tools.registry import ToolRegistry
+        from huanxin.tools.base import ToolDef
 
         reg = ToolRegistry()
         reg.register_tool(ToolDef(name="no_func", description="No callable"))
@@ -516,7 +516,7 @@ class TestBuiltinTools:
     """Tests for the 12 built-in tools (uses fresh_builtin fixture)."""
 
     def test_import_registers_all_12(self, fresh_builtin):
-        from jarvis.tools.registry import get_registry
+        from huanxin.tools.registry import get_registry
 
         reg = get_registry()
         names = {t.name for t in reg.list_tools()}
@@ -530,21 +530,21 @@ class TestBuiltinTools:
         assert reg.tool_count() >= 12
 
     def test_datetime_tool(self, fresh_builtin):
-        from jarvis.tools.registry import get_registry
+        from huanxin.tools.registry import get_registry
 
         result = get_registry().execute_tool("datetime", {})
         assert result.success
         assert len(result.data) >= 10  # "YYYY-MM-DD" minimum
 
     def test_math_tool(self, fresh_builtin):
-        from jarvis.tools.registry import get_registry
+        from huanxin.tools.registry import get_registry
 
         result = get_registry().execute_tool("math", {"expression": "sqrt(16) + 2"})
         assert result.success
         assert "6" in str(result.data)
 
     def test_random_tool(self, fresh_builtin):
-        from jarvis.tools.registry import get_registry
+        from huanxin.tools.registry import get_registry
 
         result = get_registry().execute_tool(
             "random", {"min_val": 1, "max_val": 100, "as_int": True}
@@ -553,7 +553,7 @@ class TestBuiltinTools:
         assert 1 <= result.data <= 100
 
     def test_text_tool(self, fresh_builtin):
-        from jarvis.tools.registry import get_registry
+        from huanxin.tools.registry import get_registry
 
         result = get_registry().execute_tool(
             "text", {"operation": "upper", "content": "hello"}
@@ -562,14 +562,14 @@ class TestBuiltinTools:
         assert result.data == "HELLO"
 
     def test_uuid_gen_tool(self, fresh_builtin):
-        from jarvis.tools.registry import get_registry
+        from huanxin.tools.registry import get_registry
 
         result = get_registry().execute_tool("uuid_gen", {})
         assert result.success
         assert len(result.data) == 36  # UUID v4: 36 chars
 
     def test_weather_tool(self, fresh_builtin):
-        from jarvis.tools.registry import get_registry
+        from huanxin.tools.registry import get_registry
 
         result = get_registry().execute_tool("weather", {"city": "Beijing"})
         assert result.success
@@ -577,7 +577,7 @@ class TestBuiltinTools:
         assert "temperature" in result.data
 
     def test_json_tool(self, fresh_builtin):
-        from jarvis.tools.registry import get_registry
+        from huanxin.tools.registry import get_registry
 
         result = get_registry().execute_tool(
             "json_tool", {"operation": "parse", "data": '{"key": "value"}'}
@@ -587,7 +587,7 @@ class TestBuiltinTools:
         assert parsed["key"] == "value"
 
     def test_hash_tool_string(self, fresh_builtin):
-        from jarvis.tools.registry import get_registry
+        from huanxin.tools.registry import get_registry
 
         result = get_registry().execute_tool(
             "hash", {"content": "hello", "algorithm": "sha256"}
@@ -596,7 +596,7 @@ class TestBuiltinTools:
         assert len(result.data) == 64  # SHA256 hex
 
     def test_builtin_categories(self, fresh_builtin):
-        from jarvis.tools.registry import get_registry
+        from huanxin.tools.registry import get_registry
 
         reg = get_registry()
         utility_tools = reg.list_tools(category="utility")
@@ -653,8 +653,8 @@ class TestLLMEngineFCLoop:
 
     def test_fast_path_no_tools(self, mock_litellm_module):
         """Without tools/tool_registry, chat_sync should work as normal chat."""
-        from jarvis.llm.engine import LLMEngine
-        from jarvis.llm.config import LLMConfig, ModelProvider
+        from huanxin.llm.engine import LLMEngine
+        from huanxin.llm.config import LLMConfig, ModelProvider
 
         mock_litellm_module.completion.return_value = self._build_mock_response(
             content="Hello!"
@@ -671,10 +671,10 @@ class TestLLMEngineFCLoop:
 
     def test_fc_loop_single_tool_call(self, mock_litellm_module):
         """FC loop: model calls a tool, engine executes it, gets final response."""
-        from jarvis.llm.engine import LLMEngine
-        from jarvis.llm.config import LLMConfig, ModelProvider
-        from jarvis.tools.registry import ToolRegistry
-        from jarvis.tools.base import ToolDef
+        from huanxin.llm.engine import LLMEngine
+        from huanxin.llm.config import LLMConfig, ModelProvider
+        from huanxin.tools.registry import ToolRegistry
+        from huanxin.tools.base import ToolDef
 
         # Build registry with an add tool
         reg = ToolRegistry()
@@ -718,10 +718,10 @@ class TestLLMEngineFCLoop:
 
     def test_max_fc_rounds_limit(self, mock_litellm_module):
         """FC loop should stop after max_fc_rounds iterations."""
-        from jarvis.llm.engine import LLMEngine
-        from jarvis.llm.config import LLMConfig, ModelProvider
-        from jarvis.tools.registry import ToolRegistry
-        from jarvis.tools.base import ToolDef
+        from huanxin.llm.engine import LLMEngine
+        from huanxin.llm.config import LLMConfig, ModelProvider
+        from huanxin.tools.registry import ToolRegistry
+        from huanxin.tools.base import ToolDef
 
         reg = ToolRegistry()
 
@@ -760,8 +760,8 @@ class TestLLMEngineFCLoop:
 
     def test_chat_sync_with_tools_no_registry(self, mock_litellm_module):
         """When tools are provided but no tool_registry, should work as normal call."""
-        from jarvis.llm.engine import LLMEngine
-        from jarvis.llm.config import LLMConfig, ModelProvider
+        from huanxin.llm.engine import LLMEngine
+        from huanxin.llm.config import LLMConfig, ModelProvider
 
         mock_litellm_module.completion.return_value = self._build_mock_response(
             content="I'll use a tool for that."
@@ -787,7 +787,7 @@ class TestToolResult:
     """Tests for ToolResult data class."""
 
     def test_success_result(self):
-        from jarvis.tools.base import ToolResult
+        from huanxin.tools.base import ToolResult
 
         r = ToolResult(success=True, data="hello", duration_ms=12.5)
         assert r.success is True
@@ -796,7 +796,7 @@ class TestToolResult:
         assert r.duration_ms == 12.5
 
     def test_error_result(self):
-        from jarvis.tools.base import ToolResult
+        from huanxin.tools.base import ToolResult
 
         r = ToolResult(success=False, error="Something went wrong", duration_ms=3.0)
         assert r.success is False
@@ -804,7 +804,7 @@ class TestToolResult:
         assert "Something went wrong" in r.error
 
     def test_to_dict(self):
-        from jarvis.tools.base import ToolResult
+        from huanxin.tools.base import ToolResult
 
         r = ToolResult(success=True, data={"key": "val"}, duration_ms=5.0)
         d = r.to_dict()
@@ -813,7 +813,7 @@ class TestToolResult:
         assert d["duration_ms"] == 5.0
 
     def test_to_json(self):
-        from jarvis.tools.base import ToolResult
+        from huanxin.tools.base import ToolResult
 
         r = ToolResult(success=True, data="test", duration_ms=1.0)
         j = r.to_json()

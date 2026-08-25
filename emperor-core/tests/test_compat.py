@@ -1,4 +1,4 @@
-"""Tests for jarvis.compat — domestic compute & Xinchuang adaptation."""
+"""Tests for huanxin.compat — domestic compute & Xinchuang adaptation."""
 
 from __future__ import annotations
 
@@ -6,9 +6,9 @@ import platform as _platform
 import sys
 from unittest.mock import MagicMock, patch
 
-from jarvis.compat import ComputeAdapter, ComputeDevice, PlatformDetector
-from jarvis.compat.adapter import AdapterConfig
-from jarvis.compat.platforms import ChipArch, OSType, PlatformInfo
+from huanxin.compat import ComputeAdapter, ComputeDevice, PlatformDetector
+from huanxin.compat.adapter import AdapterConfig
+from huanxin.compat.platforms import ChipArch, OSType, PlatformInfo
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -61,41 +61,41 @@ class TestComputeAdapterDetection:
         adapter = ComputeAdapter()
         assert adapter._is_device_available(ComputeDevice.CPU) is True
 
-    @patch("jarvis.compat.adapter.ComputeAdapter._check_cuda", return_value=False)
-    @patch("jarvis.compat.adapter.ComputeAdapter._check_ascend", return_value=False)
-    @patch("jarvis.compat.adapter.ComputeAdapter._check_mlu", return_value=False)
+    @patch("huanxin.compat.adapter.ComputeAdapter._check_cuda", return_value=False)
+    @patch("huanxin.compat.adapter.ComputeAdapter._check_ascend", return_value=False)
+    @patch("huanxin.compat.adapter.ComputeAdapter._check_mlu", return_value=False)
     def test_fallback_to_cpu(self, _mock_mlu, _mock_ascend, _mock_cuda):
         adapter = ComputeAdapter()
         device = adapter.get_optimal_device()
         assert device == ComputeDevice.CPU
 
-    @patch("jarvis.compat.adapter.ComputeAdapter._check_cuda", return_value=True)
-    @patch("jarvis.compat.adapter.ComputeAdapter._check_ascend", return_value=False)
-    @patch("jarvis.compat.adapter.ComputeAdapter._check_mlu", return_value=False)
+    @patch("huanxin.compat.adapter.ComputeAdapter._check_cuda", return_value=True)
+    @patch("huanxin.compat.adapter.ComputeAdapter._check_ascend", return_value=False)
+    @patch("huanxin.compat.adapter.ComputeAdapter._check_mlu", return_value=False)
     def test_prefer_cuda(self, _mock_mlu, _mock_ascend, _mock_cuda):
         adapter = ComputeAdapter()
         device = adapter.get_optimal_device()
         assert device == ComputeDevice.CUDA
 
-    @patch("jarvis.compat.adapter.ComputeAdapter._check_cuda", return_value=False)
-    @patch("jarvis.compat.adapter.ComputeAdapter._check_ascend", return_value=True)
-    @patch("jarvis.compat.adapter.ComputeAdapter._check_mlu", return_value=False)
+    @patch("huanxin.compat.adapter.ComputeAdapter._check_cuda", return_value=False)
+    @patch("huanxin.compat.adapter.ComputeAdapter._check_ascend", return_value=True)
+    @patch("huanxin.compat.adapter.ComputeAdapter._check_mlu", return_value=False)
     def test_prefer_ascend(self, _mock_mlu, _mock_ascend, _mock_cuda):
         adapter = ComputeAdapter()
         device = adapter.get_optimal_device()
         assert device == ComputeDevice.ASCEND
 
-    @patch("jarvis.compat.adapter.ComputeAdapter._check_cuda", return_value=False)
-    @patch("jarvis.compat.adapter.ComputeAdapter._check_ascend", return_value=False)
-    @patch("jarvis.compat.adapter.ComputeAdapter._check_mlu", return_value=True)
+    @patch("huanxin.compat.adapter.ComputeAdapter._check_cuda", return_value=False)
+    @patch("huanxin.compat.adapter.ComputeAdapter._check_ascend", return_value=False)
+    @patch("huanxin.compat.adapter.ComputeAdapter._check_mlu", return_value=True)
     def test_prefer_mlu(self, _mock_mlu, _mock_ascend, _mock_cuda):
         adapter = ComputeAdapter()
         device = adapter.get_optimal_device()
         assert device == ComputeDevice.MLU
 
-    @patch("jarvis.compat.adapter.ComputeAdapter._check_cuda", return_value=False)
-    @patch("jarvis.compat.adapter.ComputeAdapter._check_ascend", return_value=False)
-    @patch("jarvis.compat.adapter.ComputeAdapter._check_mlu", return_value=False)
+    @patch("huanxin.compat.adapter.ComputeAdapter._check_cuda", return_value=False)
+    @patch("huanxin.compat.adapter.ComputeAdapter._check_ascend", return_value=False)
+    @patch("huanxin.compat.adapter.ComputeAdapter._check_mlu", return_value=False)
     def test_prefer_device_not_available_falls_back(self, _mock_mlu, _mock_ascend, _mock_cuda):
         cfg = AdapterConfig(prefer_device="ascend")
         adapter = ComputeAdapter(config=cfg)
@@ -110,9 +110,9 @@ class TestComputeAdapterDetection:
 
 
 class TestComputeAdapterDeviceCache:
-    @patch("jarvis.compat.adapter.ComputeAdapter._check_cuda", return_value=True)
-    @patch("jarvis.compat.adapter.ComputeAdapter._check_ascend", return_value=False)
-    @patch("jarvis.compat.adapter.ComputeAdapter._check_mlu", return_value=False)
+    @patch("huanxin.compat.adapter.ComputeAdapter._check_cuda", return_value=True)
+    @patch("huanxin.compat.adapter.ComputeAdapter._check_ascend", return_value=False)
+    @patch("huanxin.compat.adapter.ComputeAdapter._check_mlu", return_value=False)
     def test_cached_result(self, _mock_mlu, _mock_ascend, _mock_cuda):
         adapter = ComputeAdapter()
         first = adapter.get_optimal_device()
@@ -131,9 +131,9 @@ class TestComputeAdapterDeviceCache:
 
 
 class TestComputeAdapterListAvailable:
-    @patch("jarvis.compat.adapter.ComputeAdapter._check_cuda", return_value=False)
-    @patch("jarvis.compat.adapter.ComputeAdapter._check_ascend", return_value=False)
-    @patch("jarvis.compat.adapter.ComputeAdapter._check_mlu", return_value=False)
+    @patch("huanxin.compat.adapter.ComputeAdapter._check_cuda", return_value=False)
+    @patch("huanxin.compat.adapter.ComputeAdapter._check_ascend", return_value=False)
+    @patch("huanxin.compat.adapter.ComputeAdapter._check_mlu", return_value=False)
     def test_only_cpu(self, _mock_mlu, _mock_ascend, _mock_cuda):
         adapter = ComputeAdapter()
         devices = adapter.list_available_devices()
@@ -388,9 +388,9 @@ class TestCompatIntegration:
     @patch("platform.system", return_value="Linux")
     @patch("platform.machine", return_value="x86_64")
     @patch("os.path.isfile", return_value=False)
-    @patch("jarvis.compat.adapter.ComputeAdapter._check_cuda", return_value=True)
-    @patch("jarvis.compat.adapter.ComputeAdapter._check_ascend", return_value=False)
-    @patch("jarvis.compat.adapter.ComputeAdapter._check_mlu", return_value=False)
+    @patch("huanxin.compat.adapter.ComputeAdapter._check_cuda", return_value=True)
+    @patch("huanxin.compat.adapter.ComputeAdapter._check_ascend", return_value=False)
+    @patch("huanxin.compat.adapter.ComputeAdapter._check_mlu", return_value=False)
     def test_detect_and_adapter_together(
         self, _mock_mlu, _mock_ascend, _mock_cuda, _mock_isfile, _mock_machine, _mock_system
     ):

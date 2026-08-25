@@ -1,6 +1,6 @@
 ---
 name: "self-evolution"
-description: "emperor-core 自我进化引擎：真实执行任务获取梯度，按成败即时微调基因（temperature/confidence），经验记忆跨重启累积，历史成功率排序派发。触发：进化、自进化、学习、基因、evolution、自我改进。"
+description: "huanxin-ai 自我进化引擎：真实执行任务获取梯度，按成败即时微调基因（temperature/confidence），经验记忆跨重启累积，历史成功率排序派发。触发：进化、自进化、学习、基因、evolution、自我改进。"
 triggers:
   - "进化"
   - "自进化"
@@ -13,7 +13,7 @@ triggers:
 # Self-Evolution · 自我进化引擎
 
 ## 系统定位
-emperor-core 作为「会思考、学习、进化的生命体」的本质能力。它不是套壳助理，而是具备真实执行→真实学习→跨重启经验累积的闭环。
+huanxin-ai 作为「会思考、学习、进化的生命体」的本质能力。它不是套壳助理，而是具备真实执行→真实学习→跨重启经验累积的闭环。
 - 上游：任务执行（大臣/`RealTaskExecutor`/`OfflineSolver`）、`CourtMemory`
 - 下游：`GenomeStore`（基因检查点）、`PromotionGate`（fail-closed 晋升闸）、`RollbackManager`
 

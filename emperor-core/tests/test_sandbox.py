@@ -1,5 +1,5 @@
 """
-Tests for jarvis.sandbox — engine & policy.
+Tests for huanxin.sandbox — engine & policy.
 
 Covers:
   - SandboxEngine: local_direct / subprocess execution, timeout, multi-language
@@ -14,8 +14,8 @@ import time
 
 import pytest
 
-from jarvis.sandbox.engine import SandboxEngine, SandboxResult
-from jarvis.sandbox.policy import SecurityPolicy, PolicyLevel, ValidationResult
+from huanxin.sandbox.engine import SandboxEngine, SandboxResult
+from huanxin.sandbox.policy import SecurityPolicy, PolicyLevel, ValidationResult
 
 
 # ═══════════════════════════════════════════════════════════════════

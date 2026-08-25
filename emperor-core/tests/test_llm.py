@@ -1,10 +1,10 @@
-"""Tests for jarvis.llm — LLMEngine, LLMConfig, ModelProvider."""
+"""Tests for huanxin.llm — LLMEngine, LLMConfig, ModelProvider."""
 
 from __future__ import annotations
 
 import pytest
 
-from jarvis.llm import LLMConfig, LLMEngine, ModelProvider
+from huanxin.llm import LLMConfig, LLMEngine, ModelProvider
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -426,10 +426,10 @@ class TestLLMEngineMockChat:
 
 
 # ══════════════════════════════════════════════════════════════════
-# Emperor integration (llm_engine property)
+# Huanxin integration (llm_engine property)
 # ══════════════════════════════════════════════════════════════════
 #
-# NOTE: Emperor integration tests are deferred until jarvis.model_router
-# (a pre-existing dependency in Emperor.__init__) is available.
-# The llm_engine / llm_config properties are correctly added to Emperor
-# (see jarvis/emperor.py lines ~534-555).
+# NOTE: Huanxin integration tests are deferred until huanxin.model_router
+# (a pre-existing dependency in Huanxin.__init__) is available.
+# The llm_engine / llm_config properties are correctly added to Huanxin
+# (see huanxin/emperor.py lines ~534-555).

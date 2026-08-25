@@ -14,8 +14,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-import jarvis.core.llm as llm_mod
-from jarvis.core.llm import LLMConfig, LLMEngine, LLMManager, build_manager_from_env
+import huanxin.core.llm as llm_mod
+from huanxin.core.llm import LLMConfig, LLMEngine, LLMManager, build_manager_from_env
 
 
 @pytest.fixture
@@ -91,7 +91,7 @@ def test_build_default_llm_fails_over(monkeypatch):
     monkeypatch.setenv("OPENAI_BASE_URL", "https://primary/v1")
     monkeypatch.setenv("OPENAI_FALLBACK_BASE_URLS", "https://fallback/v1")
 
-    llm = __import__("jarvis.court.real_executor", fromlist=["build_default_llm"]).build_default_llm()
+    llm = __import__("huanxin.court.real_executor", fromlist=["build_default_llm"]).build_default_llm()
     assert llm is not None
     out = llm("ping")
     assert out == "hi"
@@ -104,7 +104,7 @@ def test_build_default_llm_all_fail_raises(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-x")
     monkeypatch.setenv("OPENAI_BASE_URL", "https://primary/v1")
 
-    re = __import__("jarvis.court.real_executor", fromlist=["build_default_llm"])
+    re = __import__("huanxin.court.real_executor", fromlist=["build_default_llm"])
     llm = re.build_default_llm()
     assert llm is not None
     with pytest.raises(RuntimeError):

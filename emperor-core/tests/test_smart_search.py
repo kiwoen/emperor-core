@@ -4,9 +4,9 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from jarvis.court_api import create_app
-from jarvis.emperor import Emperor
-from jarvis.hierarchical_memory import HierarchicalMemoryEngine, MemoryTier
+from huanxin.court_api import create_app
+from huanxin.core import Huanxin
+from huanxin.hierarchical_memory import HierarchicalMemoryEngine, MemoryTier
 
 
 class TestSmartSearchAPI:
@@ -14,7 +14,7 @@ class TestSmartSearchAPI:
 
     @pytest.fixture
     def emperor(self):
-        return Emperor()
+        return Huanxin()
 
     @pytest.fixture
     def mem_engine(self):

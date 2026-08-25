@@ -1,4 +1,4 @@
-# 架构设计：emperor-core 多用户开放 + 文件上传 + 联网搜索 + 图文识别（增量开发）
+# 架构设计：huanxin-ai 多用户开放 + 文件上传 + 联网搜索 + 图文识别（增量开发）
 
 > 配套 PRD：`docs/PRD_MULTI_USER_AND_CAPABILITIES.md`（已定稿）。
 > 本设计遵循「最小变更」：尽量复用 `get_current_user` 依赖、`auth_store` 五表、多后端 `LLMManager`、`VisionProcessor`；前端改动集中在单文件 `chat_dashboard.py`。
@@ -9,7 +9,7 @@
 
 | 能力 | 选型 | 关键落地文件 |
 |---|---|---|
-| 多用户注册 | 复用 `auth_store.create_user` + env 开关 `EMPEROR_OPEN_REGISTRATION` | `court_api.py` / `auth_store.py` |
+| 多用户注册 | 复用 `auth_store.create_user` + env 开关 `HUANXIN_OPEN_REGISTRATION` | `court_api.py` / `auth_store.py` |
 | 文件上传 | 本地卷 `/app/data/uploads` + 白名单 + UUID 重命名 | `capabilities/uploads.py`（新增） |
 | 联网搜索 | DuckDuckGo（`duckduckgo_search`，无 key） | `capabilities/search.py`（新增） |
 | 图文识别 | Groq LLaVA（复用 `GROQ_API_KEY`，OpenAI 兼容 `image_url`） | `capabilities/vision.py`（新增，复用 `VisionProcessor`） |
@@ -26,9 +26,9 @@
   - 复用现有 `FREE_PROVIDERS["groq"]` 的 `base_url=https://api.groq.com/openai/v1` 与 `key_env=GROQ_API_KEY`（无需新 key，直接复用 `GROQ_API_KEY`）。
   - 差异点：groq 的 `default_model` 是文本模型 `llama-3.3-70b-versatile`，vision 需覆盖为 LLaVA，故引入独立 `VISION_MODEL` env。
 - **备选端点：Cloudflare Workers AI LLaVA**（`@cf/llava-hf/llava-1.5-7b-hf`）。因其 API 形态（账户级 URL + `CF_API_TOKEN`/`CF_ACCOUNT_ID`）与 OpenAI 兼容不完全一致，不作为硬编码后端，而是通过通用 `VISION_FALLBACK_BASE_URLS/MODELS/KEYS` 三组逗号分隔 env 挂载，需要时由运维注入即可，无需改代码。
-- **复用方式**：`VisionProcessor`（`jarvis/multimodal/processor.py`）保持**零改动**。它只依赖注入对象具备 `chat_sync(prompt="", messages=[...]) -> str`。我们新增一个轻量适配器 `VisionBackend` 实现该签名，内部按 backends 顺序做故障转移（与 `LLMManager` 同样的「依次尝试 + 失败降级」思路）。
+- **复用方式**：`VisionProcessor`（`huanxin/multimodal/processor.py`）保持**零改动**。它只依赖注入对象具备 `chat_sync(prompt="", messages=[...]) -> str`。我们新增一个轻量适配器 `VisionBackend` 实现该签名，内部按 backends 顺序做故障转移（与 `LLMManager` 同样的「依次尝试 + 失败降级」思路）。
 
-> 关键澄清：现有 `jarvis/core/llm.py` 的 `LLMEngine/LLMManager` 只有 `complete()`，且其 `_litellm_complete` 只拼字符串消息，**不承载** `image_url` 多模态 content；而 `jarvis/llm/manager.py` 的 `chat_sync` 忽略 `messages` 参数。因此 vision 必须走专用 `VisionBackend`，不能直接复用 chat 的 manager。这正符合「复用 VisionProcessor 引擎、只换后端适配器」的最小变更原则。
+> 关键澄清：现有 `huanxin/core/llm.py` 的 `LLMEngine/LLMManager` 只有 `complete()`，且其 `_litellm_complete` 只拼字符串消息，**不承载** `image_url` 多模态 content；而 `huanxin/llm/manager.py` 的 `chat_sync` 忽略 `messages` 参数。因此 vision 必须走专用 `VisionBackend`，不能直接复用 chat 的 manager。这正符合「复用 VisionProcessor 引擎、只换后端适配器」的最小变更原则。
 
 ### 1.2 联网搜索选型结论
 
@@ -38,7 +38,7 @@
 
 ### 1.3 文件上传选型结论
 
-- **本地持久化卷 `/app/data/uploads`**（即 `$EMPEROR_DATA_DIR/uploads`），复用 Docker 命名卷，重启不丢。
+- **本地持久化卷 `/app/data/uploads`**（即 `$HUANXIN_DATA_DIR/uploads`），复用 Docker 命名卷，重启不丢。
 - 上传走 **`python-multipart`**（已在 `requirements-docker.txt`，FastAPI `UploadFile` 依赖它）。
 - 安全校验（PRD 3.3-3 已拍板）：
   1. 类型白名单：扩展名 `{.jpg,.jpeg,.png,.webp,.txt,.md,.pdf}`；
@@ -48,7 +48,7 @@
 
 ### 1.4 权限与配额选型结论
 
-- **完全开放注册**：`EMPEROR_OPEN_REGISTRATION`（默认 `1`）。
+- **完全开放注册**：`HUANXIN_OPEN_REGISTRATION`（默认 `1`）。
 - **管理员能力**：用户列表 / 封禁 / 重置密码 / 调配额；新增 `require_admin` 依赖 + `users.banned` / `users.quota` 字段。
 - **普通用户默认不限额**：`users.quota` 默认 NULL（=不限额），管理员可按用户覆盖；全局默认可经 `USER_DEFAULT_QUOTA`（JSON）配置，留作 P1-3。
 
@@ -66,11 +66,11 @@
 
 | 相对路径 | 职责 |
 |---|---|
-| `jarvis/capabilities/__init__.py` | 能力服务包入口，re-export `UploadStore` / `WebSearchService` / `build_vision_processor` |
-| `jarvis/capabilities/uploads.py` | 上传存储与安全校验（白名单、MIME+扩展双验、UUID 重命名、防路径穿越） |
-| `jarvis/capabilities/search.py` | DuckDuckGo 联网搜索服务 + 优雅降级 |
-| `jarvis/capabilities/vision.py` | Vision 后端解析（Groq LLaVA 主 + fallback env）+ `VisionBackend` 适配器 + `build_vision_processor()` |
-| `jarvis/api/deps.py` | 提炼 `get_current_user` + 新增 `require_admin` 依赖（供 `court_api.py` 复用，便于单测） |
+| `huanxin/capabilities/__init__.py` | 能力服务包入口，re-export `UploadStore` / `WebSearchService` / `build_vision_processor` |
+| `huanxin/capabilities/uploads.py` | 上传存储与安全校验（白名单、MIME+扩展双验、UUID 重命名、防路径穿越） |
+| `huanxin/capabilities/search.py` | DuckDuckGo 联网搜索服务 + 优雅降级 |
+| `huanxin/capabilities/vision.py` | Vision 后端解析（Groq LLaVA 主 + fallback env）+ `VisionBackend` 适配器 + `build_vision_processor()` |
+| `huanxin/api/deps.py` | 提炼 `get_current_user` + 新增 `require_admin` 依赖（供 `court_api.py` 复用，便于单测） |
 | `tests/test_uploads.py` | 上传白名单/大小/路径穿越/MIME 校验单测 |
 | `tests/test_search.py` | 搜索服务降级/结果结构单测（mock DDGS） |
 | `tests/test_auth_multiuser.py` | 注册开放/重复用户名/数据隔离/越权/封禁 单测 |
@@ -79,15 +79,15 @@
 
 | 相对路径 | 职责 / 改动点 |
 |---|---|
-| `jarvis/api/auth_store.py` | ① `users` 增加 `banned`/`quota` 字段迁移；② 新增 `capability_usage` 表；③ 新增 admin 辅助函数（`list_users`/`set_user_banned`/`set_user_password`/`set_user_quota`/`is_user_banned`）与 `add_capability_usage`；④ `verify_user`/`get_session_user` 封禁拦截 |
-| `jarvis/court_api.py` | ① 打开 `/api/auth/register`（读 env 开关）；② 新增 `/api/upload`、`/api/files/{id}`、`/api/vision`、`/api/search`、`/api/admin/*`；③ 扩展 `ChatRequest` 与 `/api/chat`（`web_search`/`image_url`/`file_id`）；④ `require_admin` 接线 |
-| `jarvis/api/token_guard.py` | 仅注释更新：确认 `/api/auth/register` 已在 `public_paths`（现状已放行，无需改逻辑） |
-| `jarvis/chat_dashboard.py` | ① 登录模态框补「注册」tab（用户名/密码/确认密码 + 前端校验 + 注册后自动登录）；② 输入区加「📎 上传」按钮 +「联网搜索」开关；③ 消息区文件卡片/图片缩略图/来源链接展示；④（P1）管理员后台入口 |
+| `huanxin/api/auth_store.py` | ① `users` 增加 `banned`/`quota` 字段迁移；② 新增 `capability_usage` 表；③ 新增 admin 辅助函数（`list_users`/`set_user_banned`/`set_user_password`/`set_user_quota`/`is_user_banned`）与 `add_capability_usage`；④ `verify_user`/`get_session_user` 封禁拦截 |
+| `huanxin/court_api.py` | ① 打开 `/api/auth/register`（读 env 开关）；② 新增 `/api/upload`、`/api/files/{id}`、`/api/vision`、`/api/search`、`/api/admin/*`；③ 扩展 `ChatRequest` 与 `/api/chat`（`web_search`/`image_url`/`file_id`）；④ `require_admin` 接线 |
+| `huanxin/api/token_guard.py` | 仅注释更新：确认 `/api/auth/register` 已在 `public_paths`（现状已放行，无需改逻辑） |
+| `huanxin/chat_dashboard.py` | ① 登录模态框补「注册」tab（用户名/密码/确认密码 + 前端校验 + 注册后自动登录）；② 输入区加「📎 上传」按钮 +「联网搜索」开关；③ 消息区文件卡片/图片缩略图/来源链接展示；④（P1）管理员后台入口 |
 | `requirements-docker.txt` | 新增 `duckduckgo-search`、`pillow`、`PyPDF2` |
 | `requirements.txt` | 同步新增 `duckduckgo-search`（pillow/PyPDF2 已存在） |
 | `.env.example`（如存在） | 追加本节 1.1–1.4 新增 env 变量示例 |
 
-> 说明：`jarvis/multimodal/processor.py`（`VisionProcessor`）**不改**；`jarvis/core/llm.py`、`jarvis/llm/manager.py` **不改**。
+> 说明：`huanxin/multimodal/processor.py`（`VisionProcessor`）**不改**；`huanxin/core/llm.py`、`huanxin/llm/manager.py` **不改**。
 
 ---
 
@@ -101,7 +101,7 @@ class ChatRequest(BaseModel):          # 扩展已有模型
     message: str
     history: list[dict] = []
     conversation_id: Optional[int] = None
-    system: str = "你是 Emperor Core ..."
+    system: str = "你是 幻炘AI ..."
     web_search: bool = False           # 新增：联网搜索开关
     image_url: Optional[str] = None    # 新增：图片 URL（视觉）
     file_id: Optional[str] = None      # 新增：已上传文件引用（图片→视觉；pdf/txt/md→抽取文本）
@@ -213,7 +213,7 @@ sequenceDiagram
     participant AS as auth_store
 
     FE->>API: POST /api/auth/register {username,password}
-    API->>API: 读 EMPEROR_OPEN_REGISTRATION（默认1）
+    API->>API: 读 HUANXIN_OPEN_REGISTRATION（默认1）
     alt 开关关闭
         API-->>FE: 403 注册已关闭
     else 开关打开
@@ -310,7 +310,7 @@ sequenceDiagram
 > 严格遵循「≤5 任务 / 每任务 ≥3 文件 / 首任务为基础设施 / 按依赖顺序」约束。
 
 ### T01 — 项目基础设施 + 数据层扩展（P0 依赖）
-- **新增/修改文件**：`requirements-docker.txt`、`requirements.txt`、`jarvis/api/auth_store.py`、`.env.example`
+- **新增/修改文件**：`requirements-docker.txt`、`requirements.txt`、`huanxin/api/auth_store.py`、`.env.example`
 - **做什么**：
   1. `requirements-docker.txt` 增 `duckduckgo-search>=6.0.0`、`pillow>=10.0.0`、`PyPDF2>=3.0.0`；`requirements.txt` 同步增 `duckduckgo-search`。
   2. `auth_store.py` 新增 `migrate_schema()`（幂等 `ALTER TABLE users ADD COLUMN banned/quota` + `CREATE TABLE IF NOT EXISTS capability_usage`），并在 `init_db()` 末尾调用；`users` 建表 SQL 同步补 `banned`/`quota`（新库直接含列）。
@@ -320,7 +320,7 @@ sequenceDiagram
 - **依赖**：无
 
 ### T02 — 能力服务层（上传/搜索/视觉三模块）（P0/P1 依赖）
-- **新增文件**：`jarvis/capabilities/__init__.py`、`jarvis/capabilities/uploads.py`、`jarvis/capabilities/search.py`、`jarvis/capabilities/vision.py`
+- **新增文件**：`huanxin/capabilities/__init__.py`、`huanxin/capabilities/uploads.py`、`huanxin/capabilities/search.py`、`huanxin/capabilities/vision.py`
 - **做什么**：
   1. `uploads.py`：`UploadStore`（白名单、MIME+扩展双验、`UPLOAD_MAX_MB` 大小限制、`uuid4` 重命名、`Path.resolve` 防穿越、`save/resolve/get_meta/delete`）。
   2. `search.py`：`WebSearchService`（`DDGS().text()`，`available()`、`search()` 返回 `(results, degraded)`，import/网络异常降级）。
@@ -330,16 +330,16 @@ sequenceDiagram
 - **依赖**：T01
 
 ### T03 — API 路由 + 鉴权接入（P0/P1 核心）
-- **新增/修改文件**：`jarvis/api/deps.py`（新增）、`jarvis/court_api.py`（修改）、`jarvis/api/token_guard.py`（注释确认）
+- **新增/修改文件**：`huanxin/api/deps.py`（新增）、`huanxin/court_api.py`（修改）、`huanxin/api/token_guard.py`（注释确认）
 - **做什么**：
   1. `deps.py`：提炼 `get_current_user`（自 `court_api.py` 闭包迁移，仅依赖 `auth_store` + `Request`）+ 新增 `require_admin`（非 admin 抛 403）。
-  2. `court_api.py`：① 打开 `/api/auth/register`（`EMPEROR_OPEN_REGISTRATION` 开关，成功 `create_user`+`create_session` 返回 token）；② 新增 `/api/upload`、`/api/files/{file_id}`、`/api/vision`、`/api/search`、`/api/admin/*`；③ `ChatRequest` 增 `web_search/image_url/file_id`，`/api/chat` 的 `generate()` 按需注入搜索上下文/视觉 caption/文件文本，并新增 `sources` SSE 事件；④ 引入 `Depends(get_current_user)`/`Depends(require_admin)`（替换既有闭包调用点）。
+  2. `court_api.py`：① 打开 `/api/auth/register`（`HUANXIN_OPEN_REGISTRATION` 开关，成功 `create_user`+`create_session` 返回 token）；② 新增 `/api/upload`、`/api/files/{file_id}`、`/api/vision`、`/api/search`、`/api/admin/*`；③ `ChatRequest` 增 `web_search/image_url/file_id`，`/api/chat` 的 `generate()` 按需注入搜索上下文/视觉 caption/文件文本，并新增 `sources` SSE 事件；④ 引入 `Depends(get_current_user)`/`Depends(require_admin)`（替换既有闭包调用点）。
   3. `token_guard.py`：确认 `/api/auth/register` 在 `public_paths`（现状已含，仅补注释，不改逻辑）。
 - **验收标准**：新用户注册成功且可登录；重复用户名 409；未登录上传/搜索/视觉返回 401；普通用户访问 `/api/admin/*` 返回 403；`/api/chat` 带 `web_search:true` 时 SSE 含 `sources` 事件；`/api/vision` 无 vision key 时返回可读降级而非 500。
 - **依赖**：T01、T02
 
 ### T04 — 前端入口（`chat_dashboard.py` 单文件）
-- **修改文件**：`jarvis/chat_dashboard.py`
+- **修改文件**：`huanxin/chat_dashboard.py`
 - **做什么**：
   1. 登录模态框补「注册」tab（用户名/密码/确认密码；前端非空/强度/二次一致校验；`submitAuth` 按 tab 分流登录/注册，注册成功 `setToken` 自动登录）。
   2. composer 加「📎 上传」按钮（`<input type=file>` 隐藏 + `FormData` 调 `/api/upload`）+「联网搜索」开关（视觉高亮「已开启联网」）。
@@ -382,7 +382,7 @@ sequenceDiagram
 - 能力类服务（搜索/视觉/上传）**内部绝不抛 5xx**，一律返回结构化降级结果（`degraded`/`error` 字段），由路由层决定响应。
 
 ### 7.2 鉴权依赖复用
-- `get_current_user` / `require_admin` 统一放 `jarvis/api/deps.py`，`court_api.py` 与未来模块 `from jarvis.api.deps import get_current_user, require_admin`。
+- `get_current_user` / `require_admin` 统一放 `huanxin/api/deps.py`，`court_api.py` 与未来模块 `from huanxin.api.deps import get_current_user, require_admin`。
 - 所有新路由必须挂 `Depends(get_current_user)`（除 `/api/auth/register`、`/api/auth/login`、`/health`）。
 - admin 路由额外挂 `Depends(require_admin)`。
 
@@ -392,15 +392,15 @@ sequenceDiagram
 - 流中断也要落库（现有 `finally` 已保证），新能力沿用。
 
 ### 7.4 日志规范
-- logger 命名：`jarvis.capabilities.<module>`（`jarvis.capabilities.uploads` 等）。
+- logger 命名：`huanxin.capabilities.<module>`（`huanxin.capabilities.uploads` 等）。
 - 计量/降级用 `logger.warning`，正常路径 `logger.info/debug`，异常堆栈用 `exc_info=True`。
 
-### 7.5 新增 env 变量命名（沿用 `OPENAI_*` / `EMPEROR_*` / `*_API_KEY` 约定）
+### 7.5 新增 env 变量命名（沿用 `OPENAI_*` / `HUANXIN_*` / `*_API_KEY` 约定）
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `EMPEROR_OPEN_REGISTRATION` | `1` | 开放注册开关（`0` 关闭） |
-| `EMPEROR_DATA_DIR` | `/app/data` | 数据卷根（uploads 在其下） |
+| `HUANXIN_OPEN_REGISTRATION` | `1` | 开放注册开关（`0` 关闭） |
+| `HUANXIN_DATA_DIR` | `/app/data` | 数据卷根（uploads 在其下） |
 | `UPLOAD_MAX_MB` | `20` | 单文件大小上限 |
 | `VISION_PROVIDER` | `groq` | 视觉主后端（复用 `FREE_PROVIDERS`） |
 | `VISION_MODEL` | `llava-v1.5-7b-4096-preview` | 视觉模型 |
@@ -422,7 +422,7 @@ sequenceDiagram
 
 1. **Cloudflare Workers AI 兜底的图片格式**：其 `@cf/llava-hf` 非标准 OpenAI `image_url` 形态，若需真正启用，需在 `VisionBackend` 加一个 `provider="cloudflare"` 分支做 image→base64 数组适配。本设计暂以 env 挂载兜底、不硬编码，**是否本轮实现 Cloudflare 适配器待定**。
 2. **配额（P1-3）具体语义**：`users.quota` 的 JSON 结构（按「对话次数/上传字节/搜索次数」哪几项、超限是软提示还是硬拦截）尚未定，本设计先落「字段 + admin 可改」，**拦截规则留待实现时细化**。
-3. **注册是否需邮箱/邀请码（P2-4）**：已拍板「完全开放」，本轮不做；仅保留 `EMPEROR_OPEN_REGISTRATION` 总开关。
+3. **注册是否需邮箱/邀请码（P2-4）**：已拍板「完全开放」，本轮不做；仅保留 `HUANXIN_OPEN_REGISTRATION` 总开关。
 4. **上传文件生命周期**：暂不实现用户自助删除/过期清理；`capability_usage` 已记录字节，未来可据此做总容量配额。
 5. **`/api/files/{id}` 的公开性**：当前设计要求登录 + 属主校验；若需在对话历史中跨端展示图片，需确认是否需要短期签名 URL（本轮先用鉴权直读）。
 

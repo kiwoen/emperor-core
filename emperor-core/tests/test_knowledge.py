@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from jarvis.knowledge.graph import (
+from huanxin.knowledge.graph import (
     KnowledgeGraph,
     Entity,
     Edge,
@@ -36,9 +36,9 @@ def kg() -> KnowledgeGraph:
 
 class TestEntityExtraction:
     def test_extracts_dot_separated(self):
-        results = _extract_entities("JARVIS uses jarvis.codex.engine for code review")
+        results = _extract_entities("HUANXIN uses huanxin.codex.engine for code review")
         names = [r[0] for r in results]
-        assert "jarvis.codex.engine" in names
+        assert "huanxin.codex.engine" in names
 
     def test_extracts_capitalized_phrases(self):
         results = _extract_entities("Code Review and Machine Learning are important")
@@ -173,7 +173,7 @@ class TestEdgeManagement:
 class TestIngestion:
     @pytest.mark.asyncio
     async def test_ingest_extracts_and_links(self, kg: KnowledgeGraph):
-        entities = await kg.ingest("JARVIS uses Code Review via Vector Engine")
+        entities = await kg.ingest("HUANXIN uses Code Review via Vector Engine")
         assert len(entities) >= 2
         assert len(kg.entities) >= 2
         # At least one edge should exist between co-occurring entities
@@ -195,7 +195,7 @@ class TestIngestion:
 
     @pytest.mark.asyncio
     async def test_ingest_detects_uses_relation(self, kg: KnowledgeGraph):
-        await kg.ingest("JARVIS uses Python for Code Review")
+        await kg.ingest("HUANXIN uses Python for Code Review")
         edges = []
         for targets in kg.edges.values():
             edges.extend(targets.values())

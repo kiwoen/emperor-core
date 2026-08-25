@@ -5,11 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from jarvis.hermes.bus import MessageBus, Topic
-from jarvis.hermes.event_log import EventLog
-from jarvis.codex.engine import CodexEngine
-from jarvis.codex.analyzer import Analyzer
-from jarvis.codex.generator import Generator
+from huanxin.hermes.bus import MessageBus, Topic
+from huanxin.hermes.event_log import EventLog
+from huanxin.codex.engine import CodexEngine
+from huanxin.codex.analyzer import Analyzer
+from huanxin.codex.generator import Generator
 
 
 # ============================================================================

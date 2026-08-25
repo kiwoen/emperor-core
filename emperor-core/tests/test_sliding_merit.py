@@ -20,8 +20,8 @@ Covers:
 import math
 import pytest
 
-from jarvis.court.merit_board import MeritBoard
-from jarvis.court.sliding_merit import (
+from huanxin.court.merit_board import MeritBoard
+from huanxin.court.sliding_merit import (
     SlidingMeritBoard,
     SlidingMeritReport,
     WindowMode,

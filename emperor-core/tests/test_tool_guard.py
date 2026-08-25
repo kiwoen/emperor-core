@@ -1,5 +1,5 @@
 """
-Tests for jarvis.tool_guard — Tool Call Guard Middleware.
+Tests for huanxin.tool_guard — Tool Call Guard Middleware.
 
 Covers:
   - InputValidator: SQL injection, path traversal, type/length checks
@@ -18,7 +18,7 @@ import pytest
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from jarvis.tool_guard import (
+from huanxin.tool_guard import (
     InputValidator,
     ValidationSeverity,
     RateLimiter,

@@ -1,11 +1,11 @@
-"""Tests for jarvis.approval — HITL Approval Engine."""
+"""Tests for huanxin.approval — HITL Approval Engine."""
 
 import os
 import tempfile
 import pytest
 from pathlib import Path
 
-from jarvis.approval import (
+from huanxin.approval import (
     ApprovalEngine,
     ApprovalRequest,
     ApprovalPolicy,

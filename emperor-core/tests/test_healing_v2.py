@@ -5,7 +5,7 @@ import pytest
 
 sys.path.insert(0, ".")
 
-from jarvis.healing import (
+from huanxin.healing import (
     HealingAction,
     HealingEngine,
     HealingRecord,

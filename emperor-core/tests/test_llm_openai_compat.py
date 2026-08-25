@@ -1,4 +1,4 @@
-"""Tests for OpenAI-compatible (free model) LLM wiring in jarvis.core.llm.
+"""Tests for OpenAI-compatible (free model) LLM wiring in huanxin.core.llm.
 
 These prove the plumbing without network access:
 - OPENAI_* env vars drive the config
@@ -12,8 +12,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-import jarvis.core.llm as llm_mod
-from jarvis.core.llm import LLMConfig, LLMEngine
+import huanxin.core.llm as llm_mod
+from huanxin.core.llm import LLMConfig, LLMEngine
 
 
 @pytest.fixture

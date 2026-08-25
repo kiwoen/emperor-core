@@ -10,8 +10,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from jarvis.events.stream import EventStreamManager, EventClient
-from jarvis.hermes.bus import MessageBus, Message, Topic, MessageType
+from huanxin.events.stream import EventStreamManager, EventClient
+from huanxin.hermes.bus import MessageBus, Message, Topic, MessageType
 
 
 # ---------------------------------------------------------------------------

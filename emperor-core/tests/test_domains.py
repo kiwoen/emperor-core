@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from jarvis.core.orchestrator import Intent, Domain, TaskResult
+from huanxin.core.orchestrator import Intent, Domain, TaskResult
 
 
 # ─── Test fixtures ─────────────────────────────────────────────
@@ -37,7 +37,7 @@ class TestResearchDomain:
 
     @pytest.mark.asyncio
     async def test_search(self):
-        dm = _load_domain("jarvis.domains.research")
+        dm = _load_domain("huanxin.domains.research")
         intent = _make_intent("搜索量子计算最新论文", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -46,7 +46,7 @@ class TestResearchDomain:
 
     @pytest.mark.asyncio
     async def test_paper(self):
-        dm = _load_domain("jarvis.domains.research")
+        dm = _load_domain("huanxin.domains.research")
         intent = _make_intent("查找GPT论文", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -54,7 +54,7 @@ class TestResearchDomain:
 
     @pytest.mark.asyncio
     async def test_trend(self):
-        dm = _load_domain("jarvis.domains.research")
+        dm = _load_domain("huanxin.domains.research")
         intent = _make_intent("AI行业趋势分析", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -62,7 +62,7 @@ class TestResearchDomain:
 
     @pytest.mark.asyncio
     async def test_research_framework(self):
-        dm = _load_domain("jarvis.domains.research")
+        dm = _load_domain("huanxin.domains.research")
         intent = _make_intent("研究可再生能源技术", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -78,7 +78,7 @@ class TestEngineeringDomain:
 
     @pytest.mark.asyncio
     async def test_code_gen(self):
-        dm = _load_domain("jarvis.domains.engineering")
+        dm = _load_domain("huanxin.domains.engineering")
         intent = _make_intent("写一个Python排序函数", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -86,7 +86,7 @@ class TestEngineeringDomain:
 
     @pytest.mark.asyncio
     async def test_debug(self):
-        dm = _load_domain("jarvis.domains.engineering")
+        dm = _load_domain("huanxin.domains.engineering")
         intent = _make_intent("修复这段代码的bug", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -94,7 +94,7 @@ class TestEngineeringDomain:
 
     @pytest.mark.asyncio
     async def test_refactor(self):
-        dm = _load_domain("jarvis.domains.engineering")
+        dm = _load_domain("huanxin.domains.engineering")
         intent = _make_intent("重构这个模块", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -102,7 +102,7 @@ class TestEngineeringDomain:
 
     @pytest.mark.asyncio
     async def test_git(self):
-        dm = _load_domain("jarvis.domains.engineering")
+        dm = _load_domain("huanxin.domains.engineering")
         intent = _make_intent("git commit", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -110,7 +110,7 @@ class TestEngineeringDomain:
 
     @pytest.mark.asyncio
     async def test_architecture(self):
-        dm = _load_domain("jarvis.domains.engineering")
+        dm = _load_domain("huanxin.domains.engineering")
         intent = _make_intent("设计微服务架构", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -125,7 +125,7 @@ class TestCreatorDomain:
 
     @pytest.mark.asyncio
     async def test_writing(self):
-        dm = _load_domain("jarvis.domains.creator")
+        dm = _load_domain("huanxin.domains.creator")
         intent = _make_intent("写一篇科幻小说", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -133,7 +133,7 @@ class TestCreatorDomain:
 
     @pytest.mark.asyncio
     async def test_design(self):
-        dm = _load_domain("jarvis.domains.creator")
+        dm = _load_domain("huanxin.domains.creator")
         intent = _make_intent("设计一张科技峰会海报", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -141,7 +141,7 @@ class TestCreatorDomain:
 
     @pytest.mark.asyncio
     async def test_presentation(self):
-        dm = _load_domain("jarvis.domains.creator")
+        dm = _load_domain("huanxin.domains.creator")
         intent = _make_intent("做一个产品演示PPT", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -149,7 +149,7 @@ class TestCreatorDomain:
 
     @pytest.mark.asyncio
     async def test_image_prompt(self):
-        dm = _load_domain("jarvis.domains.creator")
+        dm = _load_domain("huanxin.domains.creator")
         intent = _make_intent("画一幅星空插画", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -164,7 +164,7 @@ class TestPersonalDomain:
 
     @pytest.mark.asyncio
     async def test_reminder(self):
-        dm = _load_domain("jarvis.domains.personal")
+        dm = _load_domain("huanxin.domains.personal")
         intent = _make_intent("提醒我下午3点开会", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -172,7 +172,7 @@ class TestPersonalDomain:
 
     @pytest.mark.asyncio
     async def test_todo(self):
-        dm = _load_domain("jarvis.domains.personal")
+        dm = _load_domain("huanxin.domains.personal")
         intent = _make_intent("添加待办：完成周报", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -180,15 +180,15 @@ class TestPersonalDomain:
 
     @pytest.mark.asyncio
     async def test_note(self):
-        dm = _load_domain("jarvis.domains.personal")
-        intent = _make_intent("记录笔记：JARVIS架构设计要点", self.DOMAIN)
+        dm = _load_domain("huanxin.domains.personal")
+        intent = _make_intent("记录笔记：HUANXIN架构设计要点", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
         assert "note_key" in result.data
 
     @pytest.mark.asyncio
     async def test_plan(self):
-        dm = _load_domain("jarvis.domains.personal")
+        dm = _load_domain("huanxin.domains.personal")
         intent = _make_intent("制定明天的学习计划", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -196,7 +196,7 @@ class TestPersonalDomain:
 
     @pytest.mark.asyncio
     async def test_focus(self):
-        dm = _load_domain("jarvis.domains.personal")
+        dm = _load_domain("huanxin.domains.personal")
         intent = _make_intent("开始25分钟专注番茄钟", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -211,7 +211,7 @@ class TestSecurityDomain:
 
     @pytest.mark.asyncio
     async def test_scan(self):
-        dm = _load_domain("jarvis.domains.security")
+        dm = _load_domain("huanxin.domains.security")
         intent = _make_intent("扫描系统端口", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -219,7 +219,7 @@ class TestSecurityDomain:
 
     @pytest.mark.asyncio
     async def test_monitor(self):
-        dm = _load_domain("jarvis.domains.security")
+        dm = _load_domain("huanxin.domains.security")
         intent = _make_intent("开启系统监控", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -227,7 +227,7 @@ class TestSecurityDomain:
 
     @pytest.mark.asyncio
     async def test_encrypt(self):
-        dm = _load_domain("jarvis.domains.security")
+        dm = _load_domain("huanxin.domains.security")
         intent = _make_intent("加密敏感文件", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -235,7 +235,7 @@ class TestSecurityDomain:
 
     @pytest.mark.asyncio
     async def test_vuln(self):
-        dm = _load_domain("jarvis.domains.security")
+        dm = _load_domain("huanxin.domains.security")
         intent = _make_intent("扫描系统漏洞", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -250,7 +250,7 @@ class TestHealthDomain:
 
     @pytest.mark.asyncio
     async def test_exercise(self):
-        dm = _load_domain("jarvis.domains.health")
+        dm = _load_domain("huanxin.domains.health")
         intent = _make_intent("制定跑步运动计划", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -258,7 +258,7 @@ class TestHealthDomain:
 
     @pytest.mark.asyncio
     async def test_sleep(self):
-        dm = _load_domain("jarvis.domains.health")
+        dm = _load_domain("huanxin.domains.health")
         intent = _make_intent("分析我的睡眠质量", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -266,7 +266,7 @@ class TestHealthDomain:
 
     @pytest.mark.asyncio
     async def test_diet(self):
-        dm = _load_domain("jarvis.domains.health")
+        dm = _load_domain("huanxin.domains.health")
         intent = _make_intent("制定素食减脂食谱", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -274,7 +274,7 @@ class TestHealthDomain:
 
     @pytest.mark.asyncio
     async def test_meditation(self):
-        dm = _load_domain("jarvis.domains.health")
+        dm = _load_domain("huanxin.domains.health")
         intent = _make_intent("引导10分钟冥想", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -289,7 +289,7 @@ class TestFinanceDomain:
 
     @pytest.mark.asyncio
     async def test_stock(self):
-        dm = _load_domain("jarvis.domains.finance")
+        dm = _load_domain("huanxin.domains.finance")
         intent = _make_intent("分析A股市场最近走势", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -297,7 +297,7 @@ class TestFinanceDomain:
 
     @pytest.mark.asyncio
     async def test_budget(self):
-        dm = _load_domain("jarvis.domains.finance")
+        dm = _load_domain("huanxin.domains.finance")
         intent = _make_intent("制定月度预算计划", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -305,7 +305,7 @@ class TestFinanceDomain:
 
     @pytest.mark.asyncio
     async def test_crypto(self):
-        dm = _load_domain("jarvis.domains.finance")
+        dm = _load_domain("huanxin.domains.finance")
         intent = _make_intent("查看比特币和以太坊行情", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -313,7 +313,7 @@ class TestFinanceDomain:
 
     @pytest.mark.asyncio
     async def test_portfolio(self):
-        dm = _load_domain("jarvis.domains.finance")
+        dm = _load_domain("huanxin.domains.finance")
         intent = _make_intent("分析我的投资组合", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -328,7 +328,7 @@ class TestHomeDomain:
 
     @pytest.mark.asyncio
     async def test_light(self):
-        dm = _load_domain("jarvis.domains.home")
+        dm = _load_domain("huanxin.domains.home")
         intent = _make_intent("打开客厅灯光到50%亮度", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -337,7 +337,7 @@ class TestHomeDomain:
 
     @pytest.mark.asyncio
     async def test_climate(self):
-        dm = _load_domain("jarvis.domains.home")
+        dm = _load_domain("huanxin.domains.home")
         intent = _make_intent("把卧室空调调到26度", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -346,7 +346,7 @@ class TestHomeDomain:
 
     @pytest.mark.asyncio
     async def test_scene(self):
-        dm = _load_domain("jarvis.domains.home")
+        dm = _load_domain("huanxin.domains.home")
         intent = _make_intent("激活睡眠模式", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success
@@ -354,7 +354,7 @@ class TestHomeDomain:
 
     @pytest.mark.asyncio
     async def test_energy(self):
-        dm = _load_domain("jarvis.domains.home")
+        dm = _load_domain("huanxin.domains.home")
         intent = _make_intent("查看本月能源消耗", self.DOMAIN)
         result = await dm.handle(intent)
         assert result.success

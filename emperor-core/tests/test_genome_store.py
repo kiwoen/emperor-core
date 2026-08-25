@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from jarvis.court.evolution import MinisterGenome
-from jarvis.court.genome_store import GenomeStore
+from huanxin.court.evolution import MinisterGenome
+from huanxin.court.genome_store import GenomeStore
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────

@@ -23,10 +23,10 @@ import sys
 # 让脚本可直接以仓库根为 CWD 运行
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from jarvis.court.circuit_breaker import CircuitBreaker  # noqa: E402
-from jarvis.eval_bench.run import run_suite  # noqa: E402
-from jarvis.eval_bench.suites.canonical import build_canonical_suite  # noqa: E402
-from jarvis.telemetry import (  # noqa: E402
+from huanxin.court.circuit_breaker import CircuitBreaker  # noqa: E402
+from huanxin.eval_bench.run import run_suite  # noqa: E402
+from huanxin.eval_bench.suites.canonical import build_canonical_suite  # noqa: E402
+from huanxin.telemetry import (  # noqa: E402
     MinisterTelemetry,
     collect,
     write_js,

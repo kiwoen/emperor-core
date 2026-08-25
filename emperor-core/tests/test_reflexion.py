@@ -1,12 +1,12 @@
 
 """
-Tests for jarvis.reflexion — ReflexionEngine, ReflectionResult, and integration.
+Tests for huanxin.reflexion — ReflexionEngine, ReflectionResult, and integration.
 15 test cases covering creation, reflection, checks, history, stats, and edge cases.
 """
 
 import pytest
 import time
-from jarvis.reflexion import (
+from huanxin.reflexion import (
     ReflectionResult,
     ReflectionIssue,
     ReflexionEngine,

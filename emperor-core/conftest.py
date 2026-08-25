@@ -1,15 +1,15 @@
 """Root conftest — make the test suite's auth context deterministic.
 
 The Court API enforces *session-based* login on every non-whitelisted route
-(see ``jarvis/api/token_guard.py``). The old "open by default when no token is
+(see ``huanxin/api/token_guard.py``). The old "open by default when no token is
 set" behaviour was removed, so the API tests must authenticate.
 
 Two things must hold for the tests to log in reliably:
 
-1. ``EMPEROR_ADMIN_PASS`` is fixed to a known value, so the admin account that
+1. ``HUANXIN_ADMIN_PASS`` is fixed to a known value, so the admin account that
    ``create_app`` seeds at startup is loggable.
-2. ``EMPEROR_DATA_DIR`` points at an isolated directory created *before*
-   ``jarvis.court_api`` is first imported. ``jarvis.api.auth_store`` caches a
+2. ``HUANXIN_DATA_DIR`` points at an isolated directory created *before*
+   ``huanxin.court_api`` is first imported. ``huanxin.api.auth_store`` caches a
    single module-level SQLite connection, so the data dir MUST be decided before
    that first import or the cached connection silently points elsewhere and
    login fails.
@@ -30,6 +30,6 @@ TEST_ADMIN_PASS = "test-admin-password-2026"
 _TEST_DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".testdata")
 os.makedirs(_TEST_DATA_DIR, exist_ok=True)
 
-os.environ["EMPEROR_ADMIN_USER"] = TEST_ADMIN_USER
-os.environ["EMPEROR_ADMIN_PASS"] = TEST_ADMIN_PASS
-os.environ["EMPEROR_DATA_DIR"] = _TEST_DATA_DIR
+os.environ["HUANXIN_ADMIN_USER"] = TEST_ADMIN_USER
+os.environ["HUANXIN_ADMIN_PASS"] = TEST_ADMIN_PASS
+os.environ["HUANXIN_DATA_DIR"] = _TEST_DATA_DIR

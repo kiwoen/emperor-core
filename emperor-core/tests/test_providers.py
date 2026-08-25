@@ -5,7 +5,7 @@ Covers:
     - ProviderRegistry: building, availability detection, fallback logic
     - Minister provider injection: real-model try / mock fallback
     - Provider status reporting
-    - Integration with Emperor (install_ministers_from_factory)
+    - Integration with Sovereign (install_ministers_from_factory)
 """
 
 from __future__ import annotations
@@ -13,13 +13,13 @@ from __future__ import annotations
 import os
 import pytest
 
-from jarvis.court.minister import Edict, Minister, MinisterProfile, MinisterState
-from jarvis.court.emperor import Emperor, ImperialCourt
-from jarvis.court.providers.base import GenerationParams, ModelProvider, ModelResponse
-from jarvis.court.providers.openai_provider import OpenAIProvider
-from jarvis.court.providers.anthropic_provider import AnthropicProvider
-from jarvis.court.providers.google_provider import GoogleProvider
-from jarvis.court.providers.registry import (
+from huanxin.court.minister import Edict, Minister, MinisterProfile, MinisterState
+from huanxin.court.sovereign import Sovereign, ImperialCourt
+from huanxin.court.providers.base import GenerationParams, ModelProvider, ModelResponse
+from huanxin.court.providers.openai_provider import OpenAIProvider
+from huanxin.court.providers.anthropic_provider import AnthropicProvider
+from huanxin.court.providers.google_provider import GoogleProvider
+from huanxin.court.providers.registry import (
     ProviderConfig,
     ProviderRegistry,
     MINISTER_PROVIDER_CONFIG,
@@ -256,11 +256,11 @@ class TestMinisterProviderInjection:
         assert m._build_system_prompt() == ""
 
 
-# ── Emperor + Provider Integration Tests ────────────────────────────
+# ── Sovereign + Provider Integration Tests ────────────────────────────
 
 
-class TestEmperorProviderIntegration:
-    """Tests that Emperor correctly injects providers into ministers."""
+class TestSovereignProviderIntegration:
+    """Tests that Sovereign correctly injects providers into ministers."""
 
     def setup_method(self):
         reset_provider_registry()
@@ -296,7 +296,7 @@ class TestEmperorProviderIntegration:
         import asyncio
 
         async def run():
-            emperor = Emperor()
+            emperor = Sovereign()
             decree = await emperor.receive_petition("分析系统性能瓶颈")
             return decree
 

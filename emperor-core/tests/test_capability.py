@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from jarvis.capability import (
+from huanxin.capability import (
     Capability,
     CapabilityRegistry,
     _extract_city_from_prompt,
@@ -351,21 +351,21 @@ class TestExecute:
 
 
 # ══════════════════════════════════════════════════════════════════
-# Court integration via Emperor
+# Court integration via Huanxin
 # ══════════════════════════════════════════════════════════════════
 
 
 class TestCourtIntegration:
     def test_emperor_has_capability_registry(self):
-        from jarvis.emperor import Emperor
-        emp = Emperor()
+        from huanxin.core import Huanxin
+        emp = Huanxin()
         assert emp.capability_registry is not None
         assert emp.capability_registry.count == 12
 
     def test_task_result_contains_capability_output(self):
         """When prompt matches a capability, result should contain capability output."""
-        from jarvis.emperor import Emperor
-        emp = Emperor()
+        from huanxin.core import Huanxin
+        emp = Huanxin()
         emp.register("test_minister", domain="general")
         # A math task should trigger math capability
         result = emp.execute_task("计算 3 + 5", domain="math")
@@ -375,8 +375,8 @@ class TestCourtIntegration:
 
     def test_task_without_capability_match(self):
         """When no capability matches, result should be normal (no capability marker)."""
-        from jarvis.emperor import Emperor
-        emp = Emperor()
+        from huanxin.core import Huanxin
+        emp = Huanxin()
         emp.register("test_minister", domain="general")
         # A weather task has no matching capability
         result = emp.execute_task("今天天气怎么样", domain="general")

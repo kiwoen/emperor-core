@@ -1,7 +1,7 @@
-"""Tests for jarvis.graph_rag — GraphRAG knowledge graph engine."""
+"""Tests for huanxin.graph_rag — GraphRAG knowledge graph engine."""
 
 import pytest
-from jarvis.graph_rag import (
+from huanxin.graph_rag import (
     Entity,
     Relation,
     KnowledgeGraph,
@@ -266,12 +266,12 @@ class TestHierarchicalMemoryIntegration:
     """Test that GraphRAG integrates with HierarchicalMemoryEngine."""
 
     def test_hierarchical_memory_has_graph_rag_property(self):
-        from jarvis.hierarchical_memory import HierarchicalMemoryEngine
+        from huanxin.hierarchical_memory import HierarchicalMemoryEngine
         engine = HierarchicalMemoryEngine()
         assert engine.graph_rag is not None
 
     def test_add_feeds_graph_rag(self):
-        from jarvis.hierarchical_memory import HierarchicalMemoryEngine, MemoryTier
+        from huanxin.hierarchical_memory import HierarchicalMemoryEngine, MemoryTier
         engine = HierarchicalMemoryEngine()
         engine.add(
             content="OpenAI released GPT-4 in March 2023. GPT-4 is a multimodal large language model.",
@@ -282,7 +282,7 @@ class TestHierarchicalMemoryIntegration:
         assert stats["entity_count"] > 0
 
     def test_graph_retrieve_returns_results(self):
-        from jarvis.hierarchical_memory import HierarchicalMemoryEngine, MemoryTier
+        from huanxin.hierarchical_memory import HierarchicalMemoryEngine, MemoryTier
         engine = HierarchicalMemoryEngine()
         engine.add(
             content="LangChain and LangGraph are frameworks for building AI agents. "
@@ -295,7 +295,7 @@ class TestHierarchicalMemoryIntegration:
         assert isinstance(results, list)
 
     def test_retrieve_with_graph_tier(self):
-        from jarvis.hierarchical_memory import HierarchicalMemoryEngine, MemoryTier
+        from huanxin.hierarchical_memory import HierarchicalMemoryEngine, MemoryTier
         engine = HierarchicalMemoryEngine()
         engine.add(
             content="The Transformer architecture revolutionized NLP. BERT and GPT use Transformers.",
@@ -312,7 +312,7 @@ class TestHierarchicalMemoryIntegration:
         assert len(results) >= 1
 
     def test_memory_stats_includes_graph_rag(self):
-        from jarvis.hierarchical_memory import HierarchicalMemoryEngine
+        from huanxin.hierarchical_memory import HierarchicalMemoryEngine
         engine = HierarchicalMemoryEngine()
         stats = engine.stats()
         assert "graph_rag" in stats
@@ -335,8 +335,8 @@ class TestGraphRagAPI:
         except ImportError:
             pytest.skip("starlette not installed")
 
-        from jarvis.graph_rag import GraphRAG
-        from jarvis.court_api import create_app
+        from huanxin.graph_rag import GraphRAG
+        from huanxin.court_api import create_app
 
         graf = GraphRAG()
         graf.add_document("test_doc", (
@@ -346,7 +346,7 @@ class TestGraphRagAPI:
         ))
 
         app = create_app()
-        app.extra["emperor"] = type("FakeEmperor", (), {"graph_rag": graf})()
+        app.extra["emperor"] = type("FakeHuanxin", (), {"graph_rag": graf})()
         return TestClient(app)
 
     def test_graph_search(self, client):
@@ -386,7 +386,7 @@ class TestGraphRagAPI:
         except ImportError:
             pytest.skip("starlette not installed")
 
-        from jarvis.court_api import create_app
+        from huanxin.court_api import create_app
 
         app = create_app()
         # no emperor in app.extra

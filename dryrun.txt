@@ -1,0 +1,72 @@
+== PLANNED FILE RENAMES ==
+  jarvis  ->  huanxin
+  huanxin/emperor.py  ->  huanxin/core.py
+  huanxin/emperor_cli.py  ->  huanxin/court_cli.py
+  huanxin/court/emperor.py  ->  huanxin/court/sovereign.py
+  tests\test_emperor.py  ->  tests\test_huanxin.py
+  tests\test_emperor_auto_start.py  ->  tests\test_huanxin_auto_start.py
+  tests\test_emperor_builtin_plugins.py  ->  tests\test_huanxin_builtin_plugins.py
+  tests\test_emperor_evolve.py  ->  tests\test_huanxin_evolve.py
+  tests\test_emperor_plugins.py  ->  tests\test_huanxin_plugins.py
+== files to scan: 444 ==
+== pass1 replacements: 3099 ==
+== SOVEREIGN (court) consumers: 55 ==
+    jarvis/core/integration.py
+    jarvis/court/__init__.py
+    jarvis/court/approval_gate.py
+    jarvis/court/breeding.py
+    jarvis/court/calibration.py
+    jarvis/court/censorate.py
+    jarvis/court/circuit_breaker.py
+    jarvis/court/config.py
+    jarvis/court/court.py
+    jarvis/court/diversity.py
+    jarvis/court/emperor.py
+    jarvis/court/evolution.py
+    jarvis/court/fitness.py
+    jarvis/court/genome_diff.py
+    jarvis/court/genome_injector.py
+    jarvis/court/genome_quality.py
+    jarvis/court/genome_redispersal.py
+    jarvis/court/genome_store.py
+    jarvis/court/history.py
+    jarvis/court/inspector.py
+    jarvis/court/memory.py
+    jarvis/court/merit_board.py
+    jarvis/court/minister.py
+    jarvis/court/ministers/__init__.py
+    jarvis/court/ministers/censor.py
+    jarvis/court/ministers/ceremonies.py
+    jarvis/court/ministers/chancellor.py
+    jarvis/court/ministers/diviner.py
+    jarvis/court/ministers/finance.py
+    jarvis/court/ministers/guard.py
+    jarvis/court/ministers/historian.py
+    jarvis/court/ministers/works.py
+    jarvis/court/offline_solver.py
+    jarvis/court/orchestrator.py
+    jarvis/court/providers/__init__.py
+    jarvis/court/providers/anthropic_provider.py
+    jarvis/court/providers/base.py
+    jarvis/court/providers/google_provider.py
+    jarvis/court/providers/openai_provider.py
+    jarvis/court/providers/registry.py
+    jarvis/court/real_executor.py
+    jarvis/court/reflection.py
+    jarvis/court/resource_guard.py
+    jarvis/court/rollback.py
+    jarvis/court/routing.py
+    jarvis/court/safety_gate.py
+    jarvis/court/sliding_merit.py
+    jarvis/court/task_engine.py
+    jarvis/court_api.py
+    jarvis/emperor_cli.py
+    tests/test_court_integration.py
+    tests/test_court_kg.py
+    tests/test_court_orchestration.py
+    tests/test_orchestrator.py
+    tests/test_providers.py
+== pyproject: removed `emperor =` script line ==
+== pass2 (Sovereign) replacements: 136 ==
+== pass3 (Huanxin) replacements: 558 ==
+DRY-RUN: no files written.

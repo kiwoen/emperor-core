@@ -12,7 +12,7 @@ triggers:
 # Code Reviewer · 多维加权代码审查
 
 ## 系统定位
-emperor-core 的「自我审视代码」能力，是生命体自检机制的核心。负责把一段代码按工程逻辑与工业执行两个层面系统性审查，产出可追溯、可修复的问题清单。
+huanxin-ai 的「自我审视代码」能力，是生命体自检机制的核心。负责把一段代码按工程逻辑与工业执行两个层面系统性审查，产出可追溯、可修复的问题清单。
 - 上游：工部尚书（`WorksMinister._handle`，COURT 路径）/ 工程领域模块（`domains/engineering`，DIRECT 路径）/ 用户直接请求
 - 下游：修复建议回流至代码生成大臣，或作为进化评估的「硬伤」信号
 
@@ -59,5 +59,5 @@ emperor-core 的「自我审视代码」能力，是生命体自检机制的核�
 | `SelfEvolutionEngine` | 审查硬伤可作为进化评估负反馈 |
 
 ## 版本记录
-- v1.0 (2026-08)：从 `script-multi-review` 翻译八维加权审查范式，落地 `jarvis/codex/reviewer.py`
+- v1.0 (2026-08)：从 `script-multi-review` 翻译八维加权审查范式，落地 `huanxin/codex/reviewer.py`
 - v1.1 (2026-08-17)：接入工部尚书派发闭环（`WorksMinister._handle` 调用 `CodeReviewer`）

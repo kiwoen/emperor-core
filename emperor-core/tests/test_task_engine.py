@@ -1,12 +1,12 @@
-"""Tests for jarvis.court.task_engine."""
+"""Tests for huanxin.court.task_engine."""
 
 from __future__ import annotations
 
 import pytest
 
-from jarvis.court.court import Court
-from jarvis.court.fitness import FitnessSignal, NullEvaluator, RealTaskFitness
-from jarvis.court.task_engine import (
+from huanxin.court.court import Court
+from huanxin.court.fitness import FitnessSignal, NullEvaluator, RealTaskFitness
+from huanxin.court.task_engine import (
     TaskEngine,
     TaskRequest,
     TaskOutcome,
@@ -14,7 +14,7 @@ from jarvis.court.task_engine import (
     _simple_confidence,
     _deterministic_reply,
 )
-from jarvis.model_router import Capability, SmartRouter
+from huanxin.model_router import Capability, SmartRouter
 
 
 class CapturingBackend:

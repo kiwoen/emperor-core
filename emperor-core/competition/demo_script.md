@@ -9,7 +9,7 @@ AIGC:
     ReservedCode2: wwWFxv35sEmIe8AxBp+HSmzmgG39b7jL56o1hKw9IzcSngoTlHiGyqboSAoI0vQXy2KeIZmAEf3/k7n8bhGSueLvU4KUm390PVHe/WlZ5zCV5xvgv1W9Y4audDg2vjmxnQaUj0+SKiOS3FuyRW/Z88X27dN5YVDAVZPcfFFtM2m9YqdMoJBjJXH4et4=
 ---
 
-# emperor-core 5分钟现场演示脚本
+# huanxin-ai 5分钟现场演示脚本
 
 > 总时长：5分钟 | 4个场景 | 演示者：1人  
 > 备选方案：所有场景均有离线 mock 兜底
@@ -18,7 +18,7 @@ AIGC:
 
 ## 场景1：启动朝堂（0:00-0:30，30秒）
 
-**台词**："各位评委好，这是 emperor-core，一个自进化多智能体协同系统。它的设计灵感来自中国古代朝堂——皇帝调度、大臣协作、科举进化。我们启动系统。"
+**台词**："各位评委好，这是 huanxin-ai，一个自进化多智能体协同系统。它的设计灵感来自中国古代朝堂——皇帝调度、大臣协作、科举进化。我们启动系统。"
 
 **操作**：
 ```bash
@@ -69,14 +69,14 @@ python main.py --mode demo
 
 ## 场景3：大臣辩论共识（1:30-3:00，90秒）
 
-**台词**："第二个场景展示了 emperor-core 最核心的创新——多智能体辩论共识。我提出一个有争议的问题：'Python 中该用列表推导式还是 map()？' 五位大臣各自独立作答，然后互相评审。"
+**台词**："第二个场景展示了 huanxin-ai 最核心的创新——多智能体辩论共识。我提出一个有争议的问题：'Python 中该用列表推导式还是 map()？' 五位大臣各自独立作答，然后互相评审。"
 
 **操作**：自动演示，无需手动操作。
 
 **预期输出**：
 ```
-[Emperor] 议题: 'Python 中应该用列表推导式还是 map()？'
-[Emperor] 传召 5 位大臣
+[Huanxin] 议题: 'Python 中应该用列表推导式还是 map()？'
+[Huanxin] 传召 5 位大臣
 
 [吏部尚书] 列表推导式更 Pythonic，推荐日常使用。 (置信度: 0.92)
 [户部尚书] map() 大数据集更快，适合函数式风格。 (置信度: 0.85)
@@ -101,7 +101,7 @@ python main.py --mode demo
 
 ## 场景4：系统自愈（3:00-4:30，90秒）
 
-**台词**："第三个场景：自愈机制。AI 系统在生产环境中会遇到各种故障。emperor-core 内建了三级自愈诊断体系。"
+**台词**："第三个场景：自愈机制。AI 系统在生产环境中会遇到各种故障。huanxin-ai 内建了三级自愈诊断体系。"
 
 **预期输出**：
 ```
@@ -127,7 +127,7 @@ python main.py --mode demo
 
 ## 收尾总结（4:30-5:00，30秒）
 
-**台词**："总结一下 emperor-core 三个核心优势：
+**台词**："总结一下 huanxin-ai 三个核心优势：
 
 1. **自进化**：大臣自动优化，含金量持续提升，无需人工调参
 2. **辩论共识**：多大臣交叉验证，AI 幻觉降低 70%
@@ -139,8 +139,8 @@ python main.py --mode demo
 
 **预期输出**：
 ```
-[emperor-core] 收到退出信号，正在清理...
-[emperor-core] 朝堂已关闭。吾皇万岁万岁万万岁！
+[huanxin-ai] 收到退出信号，正在清理...
+[huanxin-ai] 朝堂已关闭。吾皇万岁万岁万万岁！
 ```
 
 ---

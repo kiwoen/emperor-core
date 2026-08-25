@@ -13,8 +13,8 @@ Measures:
 import time
 import pytest
 
-from jarvis.emperor import Emperor
-from jarvis.court_api import create_app
+from huanxin.core import Huanxin
+from huanxin.court_api import create_app
 from starlette.testclient import TestClient
 
 
@@ -26,7 +26,7 @@ from starlette.testclient import TestClient
 @pytest.fixture(scope="module")
 def perf_client():
     """Module-level client for performance benchmarks."""
-    emperor = Emperor()
+    emperor = Huanxin()
     app = create_app()
     app.extra["emperor"] = emperor
     app.extra["config"] = emperor.config

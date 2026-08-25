@@ -1,6 +1,6 @@
-# Contributing to Emperor-Core
+# Contributing to 幻炘AI
 
-感谢你对 **Emperor-Core (J.A.R.V.I.S.)** 的关注！本文档提供了参与贡献所需的全部指引。
+感谢你对 **幻炘AI (幻炘AI)** 的关注！本文档提供了参与贡献所需的全部指引。
 
 ## 目录
 
@@ -25,7 +25,7 @@
 ```bash
 # 克隆仓库
 git clone <repo-url>
-cd emperor-core
+cd huanxin-ai
 
 # 创建虚拟环境（推荐）
 python -m venv .venv
@@ -93,7 +93,7 @@ ruff check .
 所有新增代码应提供类型注解。使用 **MyPy** 检验：
 
 ```bash
-mypy jarvis/ --ignore-missing-imports
+mypy huanxin/ --ignore-missing-imports
 ```
 
 完整的 MyPy 配置（strict mode 开启）见 `pyproject.toml` → `[tool.mypy]`。

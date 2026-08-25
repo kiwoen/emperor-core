@@ -14,8 +14,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from jarvis.court_api import app
-from jarvis.court.court import CourtConfig
+from huanxin.court_api import app
+from huanxin.court.court import CourtConfig
 
 
 def _login(client):
@@ -23,8 +23,8 @@ def _login(client):
     r = client.post(
         "/api/auth/login",
         json={
-            "username": os.environ["EMPEROR_ADMIN_USER"],
-            "password": os.environ["EMPEROR_ADMIN_PASS"],
+            "username": os.environ["HUANXIN_ADMIN_USER"],
+            "password": os.environ["HUANXIN_ADMIN_PASS"],
         },
     )
     assert r.status_code == 200, f"login failed: {r.status_code} {r.text}"
@@ -63,7 +63,7 @@ class TestHealth:
 
 
 # ══════════════════════════════════════════════════════════════════
-# 鉴权（强制会话登录：见 jarvis/api/token_guard.py；EMPEROR_API_TOKEN
+# 鉴权（强制会话登录：见 huanxin/api/token_guard.py；HUANXIN_API_TOKEN
 # 直接旁路已被移除，访问一律走 /api/auth/login 拿到的会话 token）
 # ══════════════════════════════════════════════════════════════════
 
@@ -73,7 +73,7 @@ class TestTokenAuth:
         assert client.get("/health").status_code == 200
 
     def test_protected_route_requires_login(self):
-        from jarvis.court_api import create_app
+        from huanxin.court_api import create_app
         c = TestClient(create_app())
         # 无会话 token → 401
         assert c.get("/court/summary").status_code == 401
@@ -83,7 +83,7 @@ class TestTokenAuth:
         assert client.get("/court/summary").status_code == 200
 
     def test_invalid_token_rejected(self):
-        from jarvis.court_api import create_app
+        from huanxin.court_api import create_app
         c = TestClient(create_app())
         c.headers["Authorization"] = "Bearer not-a-real-token"
         assert c.get("/court/summary").status_code == 401
@@ -340,13 +340,13 @@ class TestDashboardExportWithDB:
     def client_with_db(self):
         import tempfile
         import os
-        from jarvis.database import Database
+        from huanxin.database import Database
 
         fd, path = tempfile.mkstemp(suffix=".db")
         os.close(fd)
         db = Database(path)
 
-        from jarvis.court_api import create_app
+        from huanxin.court_api import create_app
         app_with_db = create_app()
         app_with_db.extra["db"] = db
 

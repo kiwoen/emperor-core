@@ -1,5 +1,5 @@
 """
-Tests for jarvis.hallucination_guard — Post-LLM Hallucination Guard.
+Tests for huanxin.hallucination_guard — Post-LLM Hallucination Guard.
 
 Covers:
   1. HallucinationDetector: verified claims pass detection
@@ -14,7 +14,7 @@ Covers:
  10. _extract_factual_claims: extracts numeric/API/path claims
  11. HallucinationDetector.detect_sync: heuristics-only path
  12. HallucinationGuard facade: unified check + correction
- 13. Emperor integration: hallucination_guard in result dict
+ 13. Huanxin integration: hallucination_guard in result dict
  14. Claim merging: deduplication across heuristic + LLM
  15. CorrectionResult: structure and fields
 """
@@ -24,7 +24,7 @@ from __future__ import annotations
 import asyncio
 import pytest
 
-from jarvis.hallucination_guard import (
+from huanxin.hallucination_guard import (
     GuardMode,
     HallucinationSeverity,
     HallucinatedClaim,
@@ -590,22 +590,22 @@ class TestHallucinationGuardFacade:
 
 
 # ═══════════════════════════════════════════════════════════════
-# Test 13: Emperor integration
+# Test 13: Huanxin integration
 # ═══════════════════════════════════════════════════════════════
 
 
-class TestEmperorIntegration:
+class TestHuanxinIntegration:
     """Verify emperor.py properly integrates HallucinationGuard."""
 
     def test_emperor_has_hallucination_guard_property(self):
-        from jarvis.emperor import Emperor
-        emp = Emperor()
+        from huanxin.core import Huanxin
+        emp = Huanxin()
         guard = emp.hallucination_guard
         assert isinstance(guard, HallucinationGuard)
 
     def test_emperor_execute_task_includes_guard_result(self):
-        from jarvis.emperor import Emperor
-        emp = Emperor()
+        from huanxin.core import Huanxin
+        emp = Huanxin()
         # Register a minister first
         emp.register("turing", domain="math")
         # Use a task that should generate a response
@@ -620,8 +620,8 @@ class TestEmperorIntegration:
         assert "confidence" in hg
 
     def test_hallucination_guard_in_result_for_success(self):
-        from jarvis.emperor import Emperor
-        emp = Emperor()
+        from huanxin.core import Huanxin
+        emp = Huanxin()
         emp.register("turing", domain="general")
         result = emp.execute_task(
             "Say hello in exactly three words.",

@@ -14,7 +14,7 @@ Covers:
 """
 
 import pytest
-from jarvis.court.merit_board import (
+from huanxin.court.merit_board import (
     DispatchEntry,
     MeritBoard,
     MeritRank,

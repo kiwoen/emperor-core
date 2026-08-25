@@ -6,7 +6,7 @@ Coverage: GapAnalyzer, StrategySelector, GenomeGenerator, AutoBreeder.
 
 import pytest
 
-from jarvis.court.breeding import (
+from huanxin.court.breeding import (
     AutoBreeder,
     BreedingCandidate,
     BreedingOutcome,

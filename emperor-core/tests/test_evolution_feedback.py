@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from jarvis.court.evolution import MinisterGenome, SurvivalMechanism
-from jarvis.court.merit_board import MeritBoard
+from huanxin.court.evolution import MinisterGenome, SurvivalMechanism
+from huanxin.court.merit_board import MeritBoard
 
 
 @pytest.fixture
@@ -87,8 +87,8 @@ class TestFeedbackDrivenEvolution:
 
     def test_low_confidence_triggers_merit_penalty_in_feedback(self):
         """stability < 0.3 triggers merit penalty via record_feedback."""
-        from jarvis.court.court import Court
-        from jarvis.court.task_engine import TaskEngine, TaskRequest
+        from huanxin.court.court import Court
+        from huanxin.court.task_engine import TaskEngine, TaskRequest
 
         court = Court()
         court.register("test_minister", domain="writing")

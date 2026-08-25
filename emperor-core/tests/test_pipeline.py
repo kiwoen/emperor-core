@@ -1,6 +1,6 @@
 """测试服务流水线系统"""
 import pytest
-from jarvis.pipeline import (
+from huanxin.pipeline import (
     ServicePipeline, Stage, StageStatus, PipelineStatus,
     PipelineRegistry, pipeline_registry,
     PipelineScheduler,
@@ -240,7 +240,7 @@ class TestPipelineTemplates:
     """验证预定义模板可正常创建并执行"""
 
     def test_daily_brief_template_creation(self):
-        from jarvis.pipeline import pipeline_registry as pr
+        from huanxin.pipeline import pipeline_registry as pr
 
         p = pr.create_pipeline("daily_brief")
         assert p.name == "每日简报"
@@ -250,7 +250,7 @@ class TestPipelineTemplates:
         assert p.stages[2].name == "格式化输出"
 
     def test_health_check_template_creation(self):
-        from jarvis.pipeline import pipeline_registry as pr
+        from huanxin.pipeline import pipeline_registry as pr
 
         p = pr.create_pipeline("health_check")
         assert p.name == "健康检查"
@@ -259,7 +259,7 @@ class TestPipelineTemplates:
         assert p.stages[1].name == "天气查询"
 
     def test_search_analyze_template_creation(self):
-        from jarvis.pipeline import pipeline_registry as pr
+        from huanxin.pipeline import pipeline_registry as pr
 
         p = pr.create_pipeline("search_analyze", query="test query")
         assert p.name.startswith("搜索分析")

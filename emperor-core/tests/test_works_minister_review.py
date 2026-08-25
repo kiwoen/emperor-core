@@ -6,10 +6,10 @@ code-review 意图经 TaskRouter 分类为 code 类，并路由到工部尚书�
 """
 import pytest
 
-from jarvis.core.task_router import classify_task_type, route_to_minister
-from jarvis.court.ministers.works import WorksMinister, _extract_code
-from jarvis.court.minister import Edict
-from jarvis.court.ministers import create_ministers
+from huanxin.core.task_router import classify_task_type, route_to_minister
+from huanxin.court.ministers.works import WorksMinister, _extract_code
+from huanxin.court.minister import Edict
+from huanxin.court.ministers import create_ministers
 
 
 REVIEW_INTENT = (

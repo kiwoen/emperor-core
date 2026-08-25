@@ -9,14 +9,14 @@ from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 
-from jarvis.alerts import (
+from huanxin.alerts import (
     AlertManager,
     Alert,
     _failure_spike_condition,
     _evolution_stagnation_condition,
     _format_builtin_message,
 )
-from jarvis.court.scheduler import Scheduler, SchedulerState
+from huanxin.court.scheduler import Scheduler, SchedulerState
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -406,7 +406,7 @@ class TestAlertDBPersistence:
 
     def test_fire_rule_persists_to_db(self, tmp_path):
         """fire_rule() with db set writes to alert_history."""
-        from jarvis.database import Database
+        from huanxin.database import Database
 
         db_path = str(tmp_path / "test_alert.db")
         db = Database(db_path)
@@ -427,8 +427,8 @@ class TestAlertDBPersistence:
 
     def test_evaluate_persists_to_db(self, tmp_path):
         """evaluate() with db set writes threshold-based alerts to alert_history."""
-        from jarvis.database import Database
-        from jarvis.alerts import AlertRule
+        from huanxin.database import Database
+        from huanxin.alerts import AlertRule
 
         db_path = str(tmp_path / "test_alert_eval.db")
         db = Database(db_path)

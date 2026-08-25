@@ -13,11 +13,11 @@ import re
 import pytest
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
-EMPEROR_SRC = REPO_ROOT / "jarvis" / "emperor.py"
+HUANXIN_SRC = REPO_ROOT / "huanxin" / "emperor.py"
 
 
 def _read() -> str:
-    return EMPEROR_SRC.read_text(encoding="utf-8")
+    return HUANXIN_SRC.read_text(encoding="utf-8")
 
 
 def test_emperor_no_silent_except():

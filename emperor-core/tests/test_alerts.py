@@ -1,8 +1,8 @@
-"""Tests for jarvis.alerts — health monitoring and rule evaluation."""
+"""Tests for huanxin.alerts — health monitoring and rule evaluation."""
 
 import time
 import pytest
-from jarvis.alerts import (
+from huanxin.alerts import (
     AlertManager, AlertRule, AlertSeverity,
     Alert,
 )

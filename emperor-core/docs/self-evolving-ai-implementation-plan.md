@@ -1,8 +1,8 @@
-# emperor-core 落地实施方案（Self-Evolving AI · 可执行版）
+# huanxin-ai 落地实施方案（Self-Evolving AI · 可执行版）
 
-> **文档性质**：本文件是**实施方案**（本轮不改 emperor-core 源码，仅设计到文件级、给出可复制命令与代码草图）。
+> **文档性质**：本文件是**实施方案**（本轮不改 huanxin-ai 源码，仅设计到文件级、给出可复制命令与代码草图）。
 > **上游依据**：`self-evolving-ai-research-and-roadmap.md`（第 4–5 章路线图 + 附录 A 能力盘点）。
-> **证据原则**：下文所有 `file:line` 均在本机 `D:\AI自我进化\emperor-core` 真实仓库中**已核验**（2026-08-09 复读）。
+> **证据原则**：下文所有 `file:line` 均在本机 `D:\AI自我进化\huanxin-ai` 真实仓库中**已核验**（2026-08-09 复读）。
 > **AI 应用协同**：以 **GitHub** 为主轴（仓库 / PR / CI），辅以本机编码助手 **Codex / Cursor / Trae / VSCode** 作为代码生成与人工复核层；与"写代码"无关的连接器（邮箱 / 网盘 / 设计 / 电商类）明确不纳入。
 
 ---
@@ -15,20 +15,20 @@
 2. **编码基准验证**：改动须用 SWE-bench / 单测等客观基准证明"真的变好"，不能只看响应长度。
 3. **人工审批门**：写回仓库必须走 **PR + 人类 review**，闸门写死，**绝不自动合入 `master`**。
 
-调研已证实：当前 emperor-core 的"自进化"是**假的真**——护栏谎报、适应度=响应长度、进化 192/192 全淘汰、零代码自修改。因此落地顺序必须是 **先修"假的真" → 再补"真的缺" → 最后才接写回通道且人类闸门写死**，绝不能在信号失真时叠加进化。
+调研已证实：当前 huanxin-ai 的"自进化"是**假的真**——护栏谎报、适应度=响应长度、进化 192/192 全淘汰、零代码自修改。因此落地顺序必须是 **先修"假的真" → 再补"真的缺" → 最后才接写回通道且人类闸门写死**，绝不能在信号失真时叠加进化。
 
 ### 0.2 真实代码锚点（已核验）
 
 | 缺口 | 真实位置 | 现状 |
 |------|----------|------|
-| 适应度=响应长度 | `jarvis/court/task_engine.py:96-111`（`_simple_confidence`），`102-103` `length_bonus = min(len(response)/2000, 0.3)` | 主链路不传 `expected`，置信度纯是长度单调函数 |
-| 进化退化 | `jarvis/court/court.py:148` `merit_after`；DB `evolution_history` | 实测 192/192 全淘汰，`merit_after` 全 0 |
-| 护栏谎报 | `jarvis/emperor.py:810-831`：`:815` 上报 `action="blocked"`，但 `:824` 仅 `logger.warning`，**不中止** | 比无护栏更危险：telemetry 显示拦截，执行继续 |
-| 护栏悬空 | `jarvis/prompt_guard.py` / `tool_guard.py` / `hallucination_guard.py` / `loop_guard.py` / `bounded_autonomy.py` / `guardrail_telemetry.py` | 三层护栏约 2280 行，仅被 `court_api` 端点与彼此引用，未挂主执行链 |
-| 路由静默失效 | `jarvis/emperor.py:261` `from jarvis.model_router import SmartRouter`；`:268` `except ImportError: self._smart_router = None`；`:838-841` `self._smart_router.classify(...)` 永不执行 | **`jarvis/model_router.py` 文件不存在** → `ImportError` 永远触发 → `_smart_router` 恒 `None`；CHANGELOG 却写了 P2.9「已发布」 |
-| 选臣空转 | `jarvis/court/task_engine.py:352-376` `(_select_minister)`：`:363-366` 领域匹配循环体是 `pass`，永远 fallback 到 `merit_ranking[0]` | 150/150 任务全归功勋第一的大臣 |
-| 零代码自修改 | `pyproject.toml:19` / `requirements.txt:13` 声明 `gitpython>=3.1.0`，但全库源码**零** `import git` | 无 `git` 写、无 `.py` 写入、无 PR；`jarvis/vcs/` 目录**不存在** |
-| 默认 mock LLM | `jarvis/court/task_engine.py:130` `self._llm = llm or _default_llm_backend` | 默认跑 mock，评测链路失真 |
+| 适应度=响应长度 | `huanxin/court/task_engine.py:96-111`（`_simple_confidence`），`102-103` `length_bonus = min(len(response)/2000, 0.3)` | 主链路不传 `expected`，置信度纯是长度单调函数 |
+| 进化退化 | `huanxin/court/court.py:148` `merit_after`；DB `evolution_history` | 实测 192/192 全淘汰，`merit_after` 全 0 |
+| 护栏谎报 | `huanxin/emperor.py:810-831`：`:815` 上报 `action="blocked"`，但 `:824` 仅 `logger.warning`，**不中止** | 比无护栏更危险：telemetry 显示拦截，执行继续 |
+| 护栏悬空 | `huanxin/prompt_guard.py` / `tool_guard.py` / `hallucination_guard.py` / `loop_guard.py` / `bounded_autonomy.py` / `guardrail_telemetry.py` | 三层护栏约 2280 行，仅被 `court_api` 端点与彼此引用，未挂主执行链 |
+| 路由静默失效 | `huanxin/emperor.py:261` `from huanxin.model_router import SmartRouter`；`:268` `except ImportError: self._smart_router = None`；`:838-841` `self._smart_router.classify(...)` 永不执行 | **`huanxin/model_router.py` 文件不存在** → `ImportError` 永远触发 → `_smart_router` 恒 `None`；CHANGELOG 却写了 P2.9「已发布」 |
+| 选臣空转 | `huanxin/court/task_engine.py:352-376` `(_select_minister)`：`:363-366` 领域匹配循环体是 `pass`，永远 fallback 到 `merit_ranking[0]` | 150/150 任务全归功勋第一的大臣 |
+| 零代码自修改 | `pyproject.toml:19` / `requirements.txt:13` 声明 `gitpython>=3.1.0`，但全库源码**零** `import git` | 无 `git` 写、无 `.py` 写入、无 PR；`huanxin/vcs/` 目录**不存在** |
+| 默认 mock LLM | `huanxin/court/task_engine.py:130` `self._llm = llm or _default_llm_backend` | 默认跑 mock，评测链路失真 |
 
 ---
 
@@ -77,15 +77,15 @@ P0.1 修 PromptGuard 谎报
 ### P0.1 修复 PromptGuard 谎报（🔴 最高优先级）
 
 - **目标**：危险输入**真正中止**执行；telemetry 的 `action` 与实际行为一致。
-- **文件**：`jarvis/emperor.py:810-831`
+- **文件**：`huanxin/emperor.py:810-831`
 - **改动**：在 `:824 if _pg_result.level == "dangerous":` 分支内，**真正 return / raise**，而非只 `logger.warning`。同时把"放行"也显式化，避免静默。
 - **代码草图**：
 
 ```python
-# jarvis/emperor.py  （替换原 824-831 段）
+# huanxin/emperor.py  （替换原 824-831 段）
 if _pg_result.level == "dangerous":
     logger.warning(
-        "[Emperor] PromptInjectionGuard BLOCKED task=%s level=%s rules=%s",
+        "[Huanxin] PromptInjectionGuard BLOCKED task=%s level=%s rules=%s",
         task_id, _pg_result.level, _pg_result.matched_rules,
     )
     # 真·阻断：不再继续走 LLM
@@ -111,7 +111,7 @@ if _pg_result.level == "dangerous":
 ### P0.2 把三层护栏接到主执行链（影子模式起步）
 
 - **目标**：让 `prompt_guard / tool_guard / hallucination_guard / loop_guard / bounded_autonomy` 在主路径**实际被调用**，先"只记录不阻断"（shadow），灰度后再"阻断"。
-- **文件**：`jarvis/emperor.py`（主执行 `run_task` 路径）、`jarvis/guardrail_telemetry.py`
+- **文件**：`huanxin/emperor.py`（主执行 `run_task` 路径）、`huanxin/guardrail_telemetry.py`
 - **改动**：
   1. 在 `run_task` 中，PromptGuard 之后依次调用 ToolGuard（工具调用前）、HallucinationGuard（输出后）、LoopGuard（循环次数）、BoundedAutonomy（权限边界）。
   2. 引入 `settings.guardrail_mode = "shadow" | "enforce"`，shadow 下只 emit 事件不阻断。
@@ -137,9 +137,9 @@ for guard in (self._tool_guard, self._hallucination_guard, self._loop_guard, sel
 
 - **目标**：适应度反映"真实任务成败 + 单测通过率"，而非响应长度；进化机制先转 dry-run，只记录不淘汰。
 - **文件**：
-  - `jarvis/court/task_engine.py:96-111`（替换 `_simple_confidence`）
-  - `jarvis/court/court.py`（`SurvivalMechanism` / `_identify_probation_candidates`）
-  - `jarvis/court/orchestrator.py`（进化触发点）
+  - `huanxin/court/task_engine.py:96-111`（替换 `_simple_confidence`）
+  - `huanxin/court/court.py`（`SurvivalMechanism` / `_identify_probation_candidates`）
+  - `huanxin/court/orchestrator.py`（进化触发点）
 - **改动**：
   1. 新增 `RealTaskFitness`：以"执行成功 / 失败 + 单测通过率 + （可选）deepeval 真评测分"为信号。
   2. `TaskEngine` 默认 scorer 切换为 `RealTaskFitness`。
@@ -147,7 +147,7 @@ for guard in (self._tool_guard, self._hallucination_guard, self._loop_guard, sel
 - **代码草图**：
 
 ```python
-# jarvis/court/fitness.py
+# huanxin/court/fitness.py
 class RealTaskFitness:
     """适应度 = 真实任务成败(0.6) + 单测通过率(0.4)；可插 deepeval 真评测。"""
     def __call__(self, outcome: TaskOutcome, test_pass_rate: float = None) -> float:
@@ -160,7 +160,7 @@ class RealTaskFitness:
 ```
 
 ```python
-# jarvis/court/court.py  （SurvivalMechanism）
+# huanxin/court/court.py  （SurvivalMechanism）
 class SurvivalMechanism:
     def __init__(self, enabled: bool = False):  # dry-run by default
         self.enabled = enabled
@@ -184,9 +184,9 @@ class SurvivalMechanism:
 
 - **目标**：`SmartRouter` 真实存在并被调用；其决策**实际影响选臣**，而非只写只读字段。
 - **文件**：
-  - **新建** `jarvis/model_router.py`（`SmartRouter` 类，当前缺失）
-  - `jarvis/emperor.py:259-269`（修静默 import：失败要**显式报警**）
-  - `jarvis/court/task_engine.py:352-376`（`_select_minister` 消费路由）
+  - **新建** `huanxin/model_router.py`（`SmartRouter` 类，当前缺失）
+  - `huanxin/emperor.py:259-269`（修静默 import：失败要**显式报警**）
+  - `huanxin/court/task_engine.py:352-376`（`_select_minister` 消费路由）
 - **改动**：
   1. 新建 `SmartRouter`：`classify(prompt, domain)` / `get_tier_for_capability(cap)` / `get_fallback_chain_for_tier(tier)`。
   2. `emperor.py:268` 把 `except ImportError` 改为 `logger.error("SmartRouter 缺失，路由降级为功勋第一")`（不再静默 `=None`）。
@@ -194,7 +194,7 @@ class SurvivalMechanism:
 - **代码草图**（新建文件骨架）：
 
 ```python
-# jarvis/model_router.py
+# huanxin/model_router.py
 from enum import Enum
 class Capability(str, Enum):
     MATH = "math"; CODE = "code"; REASON = "reason"; RETRIEVE = "retrieve"; UNKNOWN = "unknown"
@@ -216,7 +216,7 @@ class SmartRouter:
 ### P0.5 修复 `_select_minister` 空转
 
 - **目标**：领域匹配真正生效（接 `capability_registry`），不再恒返回功勋第一。
-- **文件**：`jarvis/court/task_engine.py:352-376`
+- **文件**：`huanxin/court/task_engine.py:352-376`
 - **改动**：把 `:363-366` 的 `pass` 替换为：用 `self._capability_registry` 查各大臣 domain，命中的优先；无命中再回退功勋。
 - **代码草图**：
 
@@ -243,15 +243,15 @@ def _select_minister(self, domain: str) -> str:
 
 ### P0.6 建可信评测基准（替代 `llm_judge` 关键词失真）
 
-- **目标**：用客观基准替代 `jarvis/llm_judge.py` 的关键词重叠启发式与 `agent_eval` 硬编码常量，使"系统是否变好"可证伪。
-- **文件**：`jarvis/llm_judge.py`、`jarvis/.../agent_eval`（如有）、**新建** `jarvis/eval_bench/`
+- **目标**：用客观基准替代 `huanxin/llm_judge.py` 的关键词重叠启发式与 `agent_eval` 硬编码常量，使"系统是否变好"可证伪。
+- **文件**：`huanxin/llm_judge.py`、`huanxin/.../agent_eval`（如有）、**新建** `huanxin/eval_bench/`
 - **改动**：
   1. 引入 **deepeval**（🟢可直接集成）做答案正确性评测；引入 **SWE-bench-lite 子集**做"代码类任务"真实基准（填补 `eval/` 无代码任务的空洞）。
   2. `llm_judge` 改为：调用真实 LLM 做裁判 + deepeval 指标，输出可解释分数，禁止关键词重叠启发式。
 - **代码草图**：
 
 ```python
-# jarvis/eval_bench/run.py
+# huanxin/eval_bench/run.py
 from deepeval import assert_test
 from deepeval.metrics import AnswerRelevancyMetric, FaithfulnessMetric
 def judge(question, answer, context):
@@ -270,7 +270,7 @@ def judge(question, answer, context):
 ### P1.1 真实 LLM 后端接入（替换 mock）
 
 - **目标**：默认不再跑 `_default_llm_backend` 的 `[mock-response]`，接真实 LLM（OpenAI/Anthropic/LiteLLM）。
-- **文件**：`jarvis/court/task_engine.py:130`、`jarvis/llm_engine.py`（或等价）
+- **文件**：`huanxin/court/task_engine.py:130`、`huanxin/llm_engine.py`（或等价）
 - **改动**：`TaskEngine` 默认 `llm` 改为读 `config` 的真实后端；保留 mock 仅用于单测。
 - **验收**：`pytest` 外跑一次真实任务，返回非 mock 文本；CI 单测仍用 mock（快）。
 - **协助工具**：VSCode review 配置切换；Cursor 改默认后端。
@@ -281,7 +281,7 @@ def judge(question, answer, context):
 ### P1.2 RealLLMFitness + P1.3 解冻淘汰
 
 - **目标**：适应度信号经 P0.6 基准验证后，才允许 `SurvivalMechanism.enabled=True`。
-- **文件**：`jarvis/court/court.py`、`jarvis/court/fitness.py`
+- **文件**：`huanxin/court/court.py`、`huanxin/court/fitness.py`
 - **改动**：`SurvivalMechanism(enabled=settings.evolution_enabled)`，`evolution_enabled` 默认 `false`，仅在 P0.6 基准通过 + 人工开关后 `true`。
 - **验收**：开启后进化 20 轮 `merit` 单调不降；出现晋升事件（不再是全淘汰）。
 - **依赖**：P0.3、P0.6、P1.1。
@@ -291,7 +291,7 @@ def judge(question, answer, context):
 ### P1.4 晋升流水线 + 失控熔断
 
 - **目标**：进化出现"正向增益"时晋升，出现"指标恶化 / 资源超支"时熔断。
-- **文件**：`jarvis/court/court.py`、`jarvis/bounded_autonomy.py`、`jarvis/loop_guard.py`
+- **文件**：`huanxin/court/court.py`、`huanxin/bounded_autonomy.py`、`huanxin/loop_guard.py`
 - **改动**：新增 `PromotionPipeline`（晋升条件：连续 N 轮 merit 提升）与 `CircuitBreaker`（熔断：merit 跌幅超阈值 / 单轮成本超预算即停）。
 - **验收**：注入退化场景，断言熔断触发；注入提升场景，断言晋升触发。
 - **依赖**：P1.2、P0.2。
@@ -301,7 +301,7 @@ def judge(question, answer, context):
 ### P2.1 GitWriteChannel（写回通道，PR + 人类闸门）
 
 - **目标**：实现"AI 修改自身代码"的唯一合法通道——只开 PR，**绝不直推 `master`**。
-- **文件**：**新建** `jarvis/vcs/git_channel.py`（当前 `jarvis/vcs/` 不存在）
+- **文件**：**新建** `huanxin/vcs/git_channel.py`（当前 `huanxin/vcs/` 不存在）
 - **设计**（对应调研第 5 章 §5.5）：
   1. 在隔离沙箱（参考 E2B 🟢）应用补丁 → 提交到 `absorb-<date>` 分支 → 用 **gh API** 开 PR。
   2. **绝不** `git push` 到 `master`、绝不 `gh api ... --method PUT|POST` 到受保护分支。
@@ -309,7 +309,7 @@ def judge(question, answer, context):
 - **代码草图**：
 
 ```python
-# jarvis/vcs/git_channel.py
+# huanxin/vcs/git_channel.py
 import subprocess, tempfile, os
 class GitWriteChannel:
     """唯一合法的代码写回通道：只开 PR，不直推 master。"""
@@ -343,7 +343,7 @@ class GitWriteChannel:
 - **改动**：
   1. 分支模型：`master`（受保护）/ `develop` / `auto` / `absorb-*`（每条吸收一个）。
   2. `absorb.yml`：PR 到 `master` 时跑测试 + `check_write_protect`。
-  3. `check_write_protect`：**除 `jarvis/vcs/git_channel.py` 外，任何文件出现 `git push` / `gitpython` 写 API / `gh api ... --method PUT|POST` 即判红**。
+  3. `check_write_protect`：**除 `huanxin/vcs/git_channel.py` 外，任何文件出现 `git push` / `gitpython` 写 API / `gh api ... --method PUT|POST` 即判红**。
 - **代码草图（CI 反向校验）**：
 
 ```yaml
@@ -363,7 +363,7 @@ jobs:
 # scripts/check_write_protect.py
 import subprocess, sys
 bad = subprocess.run(["grep","-rn","git push origin master\\|gh api .*--method PUT",
-                     "jarvis","--include=*.py"], capture_output=True, text=True).stdout
+                     "huanxin","--include=*.py"], capture_output=True, text=True).stdout
 if bad and "git_channel.py" not in bad:
     print("WRITE-PROTECT VIOLATION:\n", bad); sys.exit(1)
 ```
@@ -376,8 +376,8 @@ if bad and "git_channel.py" not in bad:
 
 ### P3.1 监控看板（可选，EdgeOne 部署）
 
-- **目标**：把 `jarvis/dashboard_html.py` 增强为"进化健康 + 护栏命中 + 吸收队列"看板，用 **EdgeOne Pages** 部署可预览。
-- **文件**：`jarvis/dashboard_html.py`、`jarvis/pipeline_monitor.py`
+- **目标**：把 `huanxin/dashboard_html.py` 增强为"进化健康 + 护栏命中 + 吸收队列"看板，用 **EdgeOne Pages** 部署可预览。
+- **文件**：`huanxin/dashboard_html.py`、`huanxin/pipeline_monitor.py`
 - **协助工具**：**frontend-dev 技能**生成看板 UI；**EdgeOne Pages 连接器**部署预览。
 - **依赖**：P2.2。
 
@@ -387,7 +387,7 @@ if bad and "git_channel.py" not in bad:
 
 ### 4.1 本地开发（每阶段）
 ```bash
-cd D:/AI自我进化/emperor-core
+cd D:/AI自我进化/huanxin-ai
 git checkout -b absorb-$(date +%F)-p0X        # 每个 P0 项一个分支
 # 用 Cursor/Trae/Codex 生成改动 → VSCode review
 pytest -q                                    # 全量回归
@@ -399,11 +399,11 @@ gh repo fork && gh pr create --base master --title "P0.X ..."   # 人类 review
 ### 4.2 GitHub 工作流（主轴）
 ```bash
 # 建分支（绝不直推 master）
-gh api repos/kiwoen/emperor-core/git/refs -f "ref=refs/heads/absorb-$(date +%F)" -f "sha=<base>"
+gh api repos/kiwoen/huanxin-ai/git/refs -f "ref=refs/heads/absorb-$(date +%F)" -f "sha=<base>"
 # 开 PR（人类审批门）
-gh api repos/kiwoen/emperor-core/pulls -f "title=P0.X 修复" -f "head=absorb-$(date +%F)" -f "base=master"
+gh api repos/kiwoen/huanxin-ai/pulls -f "title=P0.X 修复" -f "head=absorb-$(date +%F)" -f "base=master"
 # 分支保护（写死，禁止直推）
-gh api repos/kiwoen/emperor-core/branches/master/protection -X PUT \
+gh api repos/kiwoen/huanxin-ai/branches/master/protection -X PUT \
   -f "required_pull_request_reviews[required_approving_review_count]=1" \
   -f "enforce_admins=true"
 ```
@@ -411,7 +411,7 @@ gh api repos/kiwoen/emperor-core/branches/master/protection -X PUT \
 ### 4.3 反向校验（CI 本地预跑）
 ```bash
 python scripts/check_write_protect.py      # 提交前自查
-pytest --cov=jarvis --cov-report=term      # 覆盖率门槛（建议 ≥ 70%）
+pytest --cov=huanxin --cov-report=term      # 覆盖率门槛（建议 ≥ 70%）
 ```
 
 ---
@@ -426,7 +426,7 @@ pytest --cov=jarvis --cov-report=term      # 覆盖率门槛（建议 ≥ 70%）
 | **pytest** | 客观验证（每个 P 项有验收测试） | 全阶段 | 替代"看起来工作" |
 | **frontend-dev 技能 + EdgeOne Pages** | 监控看板生成与部署预览 | P3.1 | 可选 |
 | **agent-browser / 联网检索** | 深化第 2 章开源参考、追新论文（如 DGM 更新） | P0.6 / 持续 | 参考用，不写码 |
-| ❌ 邮箱 / 网盘 / 设计 / 电商类连接器 | — | — | 与 emperor-core 代码实现无关，**明确不纳入** |
+| ❌ 邮箱 / 网盘 / 设计 / 电商类连接器 | — | — | 与 huanxin-ai 代码实现无关，**明确不纳入** |
 
 > **说明**：本机已连接 77 个连接器，但绝大多数（邮件、文档、设计、电商、出海等）对"实现 Python 自进化后端"无直接助益。本文档只调动**与写码/验证/部署相关**的能力，避免无效调用。
 
@@ -453,7 +453,7 @@ P0.5 ─────────────────────────
 ## 7. 风险边界与熔断（硬性）
 
 1. **绝不自动合 `master`**：所有写回走 PR + 人类 review；`GitWriteChannel` 无直推路径。
-2. **沙箱运行进化**：进化实验只在隔离环境（E2B / 容器），不连生产 `jarvis.db`。
+2. **沙箱运行进化**：进化实验只在隔离环境（E2B / 容器），不连生产 `huanxin.db`。
 3. **资源预算**：单轮进化成本超 `cost_per_success_baseline` × N 即熔断（`bounded_autonomy` + `cost_tracker`）。
 4. **权限模型**：`rbac.py` 约束"谁能让 AI 写代码"；默认最小权限，写回需显式授权。
 5. **退化即停**：`CircuitBreaker` 见 merit 跌幅超阈值立即停进化并告警。

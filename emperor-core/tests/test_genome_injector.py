@@ -13,13 +13,13 @@
 
 import pytest
 
-from jarvis.court.genome_injector import (
+from huanxin.court.genome_injector import (
     GenomeInjector,
     InjectionProfile,
     InjectionResult,
 )
-from jarvis.court.providers.base import GenerationParams
-from jarvis.court.minister import Minister, MinisterProfile
+from huanxin.court.providers.base import GenerationParams
+from huanxin.court.minister import Minister, MinisterProfile
 
 
 # ---------------------------------------------------------------------------
@@ -338,7 +338,7 @@ class TestMinisterGenomeIntegration:
             async def generate(self, prompt, params):
                 FakeProvider._captured_params = params
                 FakeProvider._captured_prompt = prompt
-                from jarvis.court.providers.base import ModelResponse
+                from huanxin.court.providers.base import ModelResponse
                 return ModelResponse(
                     text="ok",
                     model="test-model",
@@ -368,7 +368,7 @@ class TestMinisterGenomeIntegration:
         )
         minister.set_genome(genome)
 
-        from jarvis.court.minister import Edict
+        from huanxin.court.minister import Edict
         edict = Edict(edict_id="test-1", intent="hello world")
 
         result = await minister._try_real_model(edict)
@@ -395,7 +395,7 @@ class TestMinisterGenomeIntegration:
             is_available = True
 
             async def generate(self, prompt, params):
-                from jarvis.court.providers.base import ModelResponse
+                from huanxin.court.providers.base import ModelResponse
                 return ModelResponse(
                     text="ok", model="test", confidence=0.85,
                 )
@@ -410,7 +410,7 @@ class TestMinisterGenomeIntegration:
         minister = Minister(profile)
         minister.set_provider(FakeProvider())
 
-        from jarvis.court.minister import Edict
+        from huanxin.court.minister import Edict
         edict = Edict(edict_id="test-2", intent="test")
 
         result = await minister._try_real_model(edict)
@@ -428,7 +428,7 @@ class TestMinisterGenomeIntegration:
 
             async def generate(self, prompt, params):
                 FakeProvider._captured_temp = params.temperature
-                from jarvis.court.providers.base import ModelResponse
+                from huanxin.court.providers.base import ModelResponse
                 return ModelResponse(
                     text="ok", model="test", confidence=0.85,
                 )
@@ -449,7 +449,7 @@ class TestMinisterGenomeIntegration:
                       specialization_weight=1.0, prompt_mutation_rate=0.1)
         minister.set_genome(genome)
 
-        from jarvis.court.minister import Edict
+        from huanxin.court.minister import Edict
         edict = Edict(edict_id="test-3", intent="test")
 
         result = await minister._try_real_model(edict)
@@ -465,7 +465,7 @@ class TestMinisterGenomeIntegration:
             is_available = True
 
             async def generate(self, prompt, params):
-                from jarvis.court.providers.base import ModelResponse
+                from huanxin.court.providers.base import ModelResponse
                 return ModelResponse(
                     text="genome-driven response",
                     model="test",
@@ -489,7 +489,7 @@ class TestMinisterGenomeIntegration:
                       specialization_weight=1.1, prompt_mutation_rate=0.0)
         minister.set_genome(genome)
 
-        from jarvis.court.minister import Edict
+        from huanxin.court.minister import Edict
         edict = Edict(edict_id="full-1", intent="write a poem about AI")
 
         memorial = await minister.receive_edict(edict)

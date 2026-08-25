@@ -1,8 +1,8 @@
 """Tests for the master task router (任务路由分发)."""
 import pytest
 
-from jarvis.court.minister import Minister, MinisterProfile
-from jarvis.core.task_router import (
+from huanxin.court.minister import Minister, MinisterProfile
+from huanxin.core.task_router import (
     classify_task_type,
     route_to_minister,
     plan_dispatch,
@@ -86,7 +86,7 @@ class TestRouteToMinister:
         assert score == 0.0
 
     def test_accepts_edict(self):
-        from jarvis.court.minister import Edict
+        from huanxin.court.minister import Edict
         edict = Edict(edict_id="e1", intent="写一个 Python 函数")
         m, _ = route_to_minister(edict, ALL)
         assert m is CODE_MIN

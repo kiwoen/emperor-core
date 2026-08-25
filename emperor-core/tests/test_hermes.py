@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from jarvis.hermes.bus import Message, MessageBus, MessageType, Topic
-from jarvis.hermes.event_log import EventLog
+from huanxin.hermes.bus import Message, MessageBus, MessageType, Topic
+from huanxin.hermes.event_log import EventLog
 
 
 # ============================================================================

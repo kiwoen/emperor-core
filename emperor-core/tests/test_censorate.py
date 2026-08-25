@@ -12,7 +12,7 @@ Covers:
 """
 
 import pytest
-from jarvis.court.censorate import (
+from huanxin.court.censorate import (
     CensorReview,
     CensorReport,
     CensorVerdict,
@@ -166,7 +166,7 @@ class TestVetoSystem:
 
 
 class TestDecreeReview:
-    """Reviewing Emperor's final decrees."""
+    """Reviewing Huanxin's final decrees."""
 
     @pytest.mark.asyncio
     async def test_good_decree_passes(self):

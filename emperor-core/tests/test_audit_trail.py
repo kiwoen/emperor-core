@@ -1,5 +1,5 @@
 """
-Tests for jarvis.tools.audit_trail — AuditTrail, AuditReplayer, and integration.
+Tests for huanxin.tools.audit_trail — AuditTrail, AuditReplayer, and integration.
 
 Covers:
   1. record() writes a record and returns an id
@@ -28,13 +28,13 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel, Field
 
-from jarvis.tools.audit_trail import (
+from huanxin.tools.audit_trail import (
     AuditTrail,
     AuditRecord,
     AuditReplayer,
     _safe_json_dumps,
 )
-from jarvis.tools.validator import (
+from huanxin.tools.validator import (
     ToolCallLog,
     ToolCallValidator,
     safe_execute,
@@ -300,7 +300,7 @@ def test_archive_old(audit):
     assert audit.count() == 0
 
     # Verify archive file exists
-    archive_dir = Path("jarvis_data/audit_archive")
+    archive_dir = Path("huanxin_data/audit_archive")
     files = list(archive_dir.glob("audit_*.json.gz"))
     assert len(files) > 0
 

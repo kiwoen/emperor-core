@@ -1,10 +1,10 @@
 #!/bin/bash
-# emperor-core v2.0.0 环境安装脚本 (Linux/macOS)
+# huanxin-ai v2.0.0 环境安装脚本 (Linux/macOS)
 
 set -e
 
 echo "========================================"
-echo "  emperor-core v2.0.0 环境安装脚本"
+echo "  huanxin-ai v2.0.0 环境安装脚本"
 echo "========================================"
 echo
 
@@ -33,7 +33,7 @@ pip install -r requirements.txt --quiet || echo "[WARN] 部分依赖安装失败
 
 # 初始化数据库
 echo "[INFO] 初始化数据库..."
-python3 -c "from jarvis.database import init_db; init_db()" 2>/dev/null && echo "[OK] 数据库初始化完成" || echo "[WARN] 数据库初始化跳过"
+python3 -c "from huanxin.database import init_db; init_db()" 2>/dev/null && echo "[OK] 数据库初始化完成" || echo "[WARN] 数据库初始化跳过"
 
 # 运行测试
 echo "[INFO] 运行基础测试..."

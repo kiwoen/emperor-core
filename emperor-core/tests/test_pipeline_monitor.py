@@ -7,7 +7,7 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from jarvis.pipeline_monitor import (
+from huanxin.pipeline_monitor import (
     PipelineMonitor,
     PipelineDAG,
     DAGNode,

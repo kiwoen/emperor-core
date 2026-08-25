@@ -1,11 +1,11 @@
-"""Tests for jarvis.healing — HealingEngine unit tests."""
+"""Tests for huanxin.healing — HealingEngine unit tests."""
 
 import time
 from unittest.mock import MagicMock
 
 import pytest
 
-from jarvis.healing import HealingAction, HealingEngine, HealingRecord
+from huanxin.healing import HealingAction, HealingEngine, HealingRecord
 
 
 # ══════════════════════════════════════════════════════════════════

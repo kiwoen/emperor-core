@@ -3,8 +3,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from jarvis.court_api import app
-from jarvis.pipeline_store import pipeline_store
+from huanxin.court_api import app
+from huanxin.pipeline_store import pipeline_store
 
 
 @pytest.fixture

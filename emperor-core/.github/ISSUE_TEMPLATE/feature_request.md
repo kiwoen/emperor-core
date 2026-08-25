@@ -1,6 +1,6 @@
 ---
 name: Feature Request
-about: Suggest an idea for Emperor-Core
+about: Suggest an idea for 幻炘AI
 title: "[FEATURE] "
 labels: enhancement
 assignees: ""

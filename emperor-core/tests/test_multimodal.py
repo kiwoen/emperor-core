@@ -1,4 +1,4 @@
-"""Tests for jarvis.multimodal — Vision / Speech / Document processors."""
+"""Tests for huanxin.multimodal — Vision / Speech / Document processors."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-# Ensure emperor-core is importable
+# Ensure huanxin-ai is importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
@@ -20,28 +20,28 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 @pytest.fixture
 def vision_processor():
-    from jarvis.multimodal.processor import VisionProcessor
+    from huanxin.multimodal.processor import VisionProcessor
 
     return VisionProcessor(llm_engine=None)
 
 
 @pytest.fixture
 def speech_processor():
-    from jarvis.multimodal.processor import SpeechProcessor
+    from huanxin.multimodal.processor import SpeechProcessor
 
     return SpeechProcessor(openai_client=None)
 
 
 @pytest.fixture
 def document_processor(vision_processor):
-    from jarvis.multimodal.processor import DocumentProcessor
+    from huanxin.multimodal.processor import DocumentProcessor
 
     return DocumentProcessor(vision_processor=vision_processor)
 
 
 @pytest.fixture
 def multimodal_engine():
-    from jarvis.multimodal.engine import MultimodalEngine
+    from huanxin.multimodal.engine import MultimodalEngine
 
     return MultimodalEngine(llm_engine=None, openai_client=None)
 
@@ -53,37 +53,37 @@ def multimodal_engine():
 
 class TestModuleImports:
     def test_import_multimodalengine(self):
-        from jarvis.multimodal import MultimodalEngine
+        from huanxin.multimodal import MultimodalEngine
 
         assert MultimodalEngine is not None
 
     def test_import_vision_processor(self):
-        from jarvis.multimodal import VisionProcessor
+        from huanxin.multimodal import VisionProcessor
 
         assert VisionProcessor is not None
 
     def test_import_speech_processor(self):
-        from jarvis.multimodal import SpeechProcessor
+        from huanxin.multimodal import SpeechProcessor
 
         assert SpeechProcessor is not None
 
     def test_import_document_processor(self):
-        from jarvis.multimodal import DocumentProcessor
+        from huanxin.multimodal import DocumentProcessor
 
         assert DocumentProcessor is not None
 
     def test_init_exports(self):
-        from jarvis.multimodal import (
+        from huanxin.multimodal import (
             DocumentProcessor,
             MultimodalEngine,
             SpeechProcessor,
             VisionProcessor,
         )
 
-        assert MultimodalEngine.__module__ == "jarvis.multimodal.engine"
-        assert VisionProcessor.__module__ == "jarvis.multimodal.processor"
-        assert SpeechProcessor.__module__ == "jarvis.multimodal.processor"
-        assert DocumentProcessor.__module__ == "jarvis.multimodal.processor"
+        assert MultimodalEngine.__module__ == "huanxin.multimodal.engine"
+        assert VisionProcessor.__module__ == "huanxin.multimodal.processor"
+        assert SpeechProcessor.__module__ == "huanxin.multimodal.processor"
+        assert DocumentProcessor.__module__ == "huanxin.multimodal.processor"
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -344,16 +344,16 @@ class TestMultimodalEngine:
             os.unlink(tmp)
 
     def test_vision_property(self, multimodal_engine):
-        from jarvis.multimodal.processor import VisionProcessor
+        from huanxin.multimodal.processor import VisionProcessor
 
         assert isinstance(multimodal_engine.vision, VisionProcessor)
 
     def test_speech_property(self, multimodal_engine):
-        from jarvis.multimodal.processor import SpeechProcessor
+        from huanxin.multimodal.processor import SpeechProcessor
 
         assert isinstance(multimodal_engine.speech, SpeechProcessor)
 
     def test_document_property(self, multimodal_engine):
-        from jarvis.multimodal.processor import DocumentProcessor
+        from huanxin.multimodal.processor import DocumentProcessor
 
         assert isinstance(multimodal_engine.document, DocumentProcessor)

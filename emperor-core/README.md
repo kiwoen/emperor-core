@@ -1,9 +1,9 @@
-# Jarvis
+# Huanxin
 
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-**J.A.R.V.I.S.** — Just A Rather Very Intelligent System.
+**幻炘AI** — Just A Rather Very Intelligent System.
 
 AI 驱动的多领域自进化智能体系统。内置 Dashboard 实时监控、大臣进化引擎、12 种内置能力、插件系统、自愈机制和 SQLite 持久化。
 
@@ -14,10 +14,10 @@ AI 驱动的多领域自进化智能体系统。内置 Dashboard 实时监控、
 pip install -e .
 
 # 一键启动 Dashboard
-python -m jarvis serve
+python -m huanxin serve
 
 # 或使用 CLI
-jarvis serve
+huanxin serve
 ```
 
 启动后访问 http://127.0.0.1:9020 打开 Dashboard。
@@ -78,32 +78,32 @@ jarvis serve
 - 支持 JSON/CSV 导出
 
 ### 配置文件
-- `jarvis.yaml` 集中管理所有参数
+- `huanxin.yaml` 集中管理所有参数
 - 首次运行自动生成默认配置
 
 ### CLI 工具
 
 ```bash
-jarvis serve                       # 启动 Dashboard + 调度器
-jarvis task "计算 2+3"             # 手动执行任务
-jarvis task --domain math "π*2"   # 指定领域
-jarvis status                      # 查看系统状态
-jarvis ministers                   # 查看大臣列表
-jarvis evolve                      # 手动触发进化
-jarvis alerts                      # 查看告警历史
+huanxin serve                       # 启动 Dashboard + 调度器
+huanxin task "计算 2+3"             # 手动执行任务
+huanxin task --domain math "π*2"   # 指定领域
+huanxin status                      # 查看系统状态
+huanxin ministers                   # 查看大臣列表
+huanxin evolve                      # 手动触发进化
+huanxin alerts                      # 查看告警历史
 ```
 
 ## 项目结构
 
 ```
-jarvis/
+huanxin/
 ├── __init__.py              # 包元信息
-├── __main__.py              # python -m jarvis 入口
+├── __main__.py              # python -m huanxin 入口
 ├── cli.py                   # CLI 命令行工具
 ├── main.py                  # 启动入口
-├── emperor.py               # 核心编排器 (Emperor)
+├── emperor.py               # 核心编排器 (Huanxin)
 ├── emperor_cli.py           # CLI 编排器
-├── config.py                # 配置系统 (jarvis.yaml)
+├── config.py                # 配置系统 (huanxin.yaml)
 ├── capability.py            # 能力注册表 + 12 个处理器
 ├── database.py              # SQLite 持久化层
 ├── health.py                # 系统健康监控 (CPU/内存/磁盘)
@@ -196,7 +196,7 @@ tests/
 
 ## 配置参考
 
-默认 `jarvis.yaml`：
+默认 `huanxin.yaml`：
 
 ```yaml
 {
@@ -222,7 +222,7 @@ tests/
       "hash", "json_tool", "uuid_gen", "weather", "news", "web_search", "web_fetch"]
   },
   "database": {
-    "db_path": "jarvis.db",
+    "db_path": "huanxin.db",
     "wal_mode": true,
     "max_history_rows": 10000
   },
@@ -306,9 +306,9 @@ pip install -e ".[dev]"
 python -m pytest tests/ -x -q --tb=short
 
 # 代码格式化
-black jarvis/ tests/
-ruff check jarvis/ tests/
+black huanxin/ tests/
+ruff check huanxin/ tests/
 
 # 类型检查
-mypy jarvis/
+mypy huanxin/
 ```

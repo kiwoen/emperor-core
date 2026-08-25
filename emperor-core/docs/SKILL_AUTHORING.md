@@ -1,6 +1,6 @@
-# SKILL 编写规范（emperor-core）
+# SKILL 编写规范（huanxin-ai）
 
-> 本规范将「多智能体技能集群」中沉淀出的 **SKILL.md 约定** 固化为 emperor-core 的
+> 本规范将「多智能体技能集群」中沉淀出的 **SKILL.md 约定** 固化为 huanxin-ai 的
 > 技能 / 大臣（Minister）/ 领域（Domain）编写标准，确保跨技能可组合、可路由、可审计。
 >
 > 来源：从用户提供的软件开发相关技能包（含 `script-multi-review` 等）提炼出的
@@ -10,12 +10,12 @@
 
 ## 1. 一个 SKILL 是什么
 
-在 emperor-core 语境下，一个「技能」是 **可独立交付、可被发现、可被路由** 的能力单元。
+在 huanxin-ai 语境下，一个「技能」是 **可独立交付、可被发现、可被路由** 的能力单元。
 它可以是：
 
-- 一个 `jarvis.court.ministers.*` 大臣（自治智能体）
-- 一个 `jarvis.domains.*` 领域处理模块
-- 一个 `jarvis.codex.*` 子引擎（如 `Reviewer`）
+- 一个 `huanxin.court.ministers.*` 大臣（自治智能体）
+- 一个 `huanxin.domains.*` 领域处理模块
+- 一个 `huanxin.codex.*` 子引擎（如 `Reviewer`）
 - 一个独立 `SKILL.md` 文本技能（供 LLM 上下文加载）
 
 无论形态如何，**统一用 SKILL.md 描述其契约**。
@@ -58,7 +58,7 @@ triggers:                             # 可选：显式触发词列表
    步骤化（步骤 1 → N），每步标注输入/输出，确保可复现。
 
 5. **输出格式（Output Format）**
-   给出结构化的输出模板（Markdown / JSON Schema）。emperor-core 中优先返回
+   给出结构化的输出模板（Markdown / JSON Schema）。huanxin-ai 中优先返回
    结构化 `dataclass`，并附带 `to_markdown()` 渲染。
 
 6. **审查原则与铁律（Iron Rules）**
@@ -108,13 +108,13 @@ class Dimension(str, Enum):
 每条问题：`{严重度 🔴🟡🟢, 维度, 定位, 问题描述, 可执行建议, 规则ID}`，
 按严重度→维度排序输出。
 
-> 参考实现：`jarvis/codex/reviewer.py`（`CodeReviewer` / `ReviewReport`）。
+> 参考实现：`huanxin/codex/reviewer.py`（`CodeReviewer` / `ReviewReport`）。
 
 ---
 
 ## 4. 主编路由 → 专项技能分发模式
 
-任何「总控」模块（Emperor / Orchestrator / Court）应：
+任何「总控」模块（Huanxin / Orchestrator / Court）应：
 
 1. **任务分类**：`classify_task_type(intent) -> type_tag`（关键词加权统计）。
 2. **能力打分**：对候选技能/大臣调用 `can_handle(intent) -> [0,1]`。
@@ -123,16 +123,16 @@ class Dimension(str, Enum):
 4. **模型档建议**：结合复杂度路由（`ModelRouter.estimate_complexity`）给出成本档。
 5. **回流**：承办结果回流给主编，触发下游技能（如审查→修复）。
 
-> 参考实现：`jarvis/core/task_router.py`（`classify_task_type` / `route_to_minister` / `plan_dispatch`）。
+> 参考实现：`huanxin/core/task_router.py`（`classify_task_type` / `route_to_minister` / `plan_dispatch`）。
 
 ---
 
 ## 5. 大臣（Minister）编写清单
 
-- 继承 `jarvis.court.minister.Minister`，实现 `_handle(edict) -> (output, confidence)`。
+- 继承 `huanxin.court.minister.Minister`，实现 `_handle(edict) -> (output, confidence)`。
 - 在 `MinisterProfile` 中明确 `strengths` / `weaknesses`（驱动 `can_handle` 路由）。
 - 配套一个 `SKILL.md`，遵循本文档第 2 节结构。
-- 在 `jarvis/court/ministers/__init__.py` 的 `create_ministers()` 注册
+- 在 `huanxin/court/ministers/__init__.py` 的 `create_ministers()` 注册
   （**注意**：当前契约要求恰好 8 位大臣，新增常驻大臣需同步更新相关契约测试）。
 - 优先复用既有子引擎（如 `CodeReviewer`）作为 `_handle` 的真实逻辑，而非重复实现。
 

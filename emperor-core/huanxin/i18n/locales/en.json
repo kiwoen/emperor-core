@@ -1,0 +1,99 @@
+{
+    "_comment": "幻炘AI - English (en) language pack",
+
+    "system": {
+        "start": "Huanxin system starting...",
+        "shutdown": "Huanxin system shutting down...",
+        "ready": "Huanxin system ready",
+        "error": "System error",
+        "fatal": "Fatal system error, terminating",
+        "warning": "System warning",
+        "loading": "Loading",
+        "initialized": "Initialization complete",
+        "config_loaded": "Configuration loaded successfully",
+        "config_saved": "Configuration saved successfully",
+        "restart_required": "Restart required for changes to take effect"
+    },
+
+    "dashboard": {
+        "title": "Huanxin Dashboard",
+        "subtitle": "Evolutionary AI Management System",
+        "ministers_label": "Appointed Ministers",
+        "tasks_label": "Task Queue",
+        "metrics_label": "System Metrics",
+        "evolution_label": "Evolution Progress",
+        "idle": "System idle",
+        "busy": "System busy",
+        "alert_active": "Active alerts",
+        "no_alerts": "No alerts",
+        "refresh": "Refresh"
+    },
+
+    "minister": {
+        "appoint": "Minister appointed: {name}",
+        "dismiss": "Minister dismissed: {name}",
+        "evolve": "Minister {name} is evolving (cycle {cycle})",
+        "promote": "Minister {name} promoted to {rank}",
+        "demote": "Minister {name} demoted to {rank}",
+        "gold_content": "Gold content: {value}%",
+        "merit_change": "Merit change: {delta}",
+        "stability": "Stability: {value}",
+        "streak": "Minister {name} on a {count}-round winning streak",
+        "retire": "Minister {name} has retired",
+        "revive": "Minister {name} has been revived",
+        "duel": "Minister {a} is dueling against {b}",
+        "idle": "Minister {name} is idle"
+    },
+
+    "task": {
+        "accepted": "Task accepted: {task_id}",
+        "completed": "Task completed: {task_id}",
+        "failed": "Task failed: {task_id}, reason: {reason}",
+        "timeout": "Task timeout: {task_id}",
+        "canceled": "Task cancelled: {task_id}",
+        "queued": "Task queued: {task_id}",
+        "delegated": "Task delegated to minister {minister}"
+    },
+
+    "evolution": {
+        "start": "Evolution cycle {cycle} started",
+        "complete": "Evolution cycle {cycle} complete, {survivors} / {total} ministers survived",
+        "crossover": "Crossover: {parent_a} x {parent_b}",
+        "mutation": "Mutation occurred in minister {name}, gene {gene}",
+        "elite_survived": "Elite minister {name} survived",
+        "breeding": "Breeding new minister: {name}",
+        "extinct": "Minister {name} eliminated"
+    },
+
+    "capability": {
+        "datetime": "Get current date, time, timezone, weekday, etc.",
+        "math": "Safely evaluate mathematical expressions (+, -, *, /, **, %)",
+        "random": "Generate random numbers, dice rolls, or random picks",
+        "text": "Text statistics, reversal, case conversion, and counting",
+        "file_info": "Get file size, modification time, line count, etc.",
+        "hash": "Compute MD5 / SHA1 / SHA256 hash digests for strings",
+        "json_tool": "JSON formatting, validation, and compression",
+        "uuid_gen": "Generate a UUID4 unique identifier",
+        "weather": "Query city weather (temperature / humidity / wind / precipitation)",
+        "news": "Query the latest news, supports Chinese and English keywords, returns title and source",
+        "web_search": "Search the web for information (via DuckDuckGo)",
+        "web_fetch": "Fetch and extract content from a specified web page"
+    },
+
+    "error": {
+        "not_found": "Not found: {resource}",
+        "unauthorized": "Permission denied",
+        "invalid_config": "Invalid configuration: {detail}",
+        "network_timeout": "Network request timed out",
+        "db_error": "Database error: {detail}",
+        "unknown": "Unknown error"
+    },
+
+    "court": {
+        "session_open": "Court session opened",
+        "session_close": "Court session closed",
+        "verdict": "Verdict: {result}",
+        "appeal": "Minister {name} filed an appeal",
+        "censor_report": "Censor report: {detail}"
+    }
+}

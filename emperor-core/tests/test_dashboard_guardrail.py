@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 @pytest.fixture
 def guardrail_telemetry():
     """Create fresh GuardrailTelemetry with pre-populated events."""
-    from jarvis.guardrail_telemetry import (
+    from huanxin.guardrail_telemetry import (
         GuardrailTelemetry,
         GuardrailEvent,
         GuardrailType,
@@ -77,7 +77,7 @@ def guardrail_telemetry():
 @pytest.fixture
 def client(guardrail_telemetry):
     """Create FastAPI TestClient with guardrail telemetry injected."""
-    from jarvis.court_api import create_app
+    from huanxin.court_api import create_app
     app = create_app()
     app.extra["guardrail_telemetry"] = guardrail_telemetry
     with TestClient(app) as c:
@@ -145,7 +145,7 @@ class TestGuardrailHealthEndpoint:
 
     def test_503_when_no_guardrail_telemetry(self):
         """Return 503 when guardrail telemetry is not injected."""
-        from jarvis.court_api import create_app
+        from huanxin.court_api import create_app
         app = create_app()
         with TestClient(app) as c:
             resp = c.get("/api/dashboard/guardrail-health")
@@ -158,7 +158,7 @@ class TestDashboardGuardrailHTML:
     """Verify the dashboard HTML includes Guardrail Health panel."""
 
     def test_generate_html_includes_panel(self):
-        from jarvis.dashboard_html import generate_html
+        from huanxin.dashboard_html import generate_html
         html = generate_html()
         assert "panel-guardrail-health" in html
         assert "Guardrail Health" in html
@@ -167,14 +167,14 @@ class TestDashboardGuardrailHTML:
         assert "gh-events-table" in html
 
     def test_generate_html_includes_js_functions(self):
-        from jarvis.dashboard_html import generate_html
+        from huanxin.dashboard_html import generate_html
         html = generate_html()
         assert "drawRing" in html
         assert "refreshGuardrailHealth" in html
         assert "/api/dashboard/guardrail-health" in html
 
     def test_guardrail_health_panel_before_plugin_marketplace(self):
-        from jarvis.dashboard_html import generate_html
+        from huanxin.dashboard_html import generate_html
         html = generate_html()
         gh_idx = html.index('id="panel-guardrail-health"')
         plugin_idx = html.index('id="panel-plugins"')

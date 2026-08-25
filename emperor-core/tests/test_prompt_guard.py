@@ -10,7 +10,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from jarvis.prompt_guard import (
+from huanxin.prompt_guard import (
     PromptGuard, ScanResult, DetectionRule,
 )
 
@@ -306,7 +306,7 @@ class TestAPIEndpoints:
     @pytest.fixture
     def client(self):
         try:
-            from jarvis.court_api import create_app
+            from huanxin.court_api import create_app
             from fastapi.testclient import TestClient
         except ImportError as e:
             pytest.skip(f"Cannot import app dependencies: {e}")

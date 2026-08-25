@@ -106,7 +106,7 @@ jobs:
           # 这样即使服务器上的旧脚本落后也能自愈。
           REMOTE_CMD=$(cat <<EOF
           set -euo pipefail
-          cd /srv/emperor-core
+          cd /srv/huanxin-ai
           git fetch --prune origin ${TARGET_BRANCH}
           export DEPLOY_BRANCH=${TARGET_BRANCH}
           export APP_PORT=${APP_PORT}

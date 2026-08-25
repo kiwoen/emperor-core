@@ -6,11 +6,11 @@ import asyncio
 import pytest
 from unittest.mock import Mock, MagicMock, AsyncMock, patch
 
-from jarvis.court.orchestrator import CourtOrchestrator, SmartEmperor
-from jarvis.court.routing import RoutingStrategy, IntelligentRouter
-from jarvis.court.calibration import ConfidenceCalibrator
-from jarvis.court.emperor import Decree, ImperialCourt
-from jarvis.court.minister import Memorial, MinisterState
+from huanxin.court.orchestrator import CourtOrchestrator, SmartSovereign
+from huanxin.court.routing import RoutingStrategy, IntelligentRouter
+from huanxin.court.calibration import ConfidenceCalibrator
+from huanxin.court.sovereign import Decree, ImperialCourt
+from huanxin.court.minister import Memorial, MinisterState
 
 
 # ──────────────────────────────────────────────
@@ -42,8 +42,8 @@ def orchestrator():
     """CourtOrchestrator with mock ministers (no real LLM)."""
     court = CourtOrchestrator()
     # Manually register ministers with controlled profiles
-    from jarvis.court.minister import MinisterProfile
-    from jarvis.court.minister import Minister
+    from huanxin.court.minister import MinisterProfile
+    from huanxin.court.minister import Minister
 
     profiles = {
         "chancellor": MinisterProfile(
@@ -406,7 +406,7 @@ class TestLegacyCompatibility:
     """Ensure base ImperialCourt methods still work."""
 
     def test_install_minister(self, orchestrator):
-        from jarvis.court.minister import MinisterProfile, Minister
+        from huanxin.court.minister import MinisterProfile, Minister
         m = Minister(MinisterProfile(
             title="Test",
             archetype="GPT-5",
@@ -455,7 +455,7 @@ class TestMemoryEnhancedRouting:
 
     def test_successful_memory_gives_boost(self, orchestrator):
         """Record a successful memory → query returns positive boost."""
-        from jarvis.court.memory import MemoryEntry
+        from huanxin.court.memory import MemoryEntry
 
         entry = MemoryEntry(
             id="mem-test-001",
@@ -476,7 +476,7 @@ class TestMemoryEnhancedRouting:
 
     def test_failed_memory_gives_lower_boost(self, orchestrator):
         """Failed memory → lower boost compared to successes."""
-        from jarvis.court.memory import MemoryEntry
+        from huanxin.court.memory import MemoryEntry
 
         # Record 1 success + 2 failures for chancellor
         for i, success in enumerate([True, False, False]):
@@ -501,7 +501,7 @@ class TestMemoryEnhancedRouting:
 
     def test_no_matching_minister_returns_zero(self, orchestrator):
         """Memories exist but for a different minister → boost is 0.0."""
-        from jarvis.court.memory import MemoryEntry
+        from huanxin.court.memory import MemoryEntry
 
         entry = MemoryEntry(
             id="mem-test-censor",
@@ -523,7 +523,7 @@ class TestMemoryEnhancedRouting:
 
     def test_boost_capped_at_max(self, orchestrator):
         """Memory boost must not exceed 0.15 (the weight cap)."""
-        from jarvis.court.memory import MemoryEntry
+        from huanxin.court.memory import MemoryEntry
 
         # Create perfect track record for chancellor
         for i in range(10):
@@ -547,7 +547,7 @@ class TestMemoryEnhancedRouting:
 
     def test_memory_provider_wired_in_select_ministers(self, orchestrator):
         """After _ensure_router_providers + select, memory provider is set."""
-        from jarvis.court.memory import MemoryEntry
+        from huanxin.court.memory import MemoryEntry
 
         # Record a memory
         entry = MemoryEntry(
@@ -573,41 +573,41 @@ class TestMemoryEnhancedRouting:
 
 
 # ──────────────────────────────────────────────
-# Test: SmartEmperor convenience wrapper
+# Test: SmartSovereign convenience wrapper
 # ──────────────────────────────────────────────
 
 
-class TestSmartEmperor:
-    """Verify SmartEmperor wraps CourtOrchestrator correctly."""
+class TestSmartSovereign:
+    """Verify SmartSovereign wraps CourtOrchestrator correctly."""
 
     def test_creates_with_defaults(self):
-        se = SmartEmperor()
+        se = SmartSovereign()
         assert se.court is not None
         assert isinstance(se.court, CourtOrchestrator)
 
     def test_custom_strategy(self):
-        se = SmartEmperor(routing_strategy=RoutingStrategy.EXPLORE)
+        se = SmartSovereign(routing_strategy=RoutingStrategy.EXPLORE)
         assert se.court.router.strategy == RoutingStrategy.EXPLORE
 
     def test_get_calibrator(self):
-        se = SmartEmperor()
+        se = SmartSovereign()
         assert se.get_calibrator() is se.court.calibrator
 
     def test_get_router(self):
-        se = SmartEmperor()
+        se = SmartSovereign()
         assert se.get_router() is se.court.router
 
     def test_ministers_installed(self):
-        se = SmartEmperor()
+        se = SmartSovereign()
         # Factory creates 8 ministers
         assert len(se.court.ministers) >= 4
 
     def test_get_court_metrics(self):
-        se = SmartEmperor()
+        se = SmartSovereign()
         metrics = se.get_court_metrics()
         assert "calibration" in metrics
 
     def test_set_routing_strategy(self):
-        se = SmartEmperor()
+        se = SmartSovereign()
         se.set_routing_strategy(RoutingStrategy.CALIBRATED)
         assert se.court.router.strategy == RoutingStrategy.CALIBRATED

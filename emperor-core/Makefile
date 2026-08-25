@@ -31,11 +31,11 @@ format: ## Format with ruff
 	ruff check --fix .
 
 typecheck: ## Type check with mypy
-	mypy jarvis/ --ignore-missing-imports
+	mypy huanxin/ --ignore-missing-imports
 
 coverage: ## Run tests with coverage report
 	$(PYTHON) -m pytest tests/ -q --tb=short -m "not network" \
-		--cov=jarvis --cov-report=html --cov-report=term \
+		--cov=huanxin --cov-report=html --cov-report=term \
 		--ignore=tests/test_core.py \
 		--ignore=tests/test_e2e_integration.py
 
@@ -49,4 +49,4 @@ build: ## Build sdist and wheel
 	$(PYTHON) -m build --sdist --wheel
 
 docker-build: ## Build Docker image
-	docker build -t emperor-core:latest .
+	docker build -t huanxin-ai:latest .

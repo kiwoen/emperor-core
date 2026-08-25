@@ -4,8 +4,8 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from jarvis.alerts import AlertManager, AlertRule
-from jarvis.court.scheduler import Scheduler, SchedulerState
+from huanxin.alerts import AlertManager, AlertRule
+from huanxin.court.scheduler import Scheduler, SchedulerState
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -23,8 +23,8 @@ class TestSchedulerBuildState:
         # We test with emperor later
 
     def test_state_with_emperor(self):
-        from jarvis.emperor import Emperor
-        emp = Emperor()
+        from huanxin.core import Huanxin
+        emp = Huanxin()
         emp.register("test_m", domain="math")
 
         sched = Scheduler(emp)
@@ -46,8 +46,8 @@ class TestSchedulerBuildState:
         assert isinstance(state["total_tasks"], int)
 
     def test_state_scheduler_running(self):
-        from jarvis.emperor import Emperor
-        emp = Emperor()
+        from huanxin.core import Huanxin
+        emp = Huanxin()
         emp.register("test_m2", domain="math")
 
         sched = Scheduler(emp)
@@ -62,8 +62,8 @@ class TestSchedulerBuildState:
         sched.stop()
 
     def test_state_after_task_failure(self):
-        from jarvis.emperor import Emperor
-        emp = Emperor()
+        from huanxin.core import Huanxin
+        emp = Huanxin()
         emp.register("fail_m", domain="test")
 
         sched = Scheduler(emp)
@@ -89,8 +89,8 @@ class TestSchedulerAlertIntegration:
     """AlertManager auto-evaluates each scheduler tick."""
 
     def test_alert_fires_during_tick(self):
-        from jarvis.emperor import Emperor
-        emp = Emperor()
+        from huanxin.core import Huanxin
+        emp = Huanxin()
         emp.register("alice", domain="math")
 
         mgr = AlertManager()
@@ -125,8 +125,8 @@ class TestSchedulerAlertIntegration:
         assert any(a.rule_name == "sched_on" for a in history)
 
     def test_no_evaluate_when_no_alert_manager(self):
-        from jarvis.emperor import Emperor
-        emp = Emperor()
+        from huanxin.core import Huanxin
+        emp = Huanxin()
         sched = Scheduler(emp)
 
         # Without alert_manager, _tick should run without error
@@ -142,8 +142,8 @@ class TestDashboardAlertsAPI:
     """GET /dashboard/alerts returns alert data."""
 
     def test_alerts_endpoint_returns_history(self):
-        from jarvis.emperor import Emperor
-        emp = Emperor()
+        from huanxin.core import Huanxin
+        emp = Huanxin()
         mgr = emp.alerts
         mgr.add_rule(AlertRule("test", "x", 0, "lt", cooldown_seconds=0))
         mgr.evaluate({"x": -1})
@@ -161,8 +161,8 @@ class TestDashboardAlertsAPI:
         assert data["history"][0]["rule_name"] == "test"
 
     def test_alerts_endpoint_no_manager(self):
-        from jarvis.emperor import Emperor
-        emp = Emperor()
+        from huanxin.core import Huanxin
+        emp = Huanxin()
         app = emp.app
         app.extra.pop("alert_manager", None)
         client = TestClient(app)
@@ -172,8 +172,8 @@ class TestDashboardAlertsAPI:
         assert data == {"history": [], "rules": []}
 
     def test_alerts_endpoint_rules_list(self):
-        from jarvis.emperor import Emperor
-        emp = Emperor()
+        from huanxin.core import Huanxin
+        emp = Huanxin()
         mgr = emp.alerts
         mgr.add_rule(AlertRule("r1", "m1", 10, "gt", "warning", "High!"))
         mgr.add_rule(AlertRule("r2", "m2", 5, "lt", "info", "Low!"))
@@ -192,8 +192,8 @@ class TestDashboardAlertsAPI:
         assert "r2" in rule_names
 
     def test_dashboard_status_includes_alerts_extra(self):
-        from jarvis.emperor import Emperor
-        emp = Emperor()
+        from huanxin.core import Huanxin
+        emp = Huanxin()
 
         app = emp.app
         app.extra["alert_manager"] = emp.alerts

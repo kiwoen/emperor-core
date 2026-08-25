@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from jarvis.court.court import Court
-from jarvis.court.fitness import RealTaskFitness
-from jarvis.self_evolve import (
+from huanxin.court.court import Court
+from huanxin.court.fitness import RealTaskFitness
+from huanxin.self_evolve import (
     GenomeDrivenExecutor,
     SelfEvolutionEngine,
     default_ministers,
@@ -45,7 +45,7 @@ def test_safety_context_receives_behavioral_pass_rate():
     eng = _engine()
     report = eng._evaluate(1)
     # 构造一次写回上下文，断言行为正确率被注入 SafetyContext。
-    from jarvis.court.safety_gate import SafetyContext
+    from huanxin.court.safety_gate import SafetyContext
     ctx = SafetyContext(
         before={}, after=eng.court.genome_state_payload(), diff="",
         behavioral_pass_rate=(report.pass_rate if report is not None else None),

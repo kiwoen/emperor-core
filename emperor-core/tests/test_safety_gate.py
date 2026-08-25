@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from jarvis.court.safety_gate import (
+from huanxin.court.safety_gate import (
     CoreMinisterCheck,
     GenomeSchemaCheck,
     GoldenSafetyCheck,
@@ -76,13 +76,13 @@ def test_core_minister_missing_fails():
 
 def test_protected_paths_blocks_brake_module():
     ctx = SafetyContext(before={}, after=_payload([_genome("a")]),
-                        changed_paths=["jarvis/court/circuit_breaker.py"])
+                        changed_paths=["huanxin/court/circuit_breaker.py"])
     assert not ProtectedPathCheck().check(ctx).passed
 
 
 def test_protected_paths_allows_genome_state():
     ctx = SafetyContext(before={}, after=_payload([_genome("a")]),
-                        changed_paths=["jarvis/court/genome_state.json"])
+                        changed_paths=["huanxin/court/genome_state.json"])
     assert ProtectedPathCheck().check(ctx).passed
 
 

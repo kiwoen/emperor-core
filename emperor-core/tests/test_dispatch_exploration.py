@@ -8,8 +8,8 @@
 """
 import inspect
 
-from jarvis.self_evolve import SelfEvolutionEngine, _rank_ministers
-from jarvis.self_evolve_config import SelfEvolveConfig
+from huanxin.self_evolve import SelfEvolutionEngine, _rank_ministers
+from huanxin.self_evolve_config import SelfEvolveConfig
 
 
 def test_rank_ministers_fallback_no_exploration():
