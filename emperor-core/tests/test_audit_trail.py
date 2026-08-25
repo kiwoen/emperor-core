@@ -151,11 +151,11 @@ def test_by_agent(audit):
 
 
 def test_by_time_range(audit):
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     audit.record(tool_name="delete", params={})
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     start = (now - timedelta(hours=1)).isoformat()
     end = (now + timedelta(hours=1)).isoformat()
 
@@ -283,8 +283,8 @@ def test_replay_traces_multiple(audit):
 
 def test_archive_old(audit):
     # Insert a record with an old timestamp manually
-    from datetime import datetime, timedelta
-    old_ts = (datetime.utcnow() - timedelta(days=60)).isoformat()
+    from datetime import datetime, timedelta, timezone
+    old_ts = (datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=60)).isoformat()
 
     audit.record(tool_name="old_tool", params={"x": 1})
     # Manually update timestamp of the first record

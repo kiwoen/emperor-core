@@ -34,7 +34,7 @@ import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -182,7 +182,7 @@ class AuditTrail:
         """Record a tool call to the audit trail. Returns the new row id."""
         params_str = _safe_json_dumps(params or {})
         result_str = _safe_json_dumps(result) if result is not None else None
-        timestamp = datetime.utcnow().isoformat()
+        timestamp = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
 
         with self._lock:
             with self._get_conn() as conn:
@@ -334,7 +334,7 @@ class AuditTrail:
 
         Returns the number of records archived.
         """
-        cutoff = (datetime.utcnow() - timedelta(days=age_days)).isoformat()
+        cutoff = (datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=age_days)).isoformat()
 
         with self._lock:
             with self._get_conn() as conn:

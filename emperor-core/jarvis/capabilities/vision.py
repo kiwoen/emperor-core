@@ -11,17 +11,36 @@
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
+import threading
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Optional
 
 logger = logging.getLogger("jarvis.capabilities.vision")
 
 # 视觉主后端默认（覆盖 groq 的文本默认模型）
 _DEFAULT_VISION_MODEL = "llava-v1.5-7b-4096-preview"
+
+# 共享线程池：所有 VisionBackend 实例复用，避免多实例 / 测试泄漏线程。
+# 阻塞的 HTTP 请求（urllib）经此池卸载，``achat_sync`` 在 async 上下文不阻塞事件循环。
+_VISION_EXECUTOR: "Optional[ThreadPoolExecutor]" = None
+_VISION_EXECUTOR_LOCK = threading.Lock()
+
+
+def _get_vision_executor() -> "ThreadPoolExecutor":
+    global _VISION_EXECUTOR
+    if _VISION_EXECUTOR is None:
+        with _VISION_EXECUTOR_LOCK:
+            if _VISION_EXECUTOR is None:
+                _VISION_EXECUTOR = ThreadPoolExecutor(
+                    max_workers=2, thread_name_prefix="vision"
+                )
+    return _VISION_EXECUTOR
 
 
 def _parse_csv(value: Optional[str]) -> list[str]:
@@ -74,6 +93,8 @@ class VisionBackend:
         self._timeout = timeout
         self.last_usage: dict = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
         self.last_error: Optional[str] = None
+        # last_usage / last_error 跨并发请求写入，加锁保护
+        self._state_lock = threading.Lock()
 
     def chat_sync(self, prompt: str = "", messages: Optional[list[dict]] = None, system: str = "") -> str:
         """调用视觉模型；失败时返回 JSON 降级文案（绝不抛异常）。"""
@@ -86,13 +107,44 @@ class VisionBackend:
         for backend in self._backends:
             try:
                 data = self._call_backend(backend, payload_messages)
-                self.last_usage = self._extract_usage(data)
+                with self._state_lock:
+                    self.last_usage = self._extract_usage(data)
                 return self._extract_text(data)
             except Exception as e:  # noqa: BLE001 - 逐后端故障转移
                 last_err = f"{backend.get('name')}: {e}"
                 logger.warning("vision 后端 %s 调用失败：%s", backend.get("name"), e)
 
-        self.last_error = last_err or "全部 vision 后端不可用"
+        with self._state_lock:
+            self.last_error = last_err or "全部 vision 后端不可用"
+        return self._degraded("no_vision_available", self.last_error)
+
+    async def achat_sync(self, prompt: str = "", messages: Optional[list[dict]] = None, system: str = "") -> str:
+        """异步版 ``chat_sync``：把阻塞的 HTTP 请求卸载到线程池，不阻塞事件循环。
+
+        契约与 ``chat_sync`` 完全一致（返回 str，失败时返回结构化降级文案）。
+        """
+        if not self._backends:
+            with self._state_lock:
+                self.last_error = "未配置任何 vision 后端（缺少 GROQ_API_KEY 等）"
+            return self._degraded("no_vision_available", self.last_error)
+
+        payload_messages = messages or self._build_messages(prompt, system)
+        last_err: Optional[str] = None
+        loop = asyncio.get_running_loop()
+        for backend in self._backends:
+            try:
+                data = await loop.run_in_executor(
+                    _get_vision_executor(), self._call_backend, backend, payload_messages
+                )
+                with self._state_lock:
+                    self.last_usage = self._extract_usage(data)
+                return self._extract_text(data)
+            except Exception as e:  # noqa: BLE001 - 逐后端故障转移
+                last_err = f"{backend.get('name')}: {e}"
+                logger.warning("vision 后端 %s 调用失败：%s", backend.get("name"), e)
+
+        with self._state_lock:
+            self.last_error = last_err or "全部 vision 后端不可用"
         return self._degraded("no_vision_available", self.last_error)
 
     # ── 内部 ────────────────────────────────────────────────────────

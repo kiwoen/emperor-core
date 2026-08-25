@@ -106,6 +106,50 @@ class VisionProcessor:
         result.update(extra_info)
         return result
 
+    async def aprocess(
+        self,
+        image_input: str,
+        *,
+        prompt: str = "Describe this image in detail.",
+        system: str = "",
+    ) -> dict[str, Any]:
+        """``process`` 的异步版本：当注入后端支持 ``achat_sync``（如 ``VisionBackend``）时，
+        把阻塞的视觉 HTTP 请求卸载到线程池，避免阻塞事件循环；否则退化为同步 ``chat_sync``。
+
+        返回结构与 ``process`` 完全一致。
+        """
+        sys_msg = system or self.DEFAULT_SYSTEM
+
+        if image_input.startswith(("http://", "https://")):
+            image_block: dict = {
+                "type": "image_url",
+                "image_url": {"url": image_input},
+            }
+            extra_info: dict = {"image_url": image_input}
+        else:
+            data_uri = _image_to_base64(image_input)
+            image_block = {
+                "type": "image_url",
+                "image_url": {"url": data_uri},
+            }
+            extra_info = {"image_path": image_input}
+
+        messages = self._build_vision_messages(sys_msg, prompt, image_block)
+
+        if self._llm is not None:
+            achat = getattr(self._llm, "achat_sync", None)
+            if achat is not None:
+                raw = await achat(prompt="", messages=messages)
+            else:
+                raw = self._llm.chat_sync(prompt="", messages=messages)
+        else:
+            raw = self._fallback_vision(image_input, prompt, sys_msg)
+
+        caption = self._extract_caption(raw)
+        result = {"caption": caption, "raw": raw}
+        result.update(extra_info)
+        return result
+
     def _build_vision_messages(
         self, system: str, prompt: str, image_block: dict
     ) -> list[dict]:

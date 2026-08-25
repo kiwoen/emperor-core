@@ -49,13 +49,14 @@ Usage:
 
 from __future__ import annotations
 
+import functools
 import json as _json
 import logging
 import sqlite3
 import time
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import RLock
 from typing import Any, Dict, List, Optional
@@ -170,6 +171,7 @@ MEDIUM_KEYWORDS = [
 ]
 
 
+@functools.lru_cache(maxsize=1024)
 def classify_risk(prompt: str, domain: str = "general") -> str:
     """根据 prompt 内容和 domain 自动推断风险等级。"""
     pl = prompt.lower()
@@ -330,7 +332,7 @@ class ApprovalEngine:
         """Create a pending approval request. Call after require_approval returns True."""
         risk_level = classify_risk(prompt, domain)
         req_id = uuid.uuid4().hex[:12]
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
 
         with self._lock:
             conn = self._get_conn()
@@ -378,7 +380,7 @@ class ApprovalEngine:
         return self._resolve(request_id, "denied", note)
 
     def _resolve(self, request_id: str, status: str, note: str) -> Optional[ApprovalRequest]:
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
         with self._lock:
             conn = self._get_conn()
             existing = conn.execute(
@@ -424,7 +426,7 @@ class ApprovalEngine:
 
     def sweep_timeouts(self) -> List[str]:
         """Auto-deny expired pending requests. Returns list of request IDs timed out."""
-        cutoff = (datetime.utcnow() - timedelta(minutes=self.timeout_minutes)).isoformat()
+        cutoff = (datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=self.timeout_minutes)).isoformat()
         with self._lock:
             conn = self._get_conn()
             rows = conn.execute(
@@ -434,7 +436,7 @@ class ApprovalEngine:
             timed_out_ids = [r["id"] for r in rows]
 
             if timed_out_ids:
-                now = datetime.utcnow().isoformat()
+                now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
                 conn.executemany(
                     "UPDATE approval_requests SET status='timed_out', resolved_at=? WHERE id=?",
                     [(now, rid) for rid in timed_out_ids],

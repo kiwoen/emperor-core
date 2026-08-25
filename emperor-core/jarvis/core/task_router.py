@@ -15,6 +15,7 @@ Task Router — 主路由分发器（master-router → specialized minister disp
 
 from __future__ import annotations
 
+import functools
 import logging
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -44,13 +45,10 @@ TASK_TYPES: dict[str, list[str]] = {
 }
 
 
-def classify_task_type(intent: str) -> str:
-    """将意图归类为任务类型。
-
-    返回：code / math / writing / research / security / planning / general。
-    多个类型命中时取命中词数最多者；均未命中返回 general。
-    """
-    text = (intent.intent if isinstance(intent, Edict) else str(intent)).lower()
+@functools.lru_cache(maxsize=2048)
+def _classify_task_type_text(text: str) -> str:
+    """Cached core of :func:`classify_task_type` (input must be a plain str)."""
+    text = text.lower()
     scored: dict[str, int] = {}
     for ttype, kws in TASK_TYPES.items():
         if ttype == "general":
@@ -62,6 +60,16 @@ def classify_task_type(intent: str) -> str:
         return "general"
     # 命中数最多；并列时按 TASK_TYPES 定义顺序（更稳定）
     return max(scored, key=lambda t: (scored[t], -list(TASK_TYPES).index(t)))
+
+
+def classify_task_type(intent: str) -> str:
+    """将意图归类为任务类型。
+
+    返回：code / math / writing / research / security / planning / general。
+    多个类型命中时取命中词数最多者；均未命中返回 general。
+    """
+    text = intent.intent if isinstance(intent, Edict) else str(intent)
+    return _classify_task_type_text(text)
 
 
 @dataclass

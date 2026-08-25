@@ -1,0 +1,156 @@
+name: Deploy
+
+# 推送到 master/main 后自动把云端实例更新到最新代码。
+#
+# 需要在仓库 Settings → Secrets and variables → Actions 配置：
+#   DEPLOY_HOST      必填，服务器公网 IP（如 8.154.37.210）
+#   DEPLOY_SSH_KEY   推荐，SSH 私钥全文（OpenSSH 格式，含 BEGIN/END 行）
+#   DEPLOY_PASSWORD  备选，root 密码（未配置 DEPLOY_SSH_KEY 时使用）
+#   DEPLOY_USER      可选，默认 root
+#   DEPLOY_SSH_PORT  可选，默认 22
+#   DEPLOY_APP_PORT  可选，默认 8000
+#
+# 未配置 DEPLOY_HOST 时本工作流会跳过（不报红），方便 fork 与本地实验。
+
+on:
+  push:
+    branches: [master, main]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "LICENSE"
+      - ".github/ISSUE_TEMPLATE/**"
+  workflow_dispatch:
+    inputs:
+      no_rollback:
+        description: "健康检查失败时不回滚（仅排障用）"
+        type: boolean
+        default: false
+
+# 部署不可被中断：并发时排队而非取消，避免留下半成品状态
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Update cloud instance
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Guard — 检查部署 secrets
+        id: guard
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_PASSWORD: ${{ secrets.DEPLOY_PASSWORD }}
+        run: |
+          if [ -z "$DEPLOY_HOST" ]; then
+            echo "::warning title=部署已跳过::未配置 DEPLOY_HOST secret，跳过云端部署。"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$DEPLOY_SSH_KEY" ] && [ -z "$DEPLOY_PASSWORD" ]; then
+            echo "::error title=缺少凭证::已配置 DEPLOY_HOST，但 DEPLOY_SSH_KEY 与 DEPLOY_PASSWORD 均为空。"
+            exit 1
+          fi
+          if [ -n "$DEPLOY_SSH_KEY" ]; then
+            echo "auth=key" >> "$GITHUB_OUTPUT"
+          else
+            echo "auth=password" >> "$GITHUB_OUTPUT"
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: 准备 SSH 凭证与 known_hosts
+        if: steps.guard.outputs.ready == 'true'
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
+          AUTH_MODE: ${{ steps.guard.outputs.auth }}
+        run: |
+          set -euo pipefail
+          PORT="${DEPLOY_SSH_PORT:-22}"
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          # 抓取真实主机指纹，而不是 StrictHostKeyChecking=no（避免中间人）
+          ssh-keyscan -p "$PORT" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          test -s ~/.ssh/known_hosts || { echo "::error::ssh-keyscan 未取到主机指纹，检查 IP / 安全组 22 端口"; exit 1; }
+          if [ "$AUTH_MODE" = "key" ]; then
+            printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_deploy
+            chmod 600 ~/.ssh/id_deploy
+          else
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq sshpass
+          fi
+
+      - name: SSH 部署（git reset --hard + compose 重建 + 健康检查）
+        if: steps.guard.outputs.ready == 'true'
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PASSWORD: ${{ secrets.DEPLOY_PASSWORD }}
+          DEPLOY_SSH_PORT: ${{ secrets.DEPLOY_SSH_PORT }}
+          DEPLOY_APP_PORT: ${{ secrets.DEPLOY_APP_PORT }}
+          AUTH_MODE: ${{ steps.guard.outputs.auth }}
+          TARGET_BRANCH: ${{ github.ref_name }}
+          # 用 github.event.inputs 而非 inputs：后者在 push 事件下不可用
+          NO_ROLLBACK: ${{ github.event.inputs.no_rollback == 'true' && '1' || '0' }}
+        run: |
+          set -euo pipefail
+          USER_NAME="${DEPLOY_USER:-root}"
+          PORT="${DEPLOY_SSH_PORT:-22}"
+          APP_PORT="${DEPLOY_APP_PORT:-8000}"
+
+          # 远端执行体：从 origin 取最新的 remote_deploy.sh 并运行，
+          # 这样即使服务器上的旧脚本落后也能自愈。
+          REMOTE_CMD=$(cat <<EOF
+          set -euo pipefail
+          cd /srv/emperor-core
+          git fetch --prune origin ${TARGET_BRANCH}
+          export DEPLOY_BRANCH=${TARGET_BRANCH}
+          export APP_PORT=${APP_PORT}
+          export NO_ROLLBACK=${NO_ROLLBACK}
+          if git cat-file -e origin/${TARGET_BRANCH}:scripts/remote_deploy.sh 2>/dev/null; then
+            git show origin/${TARGET_BRANCH}:scripts/remote_deploy.sh | bash -s
+          else
+            echo "[deploy] 远端仓库暂无 scripts/remote_deploy.sh，回退为内联部署"
+            git reset --hard origin/${TARGET_BRANCH}
+            docker compose up -d --build
+            for i in \$(seq 1 40); do
+              curl -fsS --max-time 5 http://localhost:${APP_PORT}/health >/dev/null 2>&1 && exit 0
+              sleep 3
+            done
+            echo "[deploy][ERROR] 健康检查失败" >&2
+            docker compose logs --tail=60 || true
+            exit 1
+          fi
+          EOF
+          )
+
+          if [ "$AUTH_MODE" = "key" ]; then
+            ssh -i ~/.ssh/id_deploy -p "$PORT" -o BatchMode=yes \
+              "${USER_NAME}@${DEPLOY_HOST}" "bash -s" <<< "$REMOTE_CMD"
+          else
+            sshpass -p "$DEPLOY_PASSWORD" ssh -p "$PORT" \
+              "${USER_NAME}@${DEPLOY_HOST}" "bash -s" <<< "$REMOTE_CMD"
+          fi
+
+      - name: 公网验证 /health
+        if: steps.guard.outputs.ready == 'true'
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_APP_PORT: ${{ secrets.DEPLOY_APP_PORT }}
+        run: |
+          set -euo pipefail
+          APP_PORT="${DEPLOY_APP_PORT:-8000}"
+          BODY=$(curl -fsS --retry 6 --retry-delay 5 --retry-all-errors --max-time 15 \
+            "http://${DEPLOY_HOST}:${APP_PORT}/health")
+          echo "$BODY"
+          echo "$BODY" | grep -q '"status":"ok"' \
+            || { echo "::error::/health 返回异常"; exit 1; }
+          echo "::notice title=部署成功::云端已更新到 ${GITHUB_SHA:0:8}"
+
+      - name: 清理凭证
+        if: always()
+        run: rm -f ~/.ssh/id_deploy

@@ -31,9 +31,12 @@ env 变量
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Optional
 
 logger = logging.getLogger("jarvis.capabilities.search")
@@ -48,6 +51,23 @@ _DDG_BACKENDS = ("auto", "html", "lite", "ecosia")
 
 # 支持的搜索引擎（百度因反爬验证页已移除）
 _SUPPORTED_PROVIDERS = ("bing", "sogou", "duckduckgo")
+
+# 共享线程池：所有 WebSearchService 实例复用同一池，避免测试 / 多实例泄漏线程。
+# 阻塞的网络 I/O（requests / DDGS）经此池卸载，``asearch`` 在 async 上下文不阻塞事件循环。
+_SEARCH_EXECUTOR: "Optional[ThreadPoolExecutor]" = None
+_SEARCH_EXECUTOR_LOCK = threading.Lock()
+
+
+def _get_search_executor() -> "ThreadPoolExecutor":
+    global _SEARCH_EXECUTOR
+    if _SEARCH_EXECUTOR is None:
+        with _SEARCH_EXECUTOR_LOCK:
+            if _SEARCH_EXECUTOR is None:
+                _SEARCH_EXECUTOR = ThreadPoolExecutor(
+                    max_workers=_safe_int(os.getenv("SEARCH_MAX_WORKERS", "4"), 4),
+                    thread_name_prefix="websearch",
+                )
+    return _SEARCH_EXECUTOR
 
 
 def _safe_int(value: Any, default: int) -> int:
@@ -80,6 +100,8 @@ class WebSearchService:
         # 失败引擎冷却（避免连续失败拖死主流程）
         self._cooldown: dict[str, float] = {}
         self._cooldown_seconds = _safe_int(os.getenv("SEARCH_BACKEND_COOLDOWN", "30"), 30)
+        # 冷却字典跨线程访问（def 端点线程池 + asearch 线程池）需加锁保护
+        self._cooldown_lock = threading.Lock()
 
     # ── 引擎顺序 ──────────────────────────────────────────────
     def _engine_order(self) -> list[str]:
@@ -114,11 +136,13 @@ class WebSearchService:
 
     # ── 冷却管理 ──────────────────────────────────────────────
     def _in_cooldown(self, key: str) -> bool:
-        until = self._cooldown.get(key, 0.0)
+        with self._cooldown_lock:
+            until = self._cooldown.get(key, 0.0)
         return bool(until and until > time.time())
 
     def _mark_cooldown(self, key: str) -> None:
-        self._cooldown[key] = time.time() + self._cooldown_seconds
+        with self._cooldown_lock:
+            self._cooldown[key] = time.time() + self._cooldown_seconds
 
     # ── 主入口 ────────────────────────────────────────────────
     def search(self, query: str, max_results: Optional[int] = None) -> tuple[list[dict], bool, str]:
@@ -156,7 +180,21 @@ class WebSearchService:
                 logger.warning("搜索引擎 %s 失败：%s", engine, e)
                 self._mark_cooldown(key)
 
-        return [], True, "全部引擎失败：" + "；".join(errors)
+        return [], True, "全部引擎失败：" + ";".join(errors)
+
+    async def asearch(
+        self, query: str, max_results: Optional[int] = None
+    ) -> tuple[list[dict], bool, str]:
+        """异步版 ``search``：把阻塞的网络 I/O 卸载到线程池，不阻塞事件循环。
+
+        在 ``async def`` 上下文中（如 FastAPI 的 SSE 流式端点）应优先使用本方法。
+        返回值与 ``search`` 完全一致：``(results, degraded, reason)``。
+        """
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            _get_search_executor(),
+            lambda: self.search(query, max_results=max_results),
+        )
 
     # ── 必应（爬虫，主引擎）───────────────────────────────────
     def _search_bing(self, query: str, limit: int) -> list[dict]:

@@ -7,6 +7,7 @@ dispatch recording, feedback, and genome persistence.
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 from pathlib import Path
 
@@ -17,9 +18,26 @@ from jarvis.court_api import app
 from jarvis.court.court import CourtConfig
 
 
+def _login(client):
+    """以种子管理员登录并返回会话 token（强制会话登录中间件要求）。"""
+    r = client.post(
+        "/api/auth/login",
+        json={
+            "username": os.environ["EMPEROR_ADMIN_USER"],
+            "password": os.environ["EMPEROR_ADMIN_PASS"],
+        },
+    )
+    assert r.status_code == 200, f"login failed: {r.status_code} {r.text}"
+    return r.json()["token"]
+
+
 @pytest.fixture
 def client():
-    return TestClient(app)
+    # 强制会话登录中间件要求有效会话 token（见 token_guard.py），
+    # 因此测试客户端必须先以种子管理员登录并注入 Bearer 头。
+    c = TestClient(app)
+    c.headers["Authorization"] = f"Bearer {_login(c)}"
+    return c
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -45,32 +63,35 @@ class TestHealth:
 
 
 # ══════════════════════════════════════════════════════════════════
-# Token 鉴权（可选启用：EMPEROR_API_TOKEN 未设则不生效）
+# 鉴权（强制会话登录：见 jarvis/api/token_guard.py；EMPEROR_API_TOKEN
+# 直接旁路已被移除，访问一律走 /api/auth/login 拿到的会话 token）
 # ══════════════════════════════════════════════════════════════════
 
 class TestTokenAuth:
-    def test_no_token_open_by_default(self, client):
-        # 默认无 EMPEROR_API_TOKEN → 不鉴权，受保护路由直接 200
+    def test_health_is_public(self, client):
+        # /health 在 public_paths 白名单，始终放行
+        assert client.get("/health").status_code == 200
+
+    def test_protected_route_requires_login(self):
+        from jarvis.court_api import create_app
+        c = TestClient(create_app())
+        # 无会话 token → 401
+        assert c.get("/court/summary").status_code == 401
+
+    def test_logged_in_client_reaches_protected_route(self, client):
+        # client fixture 已登录 → 受保护路由 200
         assert client.get("/court/summary").status_code == 200
 
-    def test_health_and_routes_with_token(self, monkeypatch):
-        monkeypatch.setenv("EMPEROR_API_TOKEN", "secret-token-123")
+    def test_invalid_token_rejected(self):
         from jarvis.court_api import create_app
-        app = create_app()
-        c = TestClient(app)
-        # /health 始终放行（容器/云平台探针）
-        assert c.get("/health").status_code == 200
-        # 无令牌访问受保护路由 → 401
+        c = TestClient(create_app())
+        c.headers["Authorization"] = "Bearer not-a-real-token"
         assert c.get("/court/summary").status_code == 401
-        # Bearer 头正确 → 200
-        assert c.get(
-            "/court/summary",
-            headers={"Authorization": "Bearer secret-token-123"},
-        ).status_code == 200
-        # 查询参数 token 正确 → 200（方便浏览器开仪表盘）
-        assert c.get("/court/summary?token=secret-token-123").status_code == 200
-        # 错误令牌 → 401
-        assert c.get("/court/summary?token=wrong").status_code == 401
+
+    def test_query_param_token_accepted(self, client):
+        # 浏览器直开仪表盘：query 参数 token 等价于 Bearer 头
+        token = client.headers["Authorization"].replace("Bearer ", "")
+        assert client.get(f"/court/summary?token={token}").status_code == 200
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -335,7 +356,9 @@ class TestDashboardExportWithDB:
         db.save_evolution(1, "turing", 0.5, 0.8, 0.3)
         db.save_alert("rule1", "WARNING", "memory alert")
 
-        with TestClient(app_with_db) as client:
+        c = TestClient(app_with_db)
+        c.headers["Authorization"] = f"Bearer {_login(c)}"
+        with c as client:
             yield client
 
         db.close()

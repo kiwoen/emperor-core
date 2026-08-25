@@ -2,11 +2,26 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
 from fastapi.testclient import TestClient
 
 from jarvis.court.court import Court
 from jarvis.court_api import create_app
+
+
+def _login(client):
+    """以种子管理员登录并返回会话 token（强制会话登录中间件要求）。"""
+    r = client.post(
+        "/api/auth/login",
+        json={
+            "username": os.environ["EMPEROR_ADMIN_USER"],
+            "password": os.environ["EMPEROR_ADMIN_PASS"],
+        },
+    )
+    assert r.status_code == 200, f"login failed: {r.status_code} {r.text}"
+    return r.json()["token"]
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -51,10 +66,15 @@ class TestDashboardApi:
         app = create_app(court=court)
         app.extra["host"] = "127.0.0.1"
         app.extra["port"] = 9999
-        return TestClient(app)
+        # 强制会话登录：先以种子管理员登录再注入 Bearer 头
+        c = TestClient(app)
+        c.headers["Authorization"] = f"Bearer {_login(c)}"
+        return c
 
     def test_dashboard_returns_html(self, client):
-        resp = client.get("/dashboard")
+        # /dashboard 现服务于 ChatGPT 式对话大盘；监控大盘（标题 "Emperor Dashboard"）
+        # 在 /dashboard/legacy 路由，故此处断言 legacy 大盘。
+        resp = client.get("/dashboard/legacy")
         assert resp.status_code == 200
         assert "text/html" in resp.headers["content-type"]
         assert "Emperor Dashboard" in resp.text
@@ -109,6 +129,7 @@ class TestDashboardApi:
         app2.extra["host"] = "127.0.0.1"
         app2.extra["port"] = 9999
         cli = TestClient(app2)
+        cli.headers["Authorization"] = f"Bearer {_login(cli)}"
 
         resp = cli.get("/dashboard/status")
         data = resp.json()
@@ -138,7 +159,10 @@ class TestDashboardExport:
         app = create_app(court=court)
         app.extra["host"] = "127.0.0.1"
         app.extra["port"] = 9999
-        return TestClient(app)
+        # 强制会话登录：先以种子管理员登录再注入 Bearer 头
+        c = TestClient(app)
+        c.headers["Authorization"] = f"Bearer {_login(c)}"
+        return c
 
     def test_export_returns_json(self, client):
         resp = client.get("/api/dashboard/export")

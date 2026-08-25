@@ -467,6 +467,38 @@ def _hallucination_result_dict(result: HallucinationResult) -> dict:
     }
 
 
+# ── Dashboard live data TTL cache ──────────────────────────────────
+# Avoids 2×10s synchronous urllib blocking on every poll; serves stale
+# data when a live fetch fails (offline / rate-limited).
+_DASHBOARD_CACHE_TTL = 300  # seconds
+_dashboard_cache: dict[str, tuple[float, Any]] = {}
+_dashboard_cache_lock = threading.Lock()
+
+
+def _cached_dashboard_block(key: str, fetch_fn):
+    """Return cached value if fresh (< TTL); else fetch via fetch_fn.
+
+    On fetch failure, fall back to the last cached value if present;
+    otherwise return None (caller uses a safe default).
+    """
+    now = time.time()
+    with _dashboard_cache_lock:
+        item = _dashboard_cache.get(key)
+        if item is not None and (now - item[0]) < _DASHBOARD_CACHE_TTL:
+            return item[1]
+    try:
+        value = fetch_fn()
+    except Exception as exc:  # noqa: BLE001 — degrade gracefully
+        logger.warning("dashboard live fetch failed for %s: %s", key, exc)
+        with _dashboard_cache_lock:
+            if key in _dashboard_cache:
+                return _dashboard_cache[key][1]
+        return None
+    with _dashboard_cache_lock:
+        _dashboard_cache[key] = (now, value)
+    return value
+
+
 def create_app(
     config: SurvivalConfig | None = None,
     court: Court | None = None,
@@ -1312,11 +1344,11 @@ def create_app(
             raise HTTPException(400, "message is required")
 
         # 视觉 caption 抽取（图片 URL / 图片文件共用；失败降级为可读文案）
-        def _vision_caption(image_input: str) -> str:
+        async def _vision_caption(image_input: str) -> str:
             if vision_processor is None:
                 return "[视觉识别不可用：未配置 vision 模型密钥（如 GROQ_API_KEY）]"
             try:
-                result = vision_processor.process(
+                result = await vision_processor.aprocess(
                     image_input, prompt="请详细描述这张图片，并提取图中可见的文字。"
                 )
                 caption = result.get("caption", "")
@@ -1385,7 +1417,7 @@ def create_app(
                 search_query_used = search_query
 
                 # 2) 搜索
-                results, degraded, reason = search_service.search(search_query, max_results=5)
+                results, degraded, reason = await search_service.asearch(search_query, max_results=5)
                 if results:
                     sources = [
                         {"title": r.get("title", ""), "url": r.get("url", "")}
@@ -1434,11 +1466,11 @@ def create_app(
                 if path is not None and meta is not None and meta.get("user_id") == user["id"]:
                     ext = meta.get("ext", "")
                     if ext in _IMAGE_EXTS:
-                        context_blocks.append("【图片识别结果】\n" + _vision_caption(str(path)))
+                        context_blocks.append("【图片识别结果】\n" + await _vision_caption(str(path)))
                     else:
                         context_blocks.append("【文件内容】\n" + _read_file_text(str(path), ext))
             elif req.image_url:
-                context_blocks.append("【图片识别结果】\n" + _vision_caption(req.image_url))
+                context_blocks.append("【图片识别结果】\n" + await _vision_caption(req.image_url))
 
             if context_blocks:
                 final_prompt = final_prompt + "\n\n" + "\n\n".join(context_blocks)
@@ -1879,17 +1911,27 @@ def create_app(
 
     # ── Dashboard live data endpoint ────────────────────────────
 
+    # (TTL cache moved to module scope — see top of file)
     @app.get("/api/dashboard/live")
     def dashboard_live():
-        """聚合天气和新闻实时数据"""
+        """聚合天气和新闻实时数据（带 TTL 缓存，避免每次轮询同步阻塞 urllib 请求）"""
         from jarvis.capability import _weather_handler, _news_handler
 
         weather_city = "北京"
         if _emperor_config is not None:
             weather_city = getattr(_emperor_config.dashboard, "weather_city", "北京")
 
-        weather_result = _weather_handler(weather_city + "天气")
-        news_result = _news_handler("科技新闻")
+        weather_value = _cached_dashboard_block(
+            "weather:" + weather_city,
+            lambda: _weather_handler(weather_city + "天气"),
+        )
+        weather_result = weather_value if weather_value is not None else {"data": {}, "result": "天气获取失败"}
+
+        news_value = _cached_dashboard_block(
+            "news:tech",
+            lambda: _news_handler("科技新闻"),
+        )
+        news_result = news_value if news_value is not None else {"data": {}, "result": "新闻获取失败"}
 
         return {
             "weather": weather_result.get("data", {}),
