@@ -4,7 +4,7 @@
 #   docker compose up -d --build      # 构建并后台拉起
 #   docker compose logs -f            # 看启动日志
 #   docker compose ps                 # 看健康状态(healthy)
-#   curl -f http://localhost:8000/health
+#   docker exec huanxin-ai curl -f http://localhost:8000/health
 #   docker compose down               # 停止（命名卷数据保留）
 #
 # 详细落地步骤见 docs/DEPLOY_CLOUD_VM.md
@@ -18,8 +18,10 @@ services:
     # 与 Dockerfile CMD 保持一致：部署侧唯一事实来源 = 0.0.0.0:8000
     # （`python -m huanxin.cli` 等价于 `huanxin`，但不依赖控制台脚本注册）
     command: ["python", "-m", "huanxin.cli", "serve", "--host", "0.0.0.0", "--port", "8000"]
-    ports:
-      - "8000:8000"
+    # 仅在 Docker 内部网络暴露 8000；Caddy 通过 huanxin-ai:8000 访问，
+    # 宿主机不绑定 8000（更安全，也避免与宿主机其它进程抢端口）
+    expose:
+      - "8000"
     restart: unless-stopped
     volumes:
       # 全部持久化数据（huanxin.db / audit.db / approval.db /
