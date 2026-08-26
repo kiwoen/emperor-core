@@ -1,0 +1,70 @@
+sequenceDiagram
+    participant FE as chat_dashboard.js
+    participant API as court_api.py
+    participant AS as auth_store
+    participant US as UploadStore
+    participant WS as WebSearchService
+    participant LLM as LLMManager
+    participant VP as VisionProcessor
+    participant VB as VisionBackend
+
+    %% ── 注册流程 ──
+    Note over FE,AS: P0-1 注册
+    FE->>API: POST /api/auth/register {username,password}
+    API->>API: 读 HUANXIN_OPEN_REGISTRATION
+    alt 开关关闭
+        API-->>FE: 403 注册已关闭
+    else 开关打开
+        API->>AS: get_user_by_username(username)
+        alt 已存在
+            API-->>FE: 409 用户名已存在
+        else
+            API->>AS: create_user(username, password)
+            AS-->>API: user_id
+            API->>AS: create_session(user_id)
+            AS-->>API: token
+            API-->>FE: {ok, token, user}
+        end
+    end
+
+    %% ── 文件上传 ──
+    Note over FE,US: P0-3 文件上传
+    FE->>API: POST /api/upload (multipart)
+    API->>US: save(user_id, filename, bytes, content_type)
+    alt 校验失败
+        US-->>API: ValueError
+        API-->>FE: 400 上传失败
+    else 通过
+        US-->>API: {id,name,size,ext,url}
+        API->>AS: add_capability_usage(upload, size, bytes)
+        API-->>FE: {ok, file}
+    end
+
+    %% ── 联网搜索聊天 ──
+    Note over FE,LLM: P0-4 联网搜索
+    FE->>API: POST /api/chat {message, web_search:true}
+    API->>WS: search(message)
+    alt 可用
+        WS-->>API: (results, degraded=false)
+        API->>AS: add_capability_usage(search)
+    else 失败
+        WS-->>API: (results=[], degraded=true)
+    end
+    API->>LLM: complete(prompt+搜索上下文, history)
+    LLM-->>API: answer
+    API-->>FE: SSE delta... sources... usage... [DONE]
+    API->>AS: add_message + add_token_usage
+
+    %% ── 图文识别 ──
+    Note over FE,VB: P1-1 图文识别
+    FE->>API: POST /api/vision {image_url|file_id, prompt}
+    API->>VP: process(image_input, prompt)
+    VP->>VB: chat_sync(messages=[{image_url}])
+    alt 成功
+        VB-->>VP: 识别文字
+    else 失败/无 key
+        VB-->>VP: 降级文案
+    end
+    VP-->>API: {caption, raw}
+    API->>AS: add_capability_usage(vision) + add_token_usage
+    API-->>FE: {ok, caption, raw, usage}

@@ -1,0 +1,76 @@
+# ============================================================
+# huanxin-ai —— 自管云服务器一键部署编排
+# ------------------------------------------------------------
+#   docker compose up -d --build      # 构建并后台拉起
+#   docker compose logs -f            # 看启动日志
+#   docker compose ps                 # 看健康状态(healthy)
+#   curl -f http://localhost:8000/health
+#   docker compose down               # 停止（命名卷数据保留）
+#
+# 详细落地步骤见 docs/DEPLOY_CLOUD_VM.md
+# ============================================================
+
+services:
+  huanxin-ai:
+    build: .
+    image: huanxin-ai:local
+    container_name: huanxin-ai
+    # 与 Dockerfile CMD 保持一致：部署侧唯一事实来源 = 0.0.0.0:8000
+    # （`python -m huanxin.cli` 等价于 `huanxin`，但不依赖控制台脚本注册）
+    command: ["python", "-m", "huanxin.cli", "serve", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    volumes:
+      # 全部持久化数据（huanxin.db / audit.db / approval.db /
+      # cost_records.json / outcome_records.json / 版本快照）都在 /app/data
+      - huanxin-data:/app/data
+    environment:
+      # ── 运行形态 ───────────────────────────────────────────
+      HUANXIN_MODE: server
+      HUANXIN_HOST: 0.0.0.0
+      HUANXIN_PORT: "8000"
+      # ── 持久化路径（对应上面的命名卷）─────────────────────
+      HUANXIN_DATA_DIR: /app/data
+      HUANXIN_COURT_PATH: /app/data
+      HUANXIN_ENABLE_FEEDBACK: "true"
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      # ── 访问鉴权（强烈建议设置！避免 8000 公网裸奔）──
+      # 生成：openssl rand -hex 24 ；留空=不鉴权。设了之后除 /health 外需带令牌
+      HUANXIN_API_TOKEN: ${HUANXIN_API_TOKEN:-}
+      # ── 单用户强制登录：唯一管理员账号（注册已关闭）──
+      # 默认用户名 admin；初始密码默认复用上面的 HUANXIN_API_TOKEN 值（升级平滑、不会锁死），
+      # 也可显式设置 HUANXIN_ADMIN_PASS 改用自定义强密码（改完需重建镜像）。
+      HUANXIN_ADMIN_USER: ${HUANXIN_ADMIN_USER:-admin}
+      HUANXIN_ADMIN_PASS: ${HUANXIN_ADMIN_PASS:-${HUANXIN_API_TOKEN}}
+      # ── 接真实大模型（全部从同目录 .env 透传；勿硬编码 Key）──
+      # 不设任何 Key 时自动降级 mock 模式，仍可完整启动（离线自进化）。
+      # NVIDIA NIM：.env 里写 NVIDIA_API_KEY=... 与 OPENAI_FALLBACK_PROVIDERS=nvidia
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      OPENAI_FALLBACK_PROVIDERS: ${OPENAI_FALLBACK_PROVIDERS:-}
+      OPENAI_FALLBACK_BASE_URLS: ${OPENAI_FALLBACK_BASE_URLS:-}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    # 2C2G 小机器上给个上限，避免调度器/进化循环把主机拖死
+    deploy:
+      resources:
+        limits:
+          cpus: "1.50"
+          memory: 1536M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  huanxin-data:
+    name: huanxin-data

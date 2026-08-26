@@ -1,0 +1,51 @@
+# ============================================================
+# 构建上下文瘦身 —— 只有 pyproject.toml / requirements-docker.txt /
+# huanxin/ 会真正进镜像，其余一律排除（尤其是本机产生的 *.db 与 .git）。
+# ============================================================
+
+# 版本控制与 IDE
+.git
+.github
+.gitignore
+.idea
+.vscode
+
+# Python 缓存与构建产物
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# 本机运行时产生的数据（容器内改由命名卷 /app/data 承载）
+*.db
+*.db-shm
+*.db-wal
+cost_records.json
+outcome_records.json
+huanxin.yaml
+data/
+huanxin_data/
+telemetry/
+versions/
+logs/
+*.log
+
+# 密钥：绝不进镜像
+.env
+.env.*
+!.env.example
+
+# 文档与测试（部署镜像不需要）
+docs/
+tests/
+competition/
+templates/
+*.md
+!README.md

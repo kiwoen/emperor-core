@@ -1,14 +1,14 @@
 ---
-title: "emperor-core · 项目首页"
+title: "huanxin-ai · 项目首页"
 created: 2026-08-23
-tags: [emperor-core, index, meta]
+tags: [huanxin-ai, index, meta]
 ---
 
-# 👑 emperor-core 知识库索引
+# 👑 huanxin-ai 知识库索引
 
-> Obsidian Vault for the emperor-core self-evolving AI project.
-> 本库 = GitHub `kiwoen/emperor-core` 的**本地知识库镜像**（源码 + 设计文档 + 会话记录），
-> 所有源码在 `emperor-core/` 子目录，本页与 `00-*` 笔记为管理元数据。
+> Obsidian Vault for the huanxin-ai self-evolving AI project.
+> 本库 = GitHub `kiwoen/huanxin-ai` 的**本地知识库镜像**（源码 + 设计文档 + 会话记录），
+> 所有源码在 `huanxin-ai/` 子目录，本页与 `00-*` 笔记为管理元数据。
 
 ## 📌 快速导航
 
@@ -23,10 +23,10 @@ tags: [emperor-core, index, meta]
 
 ## 🔑 关键信息（速查）
 
-- **仓库**：`https://github.com/kiwoen/emperor-core.git`
+- **仓库**：`https://github.com/kiwoen/huanxin-ai.git`
 - **默认 LLM 配置**（容器 env，非本地 `.env`）：
-  `OPENAI_BASE_URL` / `OPENAI_API_KEY` / `OPENAI_MODEL` / `EMPEROR_LLM_PROVIDER`（默认 `mock`，实际用 Agnes 网关 `apihub.agnes-ai.com/v1`，模型 `agnes-2.0-flash`）
-- **部署形态**：`docker-compose.yml` + `Dockerfile`，入口 `python -m jarvis.cli serve --host 0.0.0.0 --port 8000`，数据卷 `emperor-data` → `/app/data`
+  `OPENAI_BASE_URL` / `OPENAI_API_KEY` / `OPENAI_MODEL` / `HUANXIN_LLM_PROVIDER`（默认 `mock`，实际用 Agnes 网关 `apihub.agnes-ai.com/v1`，模型 `agnes-2.0-flash`）
+- **部署形态**：`docker-compose.yml` + `Dockerfile`，入口 `python -m huanxin.cli serve --host 0.0.0.0 --port 8000`，数据卷 `huanxin-data` → `/app/data`
 - **中转站**：New API（`calciumion/new-api`），独立容器 `:3000`，OpenAI 兼容 `/v1`
 
 ## ⚠️ 安全红线

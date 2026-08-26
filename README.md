@@ -1,16 +1,16 @@
-# emperor-core — Obsidian 知识库镜像
+# huanxin-ai — Obsidian 知识库镜像
 
-本仓库是 GitHub [`kiwoen/emperor-core`](https://github.com/kiwoen/emperor-core.git) 的**本地知识库镜像**，用 Obsidian 管理。
+本仓库是 GitHub [`kiwoen/huanxin-ai`](https://github.com/kiwoen/huanxin-ai.git) 的**本地知识库镜像**，用 Obsidian 管理。
 
 ## 结构
 ```
 D:\kiwon\
-├── emperor-core\          # = GitHub 仓库工作树（源码 + docs/）
-│   ├── jarvis\            # 核心包
+├── huanxin-ai\          # = GitHub 仓库工作树（源码 + docs/）
+│   ├── huanxin\            # 核心包
 │   ├── docs\              # 架构/设计/部署文档
 │   ├── deploy\            # 部署脚本（含 ecs/setup-ecs.sh）
 │   └── .gitignore         # 已排除密钥/数据库/缓存
-├── emperor-core-index.md  # 📌 项目首页（索引）
+├── huanxin-ai-index.md  # 📌 项目首页（索引）
 ├── 01-项目概览.md
 ├── 02-代码地图.md
 ├── 03-部署与中转站.md     # ECS + 中转站实战记录

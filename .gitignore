@@ -1,6 +1,6 @@
-# ===== emperor-core Obsidian Vault (root: D:\kiwon) =====
+# ===== huanxin-ai Obsidian Vault (root: D:\kiwon) =====
 
-# 仅同步 emperor-core 项目 + 顶层笔记，排除无关目录
+# 仅同步 huanxin-ai 项目 + 顶层笔记，排除无关目录
 /ai/
 
 # 安全：绝不提交密钥
@@ -37,7 +37,7 @@ Thumbs.db
 .vscode/
 
 # 临时吸收目录（C 盘残留，无价值）
-emperor-absorb-*/
+huanxin-absorb-*/
 
 # 旧损坏 git 残留
 .git.broken/
