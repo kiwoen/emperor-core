@@ -32,6 +32,21 @@ huanxin-data 命名卷（huanxin.db / audit.db / approval.db / 版本快照）
 
 ## 1. 服务器侧（阿里云 ECS）
 
+### 1.0 一键初始化脚本（推荐，全新机器）
+
+本仓库已提供 `tools/ecs_init.sh`：自动装 Docker、拉代码、生成 `.env`、起服务并做健康探测。
+
+```bash
+# 在 ECS 实例内（root 或带 sudo 的用户）执行其一：
+curl -fsSL https://raw.githubusercontent.com/kiwoen/huanxin-ai/master/tools/ecs_init.sh | sudo bash
+# 或本地已 clone 时：
+sudo bash tools/ecs_init.sh
+```
+
+> 仓库根目录是 `emperor-core-fresh`，真正的 compose 在其中的 `huanxin-ai/` 子目录。
+> 脚本已内置 `COMPOSE_SUBDIR="huanxin-ai"`，会自动 `cd` 到正确位置，无需手动处理。
+> 安全组 80/443 放通可在脚本里配置 `SG_ID`/`REGION` 后调用 `setup_sg`，或按 1.3 在控制台操作。
+
 ### 1.1 前置确认
 
 SSH 登录 ECS 后先确认现状（任选其一）：
@@ -59,13 +74,17 @@ curl -s https://ifconfig.me
 
 把最新代码同步到 ECS（二选一）：
 
+> ⚠️ 路径细节：官方仓库根目录其实叫 `emperor-core-fresh`，应用代码在其中的 `huanxin-ai/` 子目录。
+> 所以 clone 后 compose 实际位于 `huanxin-ai/huanxin-ai/docker-compose.yml`（外层是仓库，内层是应用）。
+> 下面命令里的 `/path/to` 一律指「应用的 `huanxin-ai` 目录」。
+
 ```bash
 # 方式 A：已从 GitHub 克隆，直接拉取
 cd /path/to/huanxin-ai
 git pull origin master
 
-# 方式 B：本机改完直接 scp 两个文件过去
-scp docker-compose.yml Caddyfile user@<ECS公网IP>:/path/to/huanxin-ai/
+# 方式 B：本机改完直接 scp 两个文件过去（连同 .env）
+scp docker-compose.yml Caddyfile .env user@<ECS公网IP>:/path/to/huanxin-ai/
 ```
 
 ### 1.3 阿里云安全组放通 80/443
