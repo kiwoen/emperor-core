@@ -71,6 +71,34 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # ── 反向代理 + 自动 SSL ──────────────────────────────────────
+  # 仅暴露 80/443 给公网；Cloudflare 橙色云朵回源到本机 80/443，
+  # Caddy 自动向 Let's Encrypt 申请并续期 huanxin.kdns.fr 证书
+  # （HTTP-01 挑战走 80 端口，要求安全组放通 80/443）。
+  # 同一个 compose 默认网络下，可直接用容器名 huanxin-ai:8000 互通。
+  caddy:
+    image: caddy:2
+    container_name: huanxin-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Caddyfile 与 docker-compose.yml 同级（本仓库已提供）
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      # 持久化证书与配置，避免重启重复申请触发 Let's Encrypt 限流
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - huanxin-ai
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 volumes:
   huanxin-data:
     name: huanxin-data
+  caddy_data:
+  caddy_config:
