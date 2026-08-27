@@ -88,10 +88,12 @@ class TestTokenAuth:
         c.headers["Authorization"] = "Bearer not-a-real-token"
         assert c.get("/court/summary").status_code == 401
 
-    def test_query_param_token_accepted(self, client):
-        # 浏览器直开仪表盘：query 参数 token 等价于 Bearer 头
-        token = client.headers["Authorization"].replace("Bearer ", "")
-        assert client.get(f"/court/summary?token={token}").status_code == 200
+    def test_query_token_channel_removed(self):
+        # commit 2ad9603 移除了 ``?token=`` 查询参数登录通道；仅 ``Authorization: Bearer`` 生效。
+        # 即使携带一个真实会话 token 作为 query 参数，缺少 Bearer 头也必须被拒（401）。
+        real_token = _login(TestClient(app))
+        c = TestClient(app)  # 不挂载 Authorization 头
+        assert c.get(f"/court/summary?token={real_token}").status_code == 401
 
 
 # ══════════════════════════════════════════════════════════════════
