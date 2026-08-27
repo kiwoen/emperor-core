@@ -1518,7 +1518,7 @@ merit   = confidence * 100
 | 14 | `versions/` 累积 324 个空快照且无清理策略 | 🟡 低中 | §1.3 |
 | 15 | 残留文件 `huanxin/eval.py.bak`、`docs/architecture.md` 与 `docs/ARCHITECTURE.md` 并存（Windows 大小写不敏感，Linux 上会是两个文件） | 🟡 低 | `ls` |
 | 16 | `Dockerfile` 运行时阶段 `pip install -e . 2>/dev/null \|\| true` 静默吞错；只 COPY `pyproject.toml`+`huanxin/`，不含 `requirements.txt`/`main.py` | 🟠 中 | `Dockerfile:39` |
-| 17 | `Dockerfile EXPOSE 8000` + `render.yaml HUANXIN_PORT=8000`，但 `cli serve` 默认 9020、`DashboardConfig.port=9020` | 🟡 低中 | `Dockerfile:46`、`cli.py:49`、`config.py:29` |
+| 17 | `Dockerfile EXPOSE 8000` + `render.yaml HUANXIN_PORT=8000`，但 `cli serve` 默认 9020、`DashboardConfig.port=9020`（已于运行完善批次修复：端口统一为 8000） | 🟢 已修复 | `Dockerfile:46`、`cli.py:49`、`config.py:29` |
 | 18 | `mypy strict = true` 但同时 `disallow_untyped_defs = false`，且大量模块用 `Any` 穿透，类型保障名不副实 | 🟡 低 | `pyproject.toml` |
 | 19 | 存在裸 `except Exception: pass`（如 `task_engine.py:284-285`、`core.py:1079-1080`）掩盖故障 | 🟠 中 | 源码 |
 | 20 | 大量"名不副实"的命名（LLMJudge/PromptGuard/HallucinationGuard/AutoEvolution/BoundedAutonomy），对后续维护者构成认知陷阱 | 🟠 中 | §3.3 |
@@ -1591,7 +1591,7 @@ dev 6 个：`pytest / pytest-asyncio / black / ruff / mypy / pre-commit`
 
 #### 4.6 配置体系
 - 主配置 `huanxin.yaml`（**JSON-inside-YAML**，仅用 Python stdlib 解析），首次运行由 `save_default_config()` 自动生成；当前仓库中**不存在该文件**（走全默认）
-- Schema 在 `huanxin/config.py`：`DashboardConfig`(host/port=9020/open_browser/refresh=15s/theme/weather_city) / `SchedulerConfig`(auto_schedule=True, evolve_interval=5min, task_interval=3min, batch=5) / `EvolutionConfig`(merit_delta_range/stability_delta_range/streak_bonus_threshold/high_hit_rate_threshold) / `CapabilityConfig`(12 项 enabled_capabilities + 超时) / `DatabaseConfig` …
+- Schema 在 `huanxin/config.py`：`DashboardConfig`(host/port=8000/open_browser/refresh=15s/theme/weather_city) / `SchedulerConfig`(auto_schedule=True, evolve_interval=5min, task_interval=3min, batch=5) / `EvolutionConfig`(merit_delta_range/stability_delta_range/streak_bonus_threshold/high_hit_rate_threshold) / `CapabilityConfig`(12 项 enabled_capabilities + 超时) / `DatabaseConfig` …
 - 第二套配置 `huanxin/core/config.py`：`HUANXINConfig` + `SandboxConfig`(image=`huanxin-sandbox:latest`) + `MemoryConfig` 等，服务 Track A
 - 第三套 `huanxin/court/config.py`：`SurvivalConfig`（进化全部可调参数，支持 YAML 读写）
 - 第四套 `huanxin/llm/config.py`：`LLMConfig`(pydantic BaseModel) + `ModelProvider` enum
