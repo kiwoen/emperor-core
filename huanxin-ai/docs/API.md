@@ -53,7 +53,7 @@
 | `evolve` | `(cycles: int = 1)` | `EvolutionResult` | 运行 N 轮进化 |
 | `execute_task` | `(task: str, domain: str = "general")` | `TaskResult` | 执行任务 |
 | `status` | `()` | `dict` | 系统状态摘要 |
-| `serve` | `(host: str = "127.0.0.1", port: int = 9020)` | — | 启动 Dashboard + 调度器 |
+| `serve` | `(host: str = "127.0.0.1", port: int = 8000)` | — | 启动 Dashboard + 调度器 |
 | `stop` | `()` | — | 停止所有后台服务 |
 
 **属性（Property）**:
@@ -723,7 +723,7 @@
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
 | `dashboard.host` | `"127.0.0.1"` | Dashboard 主机 |
-| `dashboard.port` | `9020` | Dashboard 端口 |
+| `dashboard.port` | `8000` | Dashboard 端口 |
 | `scheduler.auto_schedule` | `True` | 自动调度 |
 | `scheduler.evolve_interval_minutes` | `5.0` | 进化间隔（分钟） |
 | `max_ministers` | `50` | 最大大臣数 |
@@ -733,7 +733,7 @@
 
 ## 32. Dashboard API
 
-Dashboard 运行在 FastAPI（端口 9020），提供 RESTful API 端点。
+Dashboard 运行在 FastAPI（端口 8000），提供 RESTful API 端点。
 
 ### 系统状态
 

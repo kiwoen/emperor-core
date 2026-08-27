@@ -463,7 +463,17 @@ class SelfEvolutionEngine:
         if self._warm_start_from_memory:
             self._warm_start_genes_from_memory()
 
-        report = RunReport(started_at=datetime.now(timezone.utc).isoformat())
+        # ── 离线 / DEMO 横幅：明确告知当前运行是合成质量，非真实评测 ──
+        offline = isinstance(self.executor, GenomeDrivenExecutor)
+        if offline:
+            logger.warning(
+                "⚠️ [SelfEvolve] OFFLINE / DEMO MODE — 本次自进化使用合成任务与合成质量"
+                "（非真实 LLM 评测）。RunReport.mode=offline，评测通过率不代表真实模型能力。"
+            )
+        report = RunReport(
+            started_at=datetime.now(timezone.utc).isoformat(),
+            mode="offline" if offline else "live",
+        )
         # 基线安全快照（标记为 safe 已知点），便于一键回滚到「进化前」。
         self._save_snapshot(0, self.court.genome_state_payload(), safe=True)
 

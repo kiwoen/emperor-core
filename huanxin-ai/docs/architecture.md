@@ -97,7 +97,7 @@
 
                            EXTERNAL INTERFACES
 ┌───────────────────┐  ┌───────────────────┐  ┌───────────────────────┐
-│   Dashboard (9020)│  │  Court API (8000) │  │  CLI (huanxin/sovereign) │
+│   Dashboard (8000)│  │  Court API (8000) │  │  CLI (huanxin/sovereign) │
 │   FastAPI + ECharts│ │  FastAPI REST     │  │  Click-based          │
 └───────────────────┘  └───────────────────┘  └───────────────────────┘
 ```

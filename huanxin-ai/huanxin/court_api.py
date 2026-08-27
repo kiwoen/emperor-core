@@ -77,6 +77,10 @@ from huanxin.api.deps import get_current_user, require_admin
 # 能力服务：文件上传 / 联网搜索 / 图文识别
 from huanxin.capabilities import UploadStore, WebSearchService, build_vision_processor
 
+# 以 SandboxConfig.engine 作为沙箱默认引擎的单一真相（尊重配置 / 环境变量覆盖）。
+from huanxin.config import HuanxinConfig as _HuanxinConfig
+_DEFAULT_SANDBOX_ENGINE = _HuanxinConfig().sandbox.engine
+
 
 # ══════════════════════════════════════════════════════════════════
 # Request models (module-level for FastAPI type resolution)
@@ -222,7 +226,7 @@ class TemplateRollbackRequest(BaseModel):
 
 class SandboxRunRequest(BaseModel):
     code: str = Field(..., description="Python code to execute")
-    engine: str = Field(default="local_subprocess", description="Sandbox engine: local_subprocess | local_direct")
+    engine: str = Field(default=_DEFAULT_SANDBOX_ENGINE, description="Sandbox engine: docker | local_subprocess | local_direct")
     timeout: int = Field(default=30, ge=1, le=300, description="Timeout in seconds (1-300)")
 
 
@@ -548,8 +552,6 @@ def create_app(
             "/api/auth/login",
             "/api/auth/register",
             "/",
-            "/dashboard",
-            "/dashboard/legacy",
         ),
     )
 
@@ -558,7 +560,8 @@ def create_app(
         header = request.headers.get("Authorization", "")
         if header.startswith("Bearer "):
             return header[7:].strip()
-        return request.query_params.get("token", "")
+        # 仅保留 Authorization: Bearer 通道；?token= 查询参数通道已移除。
+        return ""
 
     # ── 能力服务实例（文件上传 / 联网搜索 / 图文识别）──
     upload_store = UploadStore()
@@ -618,6 +621,39 @@ def create_app(
         需要深度健康信息（组件级）请用 ``GET /api/health``。
         """
         return {"status": "ok", "service": "huanxin-ai"}
+
+    @app.get("/status")
+    def status():
+        """扩展状态端点：暴露调度器运行状态与上次调度时间（供监控高频轮询）。
+
+        零重依赖：仅读取 Huanxin.serve() 注入 app.extra 的调度器引用与运行标志。
+        """
+        sched = app.extra.get("scheduler")
+        sched_info: dict = {
+            "running": bool(app.extra.get("scheduler_running", False)),
+            "jobs": int(app.extra.get("scheduler_jobs", 0)),
+            "total_runs": int(app.extra.get("scheduler_total_runs", 0)),
+            "last_run": None,
+            "state": None,
+        }
+        if sched is not None:
+            try:
+                rep = sched.report()
+                sched_info["state"] = rep.state
+                sched_info["total_runs"] = getattr(rep, "total_runs", sched_info["total_runs"])
+                _last = 0.0
+                for e in (getattr(rep, "entries", []) or []):
+                    _lr = (e or {}).get("last_run") or 0.0
+                    if _lr > _last:
+                        _last = _lr
+                sched_info["last_run"] = _last or None
+            except Exception:
+                logger.debug("读取调度器状态失败", exc_info=True)
+        return {
+            "status": "ok",
+            "service": "huanxin-ai",
+            "scheduler": sched_info,
+        }
 
     @app.get("/court/summary")
     def get_summary():
@@ -774,14 +810,14 @@ def create_app(
         """Serve the ChatGPT-style chat + evolution-insight dashboard."""
         from huanxin.chat_dashboard import generate_chat_html
         return generate_chat_html(
-            api_base=f"http://{app.extra.get('host', '127.0.0.1')}:{app.extra.get('port', 9020)}"
+            api_base=f"http://{app.extra.get('host', '127.0.0.1')}:{app.extra.get('port', 8000)}"
         )
 
     @app.get("/dashboard/legacy", response_class=HTMLResponse)
     def dashboard_legacy():
         """原监控大盘（保留入口，便于访问大臣 CRUD / 自愈 / 调度配置等高级功能）。"""
         from huanxin.dashboard_html import generate_html
-        return generate_html(api_base=f"http://{app.extra.get('host', '127.0.0.1')}:{app.extra.get('port', 9020)}")
+        return generate_html(api_base=f"http://{app.extra.get('host', '127.0.0.1')}:{app.extra.get('port', 8000)}")
 
     @app.get("/dashboard/status")
     def dashboard_status():
@@ -823,7 +859,7 @@ def create_app(
                 "min_ministers": getattr(court, "min_ministers", 0),
                 "max_ministers": getattr(court, "max_ministers", 0),
                 "crossover_rate": getattr(court, "crossover_rate", 0.0),
-                "api_port": app.extra.get("port", 9020),
+                "api_port": app.extra.get("port", 8000),
             },
             "scheduler_running": app.extra.get("scheduler_running", False),
             "scheduler_jobs": app.extra.get("scheduler_jobs", 0),
@@ -1139,8 +1175,8 @@ def create_app(
     # ══════════════════════════════════════════════════════════════════
     @app.post("/api/auth/register")
     def auth_register(req: AuthRequest):
-        """开放注册（HUANXIN_OPEN_REGISTRATION 开关，默认 1）。注册成功即自动登录。"""
-        open_flag = str(os.getenv("HUANXIN_OPEN_REGISTRATION", "1") or "1").strip().lower()
+        """开放注册（HUANXIN_OPEN_REGISTRATION 开关，默认 0 / 关闭）。注册成功即自动登录。"""
+        open_flag = str(os.getenv("HUANXIN_OPEN_REGISTRATION", "0") or "0").strip().lower()
         if open_flag not in ("1", "true", "yes", "on"):
             raise HTTPException(403, "注册已关闭（管理员可在环境变量中开放）")
         username = (req.username or "").strip()
@@ -3030,7 +3066,7 @@ def create_app(
             "min_ministers": getattr(court, "min_ministers", 0),
             "max_ministers": getattr(court, "max_ministers", 0),
             "crossover_rate": getattr(court, "crossover_rate", 0.0),
-            "api_port": app.extra.get("port", 9020),
+            "api_port": app.extra.get("port", 8000),
         }
 
         return export_data
@@ -3915,7 +3951,80 @@ def create_app(
             "timeout_seconds": sm.timeout_seconds,
             "network_enabled": sm.network_enabled,
             "history_count": len(sm.execution_history),
-            "available_engines": ["local_subprocess", "local_direct"],
+            "available_engines": ["docker", "local_subprocess", "local_direct"],
+        }
+
+    @app.get("/api/dashboard/self-evolve-status")
+    def self_evolve_status(request: Request):
+        """自进化状态聚合接口。
+
+        聚合三类信息，并明确标注当前是 ``offline``（离线合成评测）还是
+        ``live``（连接真实 LLM 后端）模式：
+
+        - ``scheduler``: 调度器状态（来自 SchedulerReport）。
+        - ``guardrail``: 护栏遥测状态。
+        - ``self_evolve``: 自进化运行模式与最近一次 RunReport（若有）。
+
+        注意：``offline`` 模式下评测为**合成质量**，不代表真实模型能力。
+        """
+        # ── 1. 模式判定：live = 存在真实可用的 LLM 后端 ──
+        mode = "offline"
+        try:
+            _mgr = _get_llm_manager()
+            _stats = _mgr.stats()
+            if any(b.get("live") for b in _stats.get("backends", [])):
+                mode = "live"
+        except Exception:
+            logger.debug("LLM 后端探测失败，回退 offline 模式", exc_info=True)
+
+        # ── 2. 调度器状态（SchedulerReport）──
+        _sched = request.app.extra.get("scheduler")
+        scheduler_status: dict = {
+            "available": _sched is not None,
+            "state": None,
+            "total_runs": 0,
+            "last_run": None,
+            "jobs": 0,
+        }
+        if _sched is not None:
+            try:
+                _rep = _sched.report()
+                scheduler_status["state"] = _rep.state
+                scheduler_status["total_runs"] = _rep.total_runs
+                scheduler_status["jobs"] = len(_rep.entries)
+                _last = 0.0
+                for _e in (_rep.entries or []):
+                    _lr = (_e or {}).get("last_run") or 0.0
+                    if _lr > _last:
+                        _last = _lr
+                scheduler_status["last_run"] = _last or None
+            except Exception:
+                logger.debug("读取调度器报告失败", exc_info=True)
+
+        # ── 3. 护栏状态 ──
+        _gt = request.app.extra.get("guardrail_telemetry")
+        guardrail_status: dict = {"available": _gt is not None, "mode": None}
+        if _gt is not None:
+            guardrail_status["mode"] = getattr(_gt, "mode", None)
+
+        # ── 4. 自进化最近运行报告 ──
+        _last_report = request.app.extra.get("self_evolve_report")
+        self_evolve_block: dict = {
+            "mode": mode,
+            "last_run": _last_report,
+            "note": (
+                "offline 模式：评测为合成质量，非真实基准评测。"
+                if mode == "offline" else
+                "live 模式：已连接真实 LLM 后端。"
+            ),
+        }
+
+        return {
+            "service": "huanxin-ai",
+            "mode": mode,
+            "scheduler": scheduler_status,
+            "guardrail": guardrail_status,
+            "self_evolve": self_evolve_block,
         }
 
     @app.post("/api/dashboard/sandbox/run")

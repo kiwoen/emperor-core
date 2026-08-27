@@ -143,7 +143,7 @@ class Scheduler:
                     "ministers_count": len(self._emperor._court.ministers),
                 }))
             except Exception:
-                logger.debug(
+                logger.warning(
                     "[Scheduler] evolution 事件发布失败（已转为可观测，非致命）",
                     exc_info=True,
                 )
@@ -198,7 +198,7 @@ class Scheduler:
                         "result_preview": (report.get("result", "") or "")[:100],
                     }))
             except Exception:
-                logger.debug(
+                logger.warning(
                     "[Scheduler] task_completed 事件发布失败（已转为可观测，非致命）",
                     exc_info=True,
                 )
@@ -436,8 +436,15 @@ class Scheduler:
             # Fire the job
             entry.last_run = now
             entry.run_count += 1
+            logger.info("[Scheduler] ▶ 调度作业 '%s'（第 %d 次）", entry.name, entry.run_count)
+            _job_t0 = time.time()
             try:
                 entry.action()
+                _job_dt = (time.time() - _job_t0) * 1000
+                logger.info(
+                    "[Scheduler] ✔ 作业 '%s' 完成（耗时 %.0f ms，累计 %d 次）",
+                    entry.name, _job_dt, entry.run_count,
+                )
             except Exception:
                 entry.total_failures += 1
                 logger.exception("[Scheduler] Job '%s' failed", entry.name)

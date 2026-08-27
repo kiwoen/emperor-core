@@ -1,8 +1,9 @@
 # ============================================================
 # 幻炘AI 反向代理 + 自动 SSL
 # ------------------------------------------------------------
-# Caddy 自动向 Let's Encrypt 申请并续期 huanxin.kdns.fr 证书
-# （HTTP-01 挑战走 80 端口，需阿里云安全组放通 80/443）。
+# Caddy 自动向 Let's Encrypt 申请并续期 huanxin.kdns.fr 证书。
+# 域名在 Cloudflare 使用「灰云 / DNS only」（关闭橙色代理），由 Caddy 直接
+# 完成 Let's Encrypt 校验；放通 80/443 即可（阿里云安全组）。
 #
 # 与本仓库 docker-compose.yml 的 caddy 服务配套使用；
 # 同 compose 默认网络下，huanxin-ai 容器名即主机名，可直接反代。

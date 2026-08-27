@@ -39,7 +39,7 @@ class TestDefaultConfig:
     def test_default_dashboard_values(self):
         cfg = HuanxinConfig()
         assert cfg.dashboard.host == "127.0.0.1"
-        assert cfg.dashboard.port == 9020
+        assert cfg.dashboard.port == 8000
         assert cfg.dashboard.open_browser is True
         assert cfg.dashboard.refresh_interval_seconds == 15
         assert cfg.dashboard.theme == "dark"
@@ -90,7 +90,7 @@ class TestDefaultConfig:
 class TestConfigFileIO:
     def test_load_missing_file_returns_defaults(self):
         cfg = load_config("__nonexistent_config_xyz__.yaml")
-        assert cfg.dashboard.port == 9020
+        assert cfg.dashboard.port == 8000
 
     def test_save_and_load_roundtrip(self):
         tmp = tempfile.mktemp(suffix=".yaml")

@@ -1,15 +1,15 @@
-"""最简 Token 鉴权中间件（可选启用）。
+"""强制会话登录鉴权中间件（强制启用，必须 Bearer token 登录）。
 
 通过环境变量 ``HUANXIN_API_TOKEN`` 开启：
 
-- 未设置或为空字符串 → 完全不鉴权（向后兼容，开发 / 内网实验照常开放）。
+- 单服务 + 单端口（8000）部署，**一律要求登录**：非白名单路径必须携带会话 token。
 - 已设置 → 除 ``/health`` 外所有 HTTP 请求必须携带令牌，否则返回 ``401``：
 
       Authorization: Bearer <token>
 
-  或使用查询参数（方便浏览器直接打开仪表盘）：
+  历史版本曾支持 ``?token=`` 查询参数，现已移除——仅保留 ``Authorization: Bearer`` 通道。
 
-      ?token=<token>
+      # （?token= 查询参数通道已移除，避免令牌泄露到访问日志 / 浏览器历史）
 
 ``/health`` 始终放行，保证 Docker / 云平台健康检查探针可用。
 
@@ -46,7 +46,7 @@ from starlette.responses import JSONResponse, Response
 
 def add_token_auth(app, session_validator: Optional[Callable[[str], Optional[int]]] = None,
                    public_paths: tuple = ("/health", "/api/auth/login", "/api/auth/register")) -> None:
-    """为给定 FastAPI / Starlette 应用挂载强制会话登录鉴权。
+    """为给定 FastAPI / Starlette 应用挂载强制会话登录鉴权（仅 Authorization: Bearer 通道）。
 
     :param session_validator: 接收 token 字符串，返回 user_id 或 None（用户会话校验）。
     :param public_paths: 免鉴权的路径白名单（默认含 /health 与登录端点）。
@@ -63,7 +63,8 @@ def add_token_auth(app, session_validator: Optional[Callable[[str], Optional[int
         if header.startswith("Bearer "):
             provided = header[7:].strip()
         else:
-            provided = request.query_params.get("token", "")
+            # 仅保留 Authorization: Bearer 通道；?token= 查询参数通道已移除。
+            provided = ""
         # 仅接受用户登录会话 token
         if session_validator is not None and provided:
             user_id = session_validator(provided)

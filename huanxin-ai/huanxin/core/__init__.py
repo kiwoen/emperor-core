@@ -10,7 +10,7 @@ Usage:
     emp.register("turing", domain="math")
     emp.evolve(cycles=3)
     emp.execute_task("What is 17 * 23?", domain="math")
-    emp.serve(port=9020)
+    emp.serve(port=8000)
 
 Configuration:
     Huanxin auto-loads ``huanxin.yaml`` (JSON-inside-YAML) if present.
@@ -23,15 +23,10 @@ from __future__ import annotations
 import logging
 import os
 import sys
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional, Union
 
-from huanxin.config import (
-    HuanxinConfig as AppConfig,
-    load_config as load_app_config,
-    save_default_config as save_default_app_config,
-)
+from huanxin.config import HuanxinConfig, load_config as load_app_config
 
 # Tracing
 from huanxin.tracer import tracer as _tracer
@@ -103,86 +98,13 @@ def ensure_dir(path: str) -> str:
     return path
 
 
-@dataclass
-class HuanxinConfig:
-    """Top-level Huanxin configuration."""
-
-    # Court
-    min_ministers: int = 3
-    max_ministers: int = 20
-    genome_path: str = ""
-    history_path: str = ""
-
-    # Evolution
-    crossover_rate: float = 0.6
-    elitism_count: int = 2
-    enable_auto_breeding: bool = True
-
-    # API
-    api_host: str = "127.0.0.1"
-    api_port: int = 9020
-    enable_api: bool = False
-    # 说明：这里保留 127.0.0.1:9020 的历史默认值（库调用者行为不变）；
-    # `huanxin serve` 命令行会用 HUANXIN_HOST/HUANXIN_PORT 或 0.0.0.0:8000
-    # 覆盖它（见 huanxin/cli.py:cmd_serve）。
-
-    # Auto-start (serve() one-command live dashboard)
-    auto_schedule: bool = True
-    auto_seed_ministers: bool = True
-    auto_evolve_interval_minutes: float = 5.0
-    auto_evolve_cycles: int = 1
-    auto_tasks_interval_minutes: float = 3.0
-
-    # Persistence
-    # data_dir：audit.db / approval.db / cost_records.json / outcome_records.json
-    #           / 版本快照 / 提示词模板 的落盘根目录。
-    # court_path：huanxin.db（法庭主库）所在目录。
-    # 两者默认从 HUANXIN_DATA_DIR / HUANXIN_COURT_PATH 读取；未设置时为 ""，
-    # 沿用历史行为（回退到 CWD）。容器里 Dockerfile 会设成 /app/data。
-    data_dir: str = field(default_factory=resolve_data_dir)
-    court_path: str = field(default_factory=resolve_court_path)
-
-    # Logging
-    log_level: str = "INFO"
-
-    # Runtime
-    max_task_timeout: float = 30.0
-
-    # Context compression
-    max_context_tokens: int = 8192
-    compression_strategy: str = "auto"  # auto | summarize | extract | prune | hybrid
-
-
-# ══════════════════════════════════════════════════════════════════
-# Bridge: huanxin.yaml AppConfig → HuanxinConfig
-# ══════════════════════════════════════════════════════════════════
-
-
-def _app_config_to_emperor(app: AppConfig) -> HuanxinConfig:
-    """Convert ``AppConfig`` (from huanxin.yaml) to runtime ``HuanxinConfig``."""
-    return HuanxinConfig(
-        min_ministers=3,
-        max_ministers=app.max_ministers,
-        crossover_rate=0.6,
-        elitism_count=2,
-        enable_auto_breeding=True,
-        api_host=app.dashboard.host,
-        api_port=app.dashboard.port,
-        enable_api=False,
-        auto_schedule=app.scheduler.auto_schedule,
-        auto_seed_ministers=True,
-        auto_evolve_interval_minutes=app.scheduler.evolve_interval_minutes,
-        auto_evolve_cycles=1,
-        auto_tasks_interval_minutes=app.scheduler.task_interval_minutes,
-        # huanxin.yaml 不描述部署路径，因此持久化目录仍由环境变量决定，
-        # 否则容器里的 HUANXIN_DATA_DIR 会被这里的空字符串覆盖掉。
-        data_dir=resolve_data_dir(),
-        court_path=resolve_court_path(),
-        log_level="INFO",
-        max_task_timeout=30.0,
-        max_context_tokens=getattr(app, "max_context_tokens", 8192),
-        compression_strategy=getattr(app, "compression_strategy", "auto"),
-    )
+# ────────────────────────────────────────────────────────────────────
+# NOTE: The runtime configuration class ``HuanxinConfig`` used to be defined
+# here (and bridged from ``huanxin.config.HuanxinConfig``). It has been
+# consolidated into a single source of truth: ``huanxin.config.HuanxinConfig``
+# (a pydantic-settings model). This module now imports it directly (see the
+# top-of-file import). All configuration fields live in ``huanxin/config.py``.
+# ────────────────────────────────────────────────────────────────────
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -204,19 +126,15 @@ class Huanxin:
         config: Optional[HuanxinConfig] = None,
         config_path: Optional[str] = None,
     ) -> None:
-        # Load from huanxin.yaml if no explicit HuanxinConfig provided
-        if config is None and config_path is None:
-            app_cfg = load_app_config()
-        elif config_path is not None:
-            app_cfg = load_app_config(config_path)
-        else:
-            app_cfg = None
-
-        if app_cfg is not None:
-            self._app_config = app_cfg
-            config = _app_config_to_emperor(app_cfg)
-
-        self.config: HuanxinConfig = config or HuanxinConfig()
+        # ``huanxin.config.HuanxinConfig`` is the single source of truth.
+        # If no explicit config is given, load it (optionally from a
+        # huanxin.yaml file) so the unified pydantic config drives the runtime.
+        if config is None:
+            config = (
+                load_app_config(config_path) if config_path else load_app_config()
+            )
+        self._app_config = config
+        self.config: HuanxinConfig = config
 
         # 持久化目录必须先存在，否则下面 AuditLogger/ApprovalEngine/
         # CostTracker 打开 sqlite/json 会直接 FileNotFoundError（容器首启
@@ -280,9 +198,9 @@ class Huanxin:
         # Sandbox manager — secure code execution environment
         from huanxin.sandbox import SandboxManager
         self._sandbox_manager = SandboxManager(
-            engine="local_subprocess",
-            timeout_seconds=60,
-            network_enabled=False,
+            engine=self.config.sandbox.engine,
+            timeout_seconds=self.config.sandbox.timeout_seconds or 60,
+            network_enabled=self.config.sandbox.network_enabled,
         )
 
         # Eagerly register MetricsPlugin so every event from the very
@@ -518,8 +436,8 @@ class Huanxin:
         return self._court
 
     @property
-    def app_config(self) -> Optional[AppConfig]:
-        """Access to the loaded huanxin.yaml config (if available)."""
+    def app_config(self) -> Optional[HuanxinConfig]:
+        """Access to the loaded configuration (single source of truth)."""
         return getattr(self, '_app_config', None)
 
     @property
@@ -1497,7 +1415,7 @@ class Huanxin:
             host: Host to bind (uses config.api_host if empty).
         """
         if port == 0:
-            port = self.config.api_port or 9020
+            port = self.config.api_port or 8000
         if not host:
             host = self.config.api_host or "127.0.0.1"
 
@@ -1569,6 +1487,7 @@ class Huanxin:
         # Inject scheduler state if running
         if self._scheduler is not None:
             r = self._scheduler.report()
+            app.extra["scheduler"] = self._scheduler
             app.extra["scheduler_running"] = r.state == "RUNNING"
             app.extra["scheduler_jobs"] = len(r.entries)
             app.extra["scheduler_total_runs"] = r.total_runs
@@ -1576,6 +1495,7 @@ class Huanxin:
             self._scheduler._alert_manager = self.alerts
             self._scheduler._healing_engine = self.healing
         else:
+            app.extra["scheduler"] = None
             app.extra["scheduler_running"] = False
             app.extra["scheduler_jobs"] = 0
             app.extra["scheduler_total_runs"] = 0
@@ -1747,7 +1667,7 @@ class Huanxin:
             from huanxin.court_api import create_app
             self._app = create_app(court=self._court)
             self._app.extra.setdefault("host", self.config.api_host or "127.0.0.1")
-            self._app.extra.setdefault("port", self.config.api_port or 9020)
+            self._app.extra.setdefault("port", self.config.api_port or 8000)
             self._app.extra["emperor"] = self
         return self._app
 

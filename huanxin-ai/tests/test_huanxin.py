@@ -24,7 +24,7 @@ class TestHuanxinConfig:
         assert cfg.min_ministers == 3
         assert cfg.max_ministers == 20
         assert cfg.crossover_rate == 0.6
-        assert cfg.api_port == 9020
+        assert cfg.api_port == 8000
         assert cfg.enable_api is False
 
     def test_custom(self):

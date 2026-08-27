@@ -3,6 +3,11 @@ HUANXIN API Server — FastAPI + WebSocket.
 
 REST endpoints for external integrations and a real-time
 WebSocket channel for interactive sessions.
+
+⚠️ 次级 / 兼容入口：本模块是**独立**的小型 API（仅供旧式 `main.py` /
+事件流集成使用），并非主入口。生产部署的主入口是
+``huanxin.court_api.create_app``（单服务、单端口 8000，附带 Dashboard /
+鉴权 / 调度器）。请勿在本文件新增业务路由；新端点请加到 ``court_api.py``。
 """
 
 from __future__ import annotations
@@ -432,6 +437,7 @@ async def start_server(orchestrator: Any, config: Any) -> None:
 
     import uvicorn
 
+    # 次级入口：仅供旧式集成使用；主入口见 court_api.create_app（端口 8000）。
     config_obj = uvicorn.Config(
         app="huanxin.api.server:app",
         host="127.0.0.1",
@@ -464,6 +470,7 @@ async def start_server_with_events(integration: Any, config: Any) -> None:
 
     import uvicorn
 
+    # 次级入口：仅供旧式集成使用；主入口见 court_api.create_app（端口 8000）。
     config_obj = uvicorn.Config(
         app="huanxin.api.server:app",
         host="127.0.0.1",

@@ -74,9 +74,9 @@ services:
         max-file: "3"
 
   # ── 反向代理 + 自动 SSL ──────────────────────────────────────
-  # 仅暴露 80/443 给公网；Cloudflare 橙色云朵回源到本机 80/443，
-  # Caddy 自动向 Let's Encrypt 申请并续期 huanxin.kdns.fr 证书
-  # （HTTP-01 挑战走 80 端口，要求安全组放通 80/443）。
+  # 仅暴露 80/443 给公网；域名在 Cloudflare 设为「灰云 / DNS only」
+  # （不开启橙色代理 / CDN），直接解析到本机公网 IP。
+  # Caddy 自动向 Let's Encrypt 申请并续期 huanxin.kdns.fr 证书。
   # 同一个 compose 默认网络下，可直接用容器名 huanxin-ai:8000 互通。
   caddy:
     image: caddy:2

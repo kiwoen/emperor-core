@@ -1,38 +1,57 @@
+# ============================================================
+# huanxin-ai 依赖清单
+# ------------------------------------------------------------
+# 单一真相：requirements-docker.txt（容器运行时最小依赖集）。
+# 本文件 = 运行时依赖（与 docker 版逐行对齐）+ 开发 / 可选依赖。
+# 部署只用 requirements-docker.txt；本地开发 / 测试用本文件。
+#
+# 保持两者“运行时依赖”一致：下方 [Runtime] 段落逐行镜像
+# requirements-docker.txt，请勿在此增删运行时包而不同步 docker 版。
+# ============================================================
+
+# ── Runtime（与 requirements-docker.txt 严格一致）──────────────
+fastapi>=0.111.0
+uvicorn>=0.30.0
+starlette>=0.49.1
+pydantic>=2.4.0
+pydantic-settings>=2.0.0
+python-multipart>=0.0.18
+pyyaml>=6.0
+python-dotenv>=1.0.0
+litellm>=1.61.15
+duckduckgo-search>=6.0.0
+requests>=2.32.4
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+pillow>=11.3.0
+PyPDF2
+
+# ── Development / Optional（非运行 `huanxin serve` 所必需）──────
+# Web 框架依赖之上的可选能力；缺失时对应功能降级、服务照常启动。
 chromadb>=0.5.0
 openai>=1.30.0
 anthropic>=0.30.0
-langchain>=0.3.0
-pydantic>=2.0.0
-pydantic-settings>=2.0.0
-pyyaml>=6.0
+langchain
 rich>=13.0.0
-aiohttp>=3.9.0
-fastapi>=0.111.0
-uvicorn>=0.30.0
+aiohttp
 docker>=7.0.0
-gitpython>=3.1.0
+gitpython>=3.1.41
 numpy>=1.26.0
 pandas>=2.2.0
-pillow>=10.0.0
 playwright>=1.40.0
 pyautogui>=0.9.0
-python-dotenv>=1.0.0
 sqlalchemy>=2.0.0
 textgrad>=0.1.0
 asyncpg>=0.29.0
-redis>=5.0.0
+redis
 celery>=5.3.0
 click>=8.1.0
-litellm>=1.40.0
-PyPDF2>=3.0.0
 python-docx>=1.1.0
 edge-tts>=6.1.0
 sentence-transformers>=3.0.0
 rank-bm25>=0.2.2
-mcp>=1.0.0
+mcp>=1.23.0
+
+# ── Test ──────────────────────────────────────────────────────
 pytest>=8.0.0
 pytest-asyncio>=0.24.0
-duckduckgo-search>=6.0.0
-requests>=2.31.0
-beautifulsoup4>=4.12.0
-lxml>=5.0.0

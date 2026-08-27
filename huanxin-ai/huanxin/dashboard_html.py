@@ -17,11 +17,11 @@ Features:
 from __future__ import annotations
 
 
-def generate_html(api_base: str = "http://127.0.0.1:9020") -> str:
+def generate_html(api_base: str = "http://127.0.0.1:8000") -> str:
     """Return the complete dashboard HTML page.
 
     Args:
-        api_base: Base URL of the Huanxin API (e.g. http://127.0.0.1:9020).
+        api_base: Base URL of the Huanxin API (e.g. http://127.0.0.1:8000).
     """
     return DASHBOARD_HTML.replace("{{API_BASE}}", api_base)
 

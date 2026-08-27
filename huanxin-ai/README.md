@@ -20,7 +20,7 @@ python -m huanxin serve
 huanxin serve
 ```
 
-启动后访问 http://127.0.0.1:9020 打开 Dashboard。
+启动后访问 http://127.0.0.1:8000 打开 Dashboard。
 
 ## 核心特性
 
@@ -202,7 +202,7 @@ tests/
 {
   "dashboard": {
     "host": "127.0.0.1",
-    "port": 9020,
+    "port": 8000,
     "theme": "dark",
     "weather_city": "北京",
     "refresh_interval_seconds": 15
@@ -242,7 +242,7 @@ tests/
 
 ## API 端点
 
-### Dashboard（Flask，端口 9020）
+### Dashboard（FastAPI，端口 8000）
 
 | 方法 | 路径 | 描述 |
 |------|------|------|

@@ -71,7 +71,7 @@ python -m huanxin serve
 {
   "dashboard": {
     "host": "127.0.0.1",        # Dashboard 监听地址
-    "port": 9020,                # Dashboard 端口
+    "port": 8000,                # Dashboard 端口
     "theme": "dark",             # 主题: dark / light / auto
     "weather_city": "北京",      # 天气城市
     "refresh_interval_seconds": 15  # 面板刷新间隔
@@ -132,7 +132,7 @@ set DEEPSEEK_API_KEY=sk-your-key-here
 python -m huanxin serve
 ```
 
-启动后访问 [http://127.0.0.1:9020](http://127.0.0.1:9020) 打开 Dashboard。
+启动后访问 [http://127.0.0.1:8000](http://127.0.0.1:8000) 打开 Dashboard。
 
 **Dashboard 功能概览**：
 - 系统健康面板（CPU / 内存 / 磁盘 / 运行时长）
@@ -161,7 +161,7 @@ sovereign serve
 
 ### 5.1 通过 Dashboard 执行任务
 
-1. 打开 Dashboard [http://127.0.0.1:9020](http://127.0.0.1:9020)
+1. 打开 Dashboard [http://127.0.0.1:8000](http://127.0.0.1:8000)
 2. 在控制面板的「手动执行任务」区域输入任务描述
 3. 点击「执行」按钮
 4. 在任务面板中查看执行结果
@@ -206,7 +206,7 @@ status = emp.status()
 print(status)
 
 # 启动 Dashboard
-emp.serve(port=9020)
+emp.serve(port=8000)
 ```
 
 ---
@@ -232,7 +232,7 @@ huanxin evolve
 # 在控制面板点击「手动进化」按钮
 
 # 通过 API
-curl -X POST http://127.0.0.1:9020/api/evolve
+curl -X POST http://127.0.0.1:8000/api/evolve
 ```
 
 ### 6.3 查看进化历史
