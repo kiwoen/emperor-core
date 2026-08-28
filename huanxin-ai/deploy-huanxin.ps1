@@ -1,28 +1,21 @@
 <#
-  deploy-huanxin.ps1 — One-click deploy for Huanxin AI (emperor-court)
+  deploy-huanxin.ps1 - One-click deploy for Huanxin AI (emperor-court)
   ----------------------------------------------------------------
-  Flow: local pytest gate -> git push -> ECS remote build/up -> log review
-        -> public site check -> post-deploy pytest
+  ECS cannot reach GitHub (dead proxy), so we deploy via a local
+  tar bridge instead of git fetch:
+    local pytest gate -> tar working tree -> scp -> extract -> build/up
+    -> logs -> in-container /status healthcheck -> (optional) git push backup
 
-  Prerequisites on this machine: Git, OpenSSH Client (built into Win10+),
-  Python venv at .venv (python -m venv .venv && pip install -e ".[dev]").
+  Prereqs: Git, OpenSSH Client (Win10+), Python venv at .venv.
+  RepoDir defaults to this script's folder ($PSScriptRoot).
 
   Usage:
     .\deploy-huanxin.ps1                     # full flow
-    .\deploy-huanxin.ps1 -SkipPush           # already pushed, redeploy ECS only
-    .\deploy-huanxin.ps1 -SkipTests          # skip all local pytest
-    .\deploy-huanxin.ps1 -PrePushTestsOnly   # local tests + push only, no server
-    .\deploy-huanxin.ps1 -FullTests          # run the safe pytest subset
-    .\deploy-huanxin.ps1 -ForceDirty         # push even with uncommitted changes (not recommended)
-
-  NOTE: RepoDir defaults to the script's own folder ($PSScriptRoot) so the
-  Chinese path in your project works without being hardcoded in this file.
-  You can override with -RepoDir "D:/some/path".
-
-  If you get "cannot load file ... execution policy / UnauthorizedAccess":
-    A) powershell -ExecutionPolicy Bypass -File .\deploy-huanxin.ps1
-    B) Set-ExecutionPolicy -Scope Process Bypass   (then .\deploy-huanxin.ps1)
-  If still blocked by "Mark of the Web": Unblock-File .\deploy-huanxin.ps1
+    .\deploy-huanxin.ps1 -SkipPush           # skip GitHub backup push
+    .\deploy-huanxin.ps1 -SkipTests          # skip local pytest
+    .\deploy-huanxin.ps1 -FullTests          # run safe pytest subset
+  If blocked by execution policy:
+    powershell -ExecutionPolicy Bypass -File .\deploy-huanxin.ps1
 #>
 
 param(
@@ -32,11 +25,10 @@ param(
     [string]$DeployDir    = "/opt/huanxin-ai/huanxin-ai",
     [string]$PublicDomain = "huanxin.kdns.fr",
     [string]$Branch       = "master",
+    [string]$TarFile      = "$env:TEMP\huanxin-sync.tar.gz",
     [switch]$SkipPush,
     [switch]$SkipTests,
-    [switch]$PrePushTestsOnly,
-    [switch]$FullTests,
-    [switch]$ForceDirty
+    [switch]$FullTests
 )
 
 $ErrorActionPreference = "Stop"
@@ -44,90 +36,71 @@ function Step($m) { Write-Host "" ; Write-Host "===== $m =====" -ForegroundColor
 function Ok($m)   { Write-Host "  [OK] $m" -ForegroundColor Green }
 function Warn($m) { Write-Host "  [!] $m" -ForegroundColor Yellow }
 
-# 0. Enter repo
 Set-Location $RepoDir
 Write-Host "Repo root: $((Get-Location).Path)"
 
-# Dirty-tree guard: remote deploy only syncs committed code.
+# 0. Dirty-tree note: tar bridge deploys the working tree as-is,
+#    including uncommitted changes. So we warn, never block.
 $dirty = (git status --porcelain).Count -gt 0
-if ($dirty -and -not $ForceDirty) {
-    Warn "Working tree has uncommitted changes; remote deploy will NOT include them."
-    Warn "Commit first, or pass -ForceDirty to override."
-    git status --short
-    exit 1
-}
+if ($dirty) { Warn "Working tree has uncommitted changes; tar will deploy them anyway." }
 
-# 1. Local pytest gate (pre-push)
-if (-not $SkipTests -and -not $PrePushTestsOnly) {
-    Step "Local pytest (pre-push gate)"
+# 1. Local pytest gate (pre-deploy)
+if (-not $SkipTests) {
+    Step "Local pytest (pre-deploy gate)"
     $venv = Join-Path $RepoDir ".venv/Scripts/python.exe"
     if (-not (Test-Path $venv)) {
-        Warn "No .venv found, skipping pytest. Create one: python -m venv .venv; pip install -e '.[dev]'"
+        Warn "No .venv found, skipping pytest. Create: python -m venv .venv; pip install -e '.[dev]'"
     } else {
         if ($FullTests) {
             & $venv -m pytest tests/ -q -m "not network and not slow" --ignore=tests/test_async_core.py --ignore=tests/test_performance.py --ignore=tests/test_integration.py --ignore=tests/test_core.py --ignore=tests/test_e2e_integration.py
         } else {
             & $venv -m pytest tests/test_run_improvements_regression.py -q
         }
-        if ($LASTEXITCODE -ne 0) { Write-Host "pytest failed, aborted (not pushed). Fix locally first." -ForegroundColor Red ; exit 1 }
+        if ($LASTEXITCODE -ne 0) { Write-Host "pytest failed, aborted. Fix locally first." -ForegroundColor Red ; exit 1 }
         Ok "pytest passed"
     }
 }
 
-# 2. git push
-if (-not $SkipPush) {
-    Step "git push origin $Branch"
-    & git push origin $Branch
-    if ($LASTEXITCODE -ne 0) { Write-Host "git push failed, aborted." -ForegroundColor Red ; exit 1 }
-    Ok "Pushed"
-} else { Warn "Skipping push (-SkipPush)" }
+# 2. Build tar from working tree (excludes heavy/secret dirs)
+Step "Package working tree (tar)"
+$excludes = @("--exclude", ".git", "--exclude", ".venv", "--exclude", ".env",
+              "--exclude", "__pycache__", "--exclude", "node_modules")
+& tar -czf $TarFile @excludes -C $RepoDir .
+if ($LASTEXITCODE -ne 0) { Write-Host "tar failed." -ForegroundColor Red ; exit 1 }
+Ok "Packed $((Get-Item $TarFile).Length) bytes -> $TarFile"
 
-if ($PrePushTestsOnly) { Step "PrePushTestsOnly: tests + push done, stopping" ; exit 0 }
+# 3. scp to ECS (own protocol avoids PowerShell pipe corruption of binary tar)
+Step "Transfer to ECS ($EcsUser@$EcsHost)"
+& scp $TarFile "${EcsUser}@${EcsHost}:${DeployDir}/"
+if ($LASTEXITCODE -ne 0) { Write-Host "scp failed." -ForegroundColor Red ; exit 1 }
+Ok "Transferred"
 
-# 3. ECS remote deploy (fetch + reset + build + up + healthcheck + rollback)
-if (-not (Get-Command ssh -ErrorAction SilentlyContinue)) {
-    Write-Host "OpenSSH Client not installed. Windows: Settings -> Optional Features -> add 'OpenSSH Client'." -ForegroundColor Red
-    exit 1
-}
-Step "ECS remote deploy ($EcsUser@$EcsHost : $DeployDir)"
-# Official recommended form: pull latest remote_deploy.sh from origin and run it.
-$remoteCmd = "cd $DeployDir && git fetch origin && git show origin/${Branch}:scripts/remote_deploy.sh | DEPLOY_DIR=$DeployDir bash -s"
+# 4. Extract + rebuild + up (atomic: extract over existing dir, then compose up)
+Step "Extract + docker compose up -d --build"
+$remoteCmd = "cd $DeployDir && tar -xzf huanxin-sync.tar.gz && rm huanxin-sync.tar.gz && docker compose up -d --build"
 & ssh "$EcsUser@$EcsHost" $remoteCmd
 if ($LASTEXITCODE -ne 0) { Write-Host "Remote deploy returned non-zero; see ssh output above." -ForegroundColor Red ; exit 1 }
-Ok "Remote deploy script finished (includes healthcheck / rollback)"
+Ok "Deployed"
 
-# 4. Log review
-Step "Fetch recent ECS logs (docker compose logs --tail 40 huanxin-ai)"
+# 5. Log review
+Step "Recent ECS logs (docker compose logs --tail 40 huanxin-ai)"
 & ssh "$EcsUser@$EcsHost" "cd $DeployDir && docker compose logs --tail 40 huanxin-ai"
 Write-Host ""
 
-# 5. Public site check (hit the public domain from this machine)
-Step "Public site check https://$PublicDomain"
-foreach ($p in @("/health", "/status", "/")) {
-    try {
-        $r = Invoke-WebRequest -Uri "https://$PublicDomain$p" -UseBasicParsing -TimeoutSec 15
-        $ct = $r.Headers["Content-Type"]
-        Write-Host ("  {0,-28} -> {1} ({2})" -f $p, $r.StatusCode, $ct)
-    } catch {
-        Write-Host ("  {0,-28} -> FAILED: {1}" -f $p, $_.Exception.Message) -ForegroundColor Red
-    }
-}
+# 6. In-container /status healthcheck (bypasses ssh+exec empty-output quirk)
+Step "In-container /status healthcheck"
+& ssh "$EcsUser@$EcsHost" "cd $DeployDir && docker compose exec -T huanxin-ai python -c ""import urllib.request as u; print(u.urlopen(''http://localhost:8000/status'', timeout=10).read().decode())"""
+if ($LASTEXITCODE -ne 0) { Warn "/status check failed or returned empty; verify logs above." }
 
-# 6. Post-deploy pytest (confirm local code matches what is live)
-if (-not $SkipTests) {
-    Step "Post-deploy pytest (confirm local == live source)"
-    $venv = Join-Path $RepoDir ".venv/Scripts/python.exe"
-    if (Test-Path $venv) {
-        if ($FullTests) {
-            & $venv -m pytest tests/ -q -m "not network and not slow" --ignore=tests/test_async_core.py --ignore=tests/test_performance.py --ignore=tests/test_integration.py --ignore=tests/test_core.py --ignore=tests/test_e2e_integration.py
-        } else {
-            & $venv -m pytest tests/test_run_improvements_regression.py -q
-        }
-        Ok "Post-deploy pytest done (exit $LASTEXITCODE)"
-    }
-}
+# 7. Optional GitHub backup push (ECS no longer pulls from GitHub; this is just a safety backup)
+if (-not $SkipPush) {
+    Step "git push origin $Branch (backup)"
+    & git push origin $Branch
+    if ($LASTEXITCODE -ne 0) { Warn "git push failed; deploy already succeeded on ECS. Push manually later." }
+    else { Ok "Pushed" }
+} else { Warn "Skipping push (-SkipPush)" }
 
 Step "All done"
-Write-Host "Next: open https://$PublicDomain/ in a browser to see the landing page."
-Write-Host "Troubleshoot on ECS: ssh $EcsUser@$EcsHost 'cd $DeployDir; docker compose logs -f huanxin-ai'"
+Write-Host "Open https://$PublicDomain/ in a browser to see the landing page."
+Write-Host "Troubleshoot: ssh $EcsUser@$EcsHost 'cd $DeployDir; docker compose logs -f huanxin-ai'"
 Write-Host "Reminder: Revoke the exposed PAT (ghp_.../github_pat_...) on GitHub web UI."

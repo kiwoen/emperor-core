@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 
 import pytest
+from unittest.mock import patch
 
 from huanxin.court.evolution import MinisterGenome
 from huanxin.court.genome_store import GenomeStore
@@ -130,7 +131,7 @@ def test_atomic_write_no_corruption_on_disk(temp_dir: Path) -> None:
     GenomeStore.save(path, [g])
 
     # tmp file should not exist after successful save
-    tmp_path = path.with_suffix(".tmp")
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
     assert not tmp_path.exists()
 
     # content should be valid JSON
@@ -172,3 +173,32 @@ def test_save_overwrites_existing(temp_dir: Path) -> None:
     genomes, _ = GenomeStore.load(path)
     assert len(genomes) == 1
     assert genomes[0].name == "second"
+
+
+def test_save_retries_on_vanishing_tmp(temp_dir: Path) -> None:
+    """save must survive a single transient FileNotFoundError from os.replace.
+
+    复现生产环境的命名卷冷启动竞态：第一次 os.replace 抛 FileNotFoundError
+    （源临时文件在窗口内"消失"），第二次委托真实 replace 成功。调用不应抛异常，
+    且目标文件最终落盘可读回。
+    """
+    g = MinisterGenome(name="retry", domain="d")
+    path = temp_dir / "genomes.json"
+    calls = {"count": 0}
+    real_replace = os.replace
+
+    def _flaky_replace(src: str, dst: str) -> None:
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise FileNotFoundError(f"[simulated race] {src} -> {dst}")
+        return real_replace(src, dst)
+
+    with patch("os.replace", side_effect=_flaky_replace):
+        GenomeStore.save(path, [g], metadata={"cycle": 1})
+
+    assert calls["count"] == 2, "应发生一次失败 + 一次成功的 replace 调用"
+    assert path.is_file(), "重试后目标文件应已生成"
+    loaded, meta = GenomeStore.load(path)
+    assert len(loaded) == 1
+    assert loaded[0].name == "retry"
+    assert meta.get("cycle") == 1
