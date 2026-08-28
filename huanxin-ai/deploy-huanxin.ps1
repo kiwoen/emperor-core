@@ -18,7 +18,7 @@
 param(
     [string]$RepoDir      = "E:/yuxing/AI自我进化/emperor-core-fresh/huanxin-ai",
     [string]$EcsUser      = "root",
-    [string]$EcsHost      = "REPLACE_WITH_ECS_IP",   # ← 改成你的 ECS 公网 IP 或 ssh 别名
+    [string]$EcsHost      = "47.97.212.180",        # 阿里云华东1·杭州 ECS 公网 IP（实例 iZbp1e0i4t7j6aqcu3yqk5Z）
     [string]$DeployDir    = "/srv/huanxin-ai",        # ECS 上仓库克隆目录（与 scripts/remote_deploy.sh 默认一致）
     [string]$PublicDomain = "huanxin.kdns.fr",
     [string]$Branch       = "master",
@@ -78,8 +78,8 @@ if ($PrePushTestsOnly) { Step "PrePushTestsOnly：仅测试+推送，流程结�
 
 # ── 3. ECS 远程部署（git fetch + reset + build + up + 健康检查 + 回滚）──
 if ($EcsHost -eq "REPLACE_WITH_ECS_IP") {
-    Warn "未配置 EcsHost，跳过远程部署。请在脚本顶部把 `$EcsHost 改为 ECS 公网 IP/别名后重跑。"
-    exit 0
+    # 防御性回退（正常情况下不会再触发）
+    Warn "未配置 EcsHost（REPLACE_WITH_ECS_IP 仍存在）。"
 }
 if (-not (Get-Command ssh -ErrorAction SilentlyContinue)) {
     Write-Host "本机未安装 OpenSSH Client。Windows：设置 → 可选功能 → 添加「OpenSSH 客户端」。" -ForegroundColor Red
