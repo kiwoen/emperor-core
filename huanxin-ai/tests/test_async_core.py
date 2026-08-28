@@ -385,6 +385,27 @@ class TestAsyncExecutorQueueSize:
             assert ex.queue_size < initial
 
 
+class TestAsyncExecutorEventDriven:
+    """The dispatcher must wake on ``submit`` instead of polling the heap."""
+
+    @pytest.mark.asyncio
+    async def test_idle_executor_wakes_on_late_submit(self):
+        started = asyncio.Event()
+
+        async def task():
+            started.set()
+            return "awake"
+
+        async with AsyncExecutor() as ex:
+            # Let the dispatcher drain and go idle (blocked on the wakeup event).
+            await asyncio.sleep(0.05)
+            # A task arriving at an idle executor must still be scheduled.
+            h = await ex.submit(task)
+            result = await asyncio.wait_for(h, timeout=2)
+            assert result == "awake"
+            assert started.is_set()
+
+
 # ═══════════════════════════════════════════════════════════════════
 # QueueManager tests
 # ═══════════════════════════════════════════════════════════════════

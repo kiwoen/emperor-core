@@ -160,6 +160,11 @@ class AsyncExecutor:
         # Priority queue (heap of _PrioritizedTask)
         self._heap: list[_PrioritizedTask] = []
         self._heap_lock: asyncio.Lock = asyncio.Lock()
+        # Event-driven wakeup: ``submit``/``shutdown`` set this when they push a
+        # task, so the dispatcher sleeps until work arrives instead of polling
+        # the heap with ``asyncio.sleep(0.01)`` (which burned ~100 wakeups/s
+        # while idle and added up to 10ms scheduling latency per submission).
+        self._not_empty: asyncio.Event = asyncio.Event()
         self._seq_counter: itertools.count = itertools.count()
 
         # Internal state
@@ -203,6 +208,8 @@ class AsyncExecutor:
         # Push sentinel to wake up dispatcher
         async with self._heap_lock:
             heapq.heappush(self._heap, _PrioritizedTask(priority=0, seq=next(self._seq_counter), task=_SENTINEL, timeout=0))
+            # Wake the dispatcher so it observes the sentinel promptly.
+            self._not_empty.set()
 
         if self._dispatcher_task:
             try:
@@ -246,6 +253,8 @@ class AsyncExecutor:
                 ),
             )
             self._stats["submitted"] += 1
+            # Wake the dispatcher (replaces busy-polling on the heap).
+            self._not_empty.set()
 
         return handle
 
@@ -381,7 +390,13 @@ class AsyncExecutor:
             await asyncio.gather(*inflight, return_exceptions=True)
 
     async def _pop_next(self) -> Optional[tuple]:
-        """Pop the next task tuple from the heap, or ``None`` for shutdown."""
+        """Pop the next task tuple from the heap, or ``None`` for shutdown.
+
+        Event-driven: instead of busy-polling the heap with ``asyncio.sleep``,
+        the dispatcher sleeps on :attr:`_not_empty`, which ``submit`` and
+        ``shutdown`` signal whenever they push. This removes idle wakeups and
+        lets a task submitted to an empty queue start with zero polling delay.
+        """
         while True:
             async with self._heap_lock:
                 if self._heap:
@@ -392,8 +407,11 @@ class AsyncExecutor:
             if item is None:
                 if not self._running:
                     return None
-                # Heap empty but still running — wait briefly
-                await asyncio.sleep(0.01)
+                # Heap empty but still running — block until submit()/shutdown()
+                # wakes us. ``set`` is level-triggered, so a push that raced in
+                # between releasing the lock and awaiting here is not lost.
+                await self._not_empty.wait()
+                self._not_empty.clear()
                 continue
 
             if item.task is _SENTINEL:
