@@ -49,7 +49,7 @@ dev = [
 ]
 
 [project.scripts]
-huanxin = "huanxin.cli:main"
+huanxin = "huanxin.cli:main"
 
 [build-system]
 requires = ["setuptools>=69.0.0", "wheel"]
@@ -113,6 +113,7 @@ ignore_missing_imports = true
 minversion = "8.0"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+pythonpath = ["."]
 markers = [
     "network: tests that require real network access (may be skipped in CI)",
     "slow: tests that take significantly longer than average",
