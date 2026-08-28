@@ -565,6 +565,9 @@ def create_app(
             "/api/auth/login",
             "/api/auth/register",
             "/",
+            "/login",           # 登录页（GET，HTML 表单）
+            "/dashboard",       # 对话前端 HTML 壳：页面公开，数据走 /api/*（仍需 Bearer）
+            "/dashboard/legacy", # 旧版监控 HTML 壳：同上
         ),
         # 模型 API 用独立 API Key 鉴权，绕过 dashboard 会话登录中间件
         public_prefixes=("/v1",),
@@ -659,7 +662,7 @@ def create_app(
         links = [
             ("仪表盘 / Dashboard", "/dashboard"),
             ("旧版监控 / Legacy", "/dashboard/legacy"),
-            ("登录 / Login", "/api/auth/login"),
+            ("登录 / Login", "/login"),
             ("健康探针 / Health", "/health"),
             ("扩展状态 / Status", "/status"),
             ("自进化状态 / Self-Evolve", "/api/dashboard/self-evolve-status"),
@@ -900,6 +903,52 @@ def create_app(
         }
 
     # ── Dashboard ───────────────────────────────────────────────────
+
+    @app.get("/login", response_class=HTMLResponse)
+    def login_page():
+        """独立登录/注册页（公开）。成功后 token 存 localStorage['ec_token'] 并跳 /dashboard。"""
+        return HTMLResponse("""<!doctype html><html lang=zh-CN><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>登录 · 幻炘AI</title>
+<style>body{font-family:system-ui,'PingFang SC','Microsoft YaHei',sans-serif;background:#0d1117;color:#e6edf3;display:grid;place-items:center;min-height:100vh;margin:0}
+.card{background:#161b22;border:1px solid #30363d;border-radius:14px;padding:32px;width:320px;box-sizing:border-box}
+h1{margin:0 0 6px;font-size:20px}.lead{color:#8b949e;font-size:12px;margin:0 0 18px}
+.tabs{display:flex;gap:8px;margin-bottom:16px}
+.tabs button{flex:1;padding:8px;border:1px solid #30363d;background:transparent;color:#8b949e;border-radius:8px;cursor:pointer;font-size:13px}
+.tabs button.on{background:#1f6feb22;color:#58a6ff;border-color:#1f6feb55}
+input{width:100%;padding:10px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;border-radius:8px;margin-bottom:10px;box-sizing:border-box;font-size:14px}
+input:focus{outline:none;border-color:#1f6feb}
+button.go{width:100%;padding:10px;border:0;border-radius:8px;background:#1f6feb;color:#fff;font-weight:600;cursor:pointer;font-size:14px}
+.err{color:#f85149;font-size:12px;margin-top:8px;min-height:16px}
+a{color:#58a6ff;font-size:12px;text-decoration:none}</style>
+<div class=card>
+<h1>幻炘AI</h1><p class=lead id=modeTip>登录后进入对话工作台</p>
+<div class=tabs><button id=tabLogin class=on onclick=switchMode(false)>登 录</button><button id=tabReg onclick=switchMode(true)>注 册</button></div>
+<input id=u placeholder=用户名 autocomplete=username>
+<input id=p type=password placeholder=密码 autocomplete=current-password>
+<button class=go onclick=go()>进 入</button>
+<div class=err id=e></div>
+</div>
+<script>
+let isReg=false;
+function switchMode(r){isReg=r;
+document.getElementById('tabLogin').className=r?'':'on';
+document.getElementById('tabReg').className=r?'on':'';
+document.getElementById('modeTip').textContent=r?'注册成功后自动登录':'登录后进入对话工作台';
+document.querySelector('button.go').textContent=r?'注 册':'进 入';}
+async function go(){
+const u=document.getElementById('u').value.trim(),p=document.getElementById('p').value;
+const el=document.getElementById('e');el.textContent='';
+if(!u||!p){el.textContent='请输入用户名和密码';return}
+if(isReg&&p.length<6){el.textContent='密码至少 6 位';return}
+try{
+const r=await fetch(isReg?'/api/auth/register':'/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
+const j=await r.json();
+if(!r.ok){el.textContent=(j&&j.detail)||'失败，请重试';return}
+localStorage.setItem('ec_token',j.token);location.href='/dashboard';
+}catch(_){el.textContent='网络错误，请重试'}}
+document.getElementById('p').addEventListener('keydown',k=>{if(k.key==='Enter')go()});
+</script></html>""")
 
     @app.get("/dashboard", response_class=HTMLResponse)
     def dashboard():
