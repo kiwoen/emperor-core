@@ -29,7 +29,7 @@ param(
     [string]$RepoDir      = $PSScriptRoot,
     [string]$EcsUser      = "root",
     [string]$EcsHost      = "47.97.212.180",
-    [string]$DeployDir    = "/srv/huanxin-ai",
+    [string]$DeployDir    = "/opt/huanxin-ai/huanxin-ai",
     [string]$PublicDomain = "huanxin.kdns.fr",
     [string]$Branch       = "master",
     [switch]$SkipPush,
