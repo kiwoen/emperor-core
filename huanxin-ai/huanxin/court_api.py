@@ -26,6 +26,17 @@ Endpoints:
 
 from __future__ import annotations
 
+import sys
+
+# 部署提速（仅 Linux）：用 uvloop 替换默认事件循环，httptools 解析 HTTP。
+# Windows / 未安装时安全跳过（开发环境无影响；依赖在 requirements-docker.txt）。
+if sys.platform != "win32":
+    try:
+        import uvloop
+        uvloop.install()
+    except Exception:
+        pass
+
 import logging
 import os
 import secrets
@@ -72,6 +83,8 @@ from huanxin.rbac import RBACEngine, Permission, Role, intent_to_permission
 from huanxin.api.token_guard import add_token_auth
 # 多用户 / 会话 / token 用量存储层
 from huanxin.api import auth_store
+# OpenAI 兼容模型 API（/v1/*，独立 API Key 鉴权）
+from huanxin.api import model_api
 # 鉴权依赖（get_current_user / require_admin，提炼自本模块闭包，供单测与复用）
 from huanxin.api.deps import get_current_user, require_admin
 # 能力服务：文件上传 / 联网搜索 / 图文识别
@@ -553,7 +566,34 @@ def create_app(
             "/api/auth/register",
             "/",
         ),
+        # 模型 API 用独立 API Key 鉴权，绕过 dashboard 会话登录中间件
+        public_prefixes=("/v1",),
     )
+
+    # ── 模型 API（OpenAI 兼容 /v1/*）：独立 API Key 鉴权，挂载路由 ──
+    app.include_router(model_api.router)
+
+    @app.post("/api/me/api-keys")
+    async def create_my_api_key(name: str = "", user: dict = Depends(get_current_user)):
+        """自助签发 API Key（模型 API 接入用）。明文仅返回一次。"""
+        plain, key_id = auth_store.create_api_key(user["id"], name or "default")
+        return {
+            "id": key_id,
+            "key": plain,
+            "prefix": plain[:12],
+            "warning": "请立即保存此 key，仅展示一次",
+        }
+
+    @app.get("/api/me/api-keys")
+    async def list_my_api_keys(user: dict = Depends(get_current_user)):
+        return {"keys": auth_store.list_api_keys(user["id"])}
+
+    @app.delete("/api/me/api-keys/{key_id}")
+    async def revoke_my_api_key(key_id: int, user: dict = Depends(get_current_user)):
+        ok = auth_store.revoke_api_key(user["id"], key_id)
+        if not ok:
+            raise HTTPException(status_code=404, detail="密钥不存在或无权操作")
+        return {"ok": True}
 
     # ── token 解析（供 logout 等场景复用；鉴权主依赖已提炼至 huanxin/api/deps.py）──
     def _extract_token(request: Request) -> str:

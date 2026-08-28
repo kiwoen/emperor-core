@@ -45,19 +45,28 @@ from starlette.responses import JSONResponse, Response
 
 
 def add_token_auth(app, session_validator: Optional[Callable[[str], Optional[int]]] = None,
-                   public_paths: tuple = ("/health", "/api/auth/login", "/api/auth/register")) -> None:
+                   public_paths: tuple = ("/health", "/api/auth/login", "/api/auth/register"),
+                   public_prefixes: tuple = ()) -> None:
     """为给定 FastAPI / Starlette 应用挂载强制会话登录鉴权（仅 Authorization: Bearer 通道）。
 
     :param session_validator: 接收 token 字符串，返回 user_id 或 None（用户会话校验）。
-    :param public_paths: 免鉴权的路径白名单（默认含 /health 与登录端点）。
+    :param public_paths: 免鉴权的精确路径白名单（默认含 /health 与登录端点）。
+    :param public_prefixes: 免鉴权的前缀白名单（如 ``("/v1",)`` 放行模型 API，
+        其鉴权由对应路由内部的 API Key 依赖单独完成）。仅前缀匹配，不影响
+        ``public_paths`` 的精确匹配语义。
     """
 
     _public = set(public_paths)
+    _public_prefixes = tuple(public_prefixes)
 
     @app.middleware("http")
     async def _token_auth(request: Request, call_next) -> Response:
         # 白名单路径直接放行（仅健康探针与登录端点）
-        if request.url.path in _public:
+        path = request.url.path
+        if path in _public:
+            return await call_next(request)
+        # 前缀白名单（模型 API 等用独立鉴权，绕过 dashboard 会话登录）
+        if any(path == p or path.startswith(p + "/") for p in _public_prefixes):
             return await call_next(request)
         header = request.headers.get("Authorization", "")
         if header.startswith("Bearer "):

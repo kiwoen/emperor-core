@@ -107,6 +107,19 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_sess_user ON sessions(user_id);
             CREATE INDEX IF NOT EXISTS idx_ledger_user ON token_ledger(user_id);
             CREATE INDEX IF NOT EXISTS idx_cap_user ON capability_usage(user_id);
+            CREATE TABLE IF NOT EXISTS api_keys (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id     INTEGER NOT NULL,
+                key_hash    TEXT NOT NULL UNIQUE,
+                key_prefix  TEXT NOT NULL,
+                name        TEXT NOT NULL DEFAULT 'default',
+                created_at  REAL NOT NULL,
+                last_used   REAL,
+                revoked     INTEGER NOT NULL DEFAULT 0,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_apikey_user ON api_keys(user_id);
+            CREATE INDEX IF NOT EXISTS idx_apikey_hash ON api_keys(key_hash);
             """
         )
         c.commit()
@@ -528,3 +541,75 @@ def get_capability_usage(user_id: int, kind: Optional[str] = None) -> dict:
                 (user_id,),
             ).fetchall()
     return {r["kind"]: {"total": r["total"], "calls": r["calls"]} for r in rows}
+
+
+# ── API Key（模型 API 接入用，独立于 dashboard 登录会话）──
+
+def create_api_key(user_id: int, name: str = "default") -> tuple[str, int]:
+    """签发 API Key。返回 (明文 key, key_id)；明文仅展示一次，库内仅存 SHA-256 哈希。"""
+    plain = "sk-" + secrets.token_hex(24)
+    key_hash = hashlib.sha256(plain.encode("utf-8")).hexdigest()
+    prefix = plain[:12]
+    with _lock:
+        c = _get_conn()
+        cur = c.execute(
+            "INSERT INTO api_keys (user_id, key_hash, key_prefix, name, created_at, last_used, revoked) "
+            "VALUES (?,?,?,?,?,?,0)",
+            (user_id, key_hash, prefix, (name or "default")[:60], _now(), None),
+        )
+        c.commit()
+        return plain, int(cur.lastrowid)
+
+
+def get_user_by_api_key(plain: str) -> Optional[dict]:
+    """校验 API Key，返回绑定用户（无效/已吊销返回 None）。成功则刷新 last_used。"""
+    if not plain or not plain.startswith("sk-"):
+        return None
+    key_hash = hashlib.sha256(plain.encode("utf-8")).hexdigest()
+    # 注意：先在本锁内完成 api_keys 的校验与 last_used 刷新，再【释放锁】后查询用户，
+    # 避免 get_user() 内部再次 with _lock 对同一个非重入 Lock 造成自死锁。
+    user_id: Optional[int] = None
+    with _lock:
+        c = _get_conn()
+        row = c.execute(
+            "SELECT user_id, revoked FROM api_keys WHERE key_hash=?", (key_hash,)
+        ).fetchone()
+        if row is None or row["revoked"]:
+            return None
+        c.execute("UPDATE api_keys SET last_used=? WHERE key_hash=?", (_now(), key_hash))
+        c.commit()
+        user_id = int(row["user_id"])
+    if user_id is None:
+        return None
+    return get_user(user_id)
+
+
+def list_api_keys(user_id: int) -> list[dict]:
+    """列出某用户的所有 key（展示前缀，不含明文）。"""
+    with _lock:
+        rows = _get_conn().execute(
+            "SELECT id, name, key_prefix, created_at, last_used, revoked FROM api_keys "
+            "WHERE user_id=? ORDER BY id DESC", (user_id,)
+        ).fetchall()
+    return [
+        {
+            "id": r["id"],
+            "name": r["name"],
+            "prefix": r["key_prefix"],
+            "created_at": r["created_at"],
+            "last_used": r["last_used"],
+            "revoked": bool(r["revoked"]),
+        }
+        for r in rows
+    ]
+
+
+def revoke_api_key(user_id: int, key_id: int) -> bool:
+    """吊销某用户的某个 key（仅限本人）。返回是否命中。"""
+    with _lock:
+        c = _get_conn()
+        n = c.execute(
+            "UPDATE api_keys SET revoked=1 WHERE id=? AND user_id=?", (key_id, user_id)
+        ).rowcount
+        c.commit()
+        return n > 0
