@@ -230,6 +230,22 @@ class TestSchedulerNoSilentExcept:
         assert rep.total_runs == 0
         assert rep.entries == []
 
+    def test_minister_count_safe_without_ministers_attr(self):
+        # Court 没有 .ministers 属性时也不应抛 AttributeError
+        from types import SimpleNamespace
+        from huanxin.court.scheduler import _minister_count
+
+        # Court-style: only .active_ministers (list of names), no .ministers
+        court = SimpleNamespace(active_ministers=["a", "b", "c"])
+        assert _minister_count(SimpleNamespace(_court=court)) == 3
+
+        # Sovereign-style: .ministers is a dict
+        court2 = SimpleNamespace(ministers={"a": 1, "b": 2})
+        assert _minister_count(SimpleNamespace(_court=court2)) == 2
+
+        # Missing _court entirely
+        assert _minister_count(SimpleNamespace()) == 0
+
 
 # ══════════════════════════════════════════════════════════════════
 # T-D04：RunReport.mode 默认 offline + 横幅 + to_dict

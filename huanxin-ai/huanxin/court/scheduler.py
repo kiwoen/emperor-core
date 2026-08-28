@@ -34,6 +34,23 @@ from typing import Any, Callable, Optional
 logger = logging.getLogger(__name__)
 
 
+def _minister_count(emperor: Any) -> int:
+    """Count ministers safely across Court/Sovereign variants.
+
+    ``Court`` exposes ``active_ministers`` (list of names) and has no
+    ``.ministers`` attribute; ``Sovereign`` exposes ``.ministers`` (dict).
+    Use a defensive lookup so the SSE evolution event never raises an
+    AttributeError when the attached court lacks a ``.ministers`` attribute.
+    """
+    court = getattr(emperor, "_court", None)
+    if court is None:
+        return 0
+    ministers = getattr(court, "ministers", None) or getattr(
+        court, "active_ministers", []
+    )
+    return len(ministers)
+
+
 # ══════════════════════════════════════════════════════════════════
 # Types
 # ══════════════════════════════════════════════════════════════════
@@ -140,7 +157,7 @@ class Scheduler:
                 from huanxin.event_bus import event_bus, Event
                 event_bus.publish(Event("evolution", {
                     "round": getattr(self, "evolution_round", 0),
-                    "ministers_count": len(self._emperor._court.ministers),
+                    "ministers_count": _minister_count(self._emperor),
                 }))
             except Exception:
                 logger.warning(
