@@ -13,6 +13,14 @@
     .\deploy-huanxin.ps1 -ForceDirty         # 工作树有未提交改动时也照常 push（不推荐）
 
   首次使用：把下面 $EcsHost 改成你的 ECS 公网 IP 或 ~/.ssh/config 里的别名。
+
+  若直接运行报 “无法加载文件 … 禁止运行脚本 / Execution Policy / UnauthorizedAccess”：
+    方式 A（推荐，一行，仅影响本次进程，不改系统策略）：
+      powershell -ExecutionPolicy Bypass -File .\deploy-huanxin.ps1
+    方式 B：先给当前窗口放行，再跑：
+      Set-ExecutionPolicy -Scope Process Bypass
+      .\deploy-huanxin.ps1
+    若仍报 “Mark of the Web / 来自 Internet”：先执行 Unblock-File .\deploy-huanxin.ps1 去掉下载标记。
 #>
 
 param(
