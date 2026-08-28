@@ -1,0 +1,7 @@
+# 本目录的「生成产物」「大型二进制」已在 huanxin-ai/.gitignore 统一忽略。
+#
+# 若你采集到大规模文本语料（GB 级 .md/.jsonl），建议改用 Git LFS 或直接本地存放，
+# 不要直接 `git add` 巨型文件，以免仓库膨胀。
+# Git LFS 用法示例：
+#   git lfs install
+#   git lfs track "data/raw/**/*.jsonl"

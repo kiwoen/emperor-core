@@ -55,8 +55,14 @@ venv.bak/
 *.swo
 *~
 .DS_Store
-# HUANXIN data
-data/
+# HUANXIN data —— 仅忽略生成产物与大型二进制；文本语料/脚手架入库（便于同步到 GitHub 获取数据）
+data/prepared/
+data/**/*.csv
+data/**/*.parquet
+data/**/*.bin
+data/**/*.zip
+data/**/*.pth
+data/**/*.safetensors
 .testdata/
 logs/
 huanxin.log
