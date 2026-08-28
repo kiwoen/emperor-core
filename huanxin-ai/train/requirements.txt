@@ -1,0 +1,13 @@
+# 训练工具链依赖（仅在你要真正训练时才装；数据准备 data_prep.py 不需要这些）
+# 建议创建独立虚拟环境或在已有环境安装，不要放进主服务依赖（torch 体积巨大）。
+#   pip install -r train/requirements.txt
+
+torch>=2.13.0
+transformers>=5.5.0
+peft>=0.12.0
+datasets>=2.20.0
+accelerate>=0.32.0
+# 可选：4bit/8bit 量化加载（显存紧张时开启 quantization）
+bitsandbytes>=0.43.0
+# 可选但推荐：更快的注意力与分词后端
+# flash-attn>=2.5.0

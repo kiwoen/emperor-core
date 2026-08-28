@@ -1,0 +1,54 @@
+# ============================================================================
+# 微调配置样例 —— 复制为 config.yaml 后按需修改
+# 用法：python finetune.py --config config.yaml
+# ============================================================================
+
+# 基座模型（开源、中文强、可商用需看各自 LICENSE）
+#   入门/测试：Qwen/Qwen2.5-0.5B-Instruct   （CPU 也能跑个小样）
+#   推荐起步：Qwen/Qwen2.5-7B-Instruct      （单张 24G 显卡可 LoRA）
+#   更强：    Qwen/Qwen2.5-14B-Instruct     （需多卡或 4bit）
+base_model: "Qwen/Qwen2.5-7B-Instruct"
+
+# 领域标签：用于输出目录与后续多 LoRA 管理（"可扩展多领域"靠它区分）
+domain: "general-zh"
+
+# 数据（由 data_prep.py 产出）
+data_dir: "data/prepared"
+train_file: "train.jsonl"
+val_file: "val.jsonl"
+
+# 输出目录（训练产物：LoRA 适配器）
+output_dir: "models/my-qwen-general-zh"
+
+# ---- LoRA 超参（微调的"低成本"关键）----
+lora:
+  r: 16                # 秩，越大容量越高、显存越多
+  alpha: 32            # 缩放系数，常见 2*r
+  dropout: 0.05
+  bias: "none"
+  # Qwen2.5 全线性层目标
+  target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+
+# ---- 量化加载（显存不够时开启 4bit/8bit）----
+quantization: "none"   # none | 4bit | 8bit
+
+# ---- 训练超参 ----
+training:
+  num_epochs: 3
+  per_device_train_batch_size: 4
+  gradient_accumulation_steps: 8
+  learning_rate: 2.0e-4
+  warmup_ratio: 0.03
+  max_seq_length: 2048
+  logging_steps: 10
+  save_steps: 200
+  fp16: false          # 老显卡用 fp16；Ampere+(30/40系)建议改 true 用 bf16
+  bf16: true
+
+# 训练后是否把 LoRA 合并回基座，得到可直接用 vLLM/Ollama 加载的完整模型
+#   合并需要能放下完整模型权重的显存；若显存不足保持 false（仅保存适配器）
+merge_and_save: false
+merged_dir: "models/my-qwen-general-zh-merged"
+
+# 暴露给外部用户的模型名（写进 HUANXIN_MODELS 的 key）
+serve_name: "my-qwen"
