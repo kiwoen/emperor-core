@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -69,21 +70,23 @@ class GenomeStore:
         Metadata (active_count, shadow_count, cycle, etc.) is included
         alongside the genome array for quick inspection.
 
-        持久化加固（针对 Docker 命名卷冷启动竞态）：
-        - 写完临时文件后 flush + fsync，确保数据真正落盘，而非停留在页缓存。
-        - os.replace 之前校验临时文件是否存在；若已丢失，抛出含路径的 RuntimeError。
-        - os.replace 若抛 FileNotFoundError（overlayfs / 命名卷瞬时可见性窗口导致
-          源文件在写入与替换之间"消失"），重试一次：重新落盘临时文件再 replace。
-        - 任何失败路径都清理残留的临时文件，避免下次落盘被污染。
-        - 保留原子写语义：先写 .tmp 再 replace，替换在同一文件系统内是原子的。
+        持久化加固（针对并发进化循环 + 命名卷竞态）：
+        - 每次写入使用 tempfile.mkstemp 生成的【唯一】临时文件名，避免多个
+          进化循环并发调用 save_genomes() 时共享同一个 "genomes.json.tmp"、
+          互相把对方的临时文件 os.replace 掉（原 bug：一方在 replace 前发现
+          共享 tmp 已消失而抛 RuntimeError）。
+        - flush + fsync 确保数据真正落盘，而非停留在页缓存。
+        - os.replace 在同一文件系统内是原子的；后写者胜出即可，因为基因组每轮
+          都会重新计算，last-writer-wins 语义正确。
+        - 若 os.replace 抛 FileNotFoundError（临时文件在瞬时竞态中消失），重新
+          生成唯一临时文件并重试一次；任何失败路径都清理残留临时文件。
         - path.parent 不可写时，best-effort 用 os.chmod 放宽权限（忽略 OSError）。
         """
         path = Path(path)
 
-        # Defensive: relax the parent directory's permissions best-effort so we
-        # can write into it. Named volumes occasionally expose restrictive modes
-        # immediately after a cold start, before they are fully visible to the
-        # non-root runtime user.
+        # Best-effort relax parent dir perms so the non-root runtime user can
+        # write. Named volumes occasionally expose restrictive modes right after
+        # a cold start.
         try:
             if path.parent.exists():
                 os.chmod(path.parent, 0o755)
@@ -98,54 +101,40 @@ class GenomeStore:
             "genomes": [GenomeStore.to_dict(g) for g in genomes],
         }
 
-        # Use a suffix like "genomes.json.tmp" so the temp file is far less
-        # likely to collide with other ".tmp" artefacts in the same directory.
-        tmp_path = path.with_suffix(path.suffix + ".tmp")
+        def _attempt() -> None:
+            """写出一个全新的唯一临时文件，再原子替换目标。
 
-        def _write_tmp() -> None:
-            """写出 payload 到临时文件，并保证落盘（flush + fsync）。"""
-            with open(tmp_path, "w", encoding="utf-8") as f:
-                json.dump(payload, f, ensure_ascii=False, indent=2)
-                f.flush()
-                os.fsync(f.fileno())
-
-        def _cleanup_tmp() -> None:
-            """Best-effort 删除残留临时文件，忽略一切错误。"""
+            任意失败都会删除该临时文件（可能写一半）后原样抛出，由调用方决定
+            是否重试。每次调用都生成独立的临时文件名，故并发调用互不干扰。
+            """
+            fd, tmp_name = tempfile.mkstemp(
+                suffix=".tmp", prefix=f"{path.stem}.", dir=str(path.parent)
+            )
             try:
-                if tmp_path.exists():
-                    tmp_path.unlink()
-            except OSError:
-                pass
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(payload, f, ensure_ascii=False, indent=2)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp_name, str(path))  # atomic on same filesystem
+            except BaseException:
+                # 失败：清理（可能不完整的）临时文件后重新抛出。
+                try:
+                    os.unlink(tmp_name)
+                except OSError:
+                    pass
+                raise
 
-        # --- 第一次尝试：写出临时文件并执行原子替换 ---
-        _write_tmp()
         try:
-            # 替换前确认源（临时文件）仍然存在。
-            if not tmp_path.exists():
-                _cleanup_tmp()
-                raise RuntimeError(
-                    f"临时文件在 os.replace 之前丢失：{tmp_path} "
-                    f"（目标路径：{path}）。疑似命名卷冷启动竞态。"
-                )
-            os.replace(tmp_path, path)  # atomic on same filesystem
-            return
+            _attempt()
         except FileNotFoundError:
-            # 临时文件在"写出之后、替换之前"的窗口内消失——这正是 overlayfs /
-            # 命名卷冷启动竞态的典型表现。清理后重试一次。
-            _cleanup_tmp()
-            _write_tmp()
+            # 唯一临时文件在瞬时竞态中消失——重新生成一个全新的临时文件并
+            # 恰好重试一次。
             try:
-                os.replace(tmp_path, path)
-                return
+                _attempt()
             except FileNotFoundError:
-                _cleanup_tmp()
                 raise RuntimeError(
-                    f"os.replace 重试后仍找不到源文件：{tmp_path} -> {path}"
+                    f"os.replace 重试后仍找不到源文件，目标：{path}"
                 )
-        except Exception:
-            # 其它任何异常：清理临时文件后原样向上抛出。
-            _cleanup_tmp()
-            raise
 
     @staticmethod
     def load(path: str | Path) -> tuple[list["MinisterGenome"], dict]:

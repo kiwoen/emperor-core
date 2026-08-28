@@ -130,9 +130,8 @@ def test_atomic_write_no_corruption_on_disk(temp_dir: Path) -> None:
 
     GenomeStore.save(path, [g])
 
-    # tmp file should not exist after successful save
-    tmp_path = path.with_suffix(path.suffix + ".tmp")
-    assert not tmp_path.exists()
+    # no leftover temp files after a successful save (cleanup works)
+    assert list(temp_dir.glob("*.tmp")) == []
 
     # content should be valid JSON
     raw = path.read_text(encoding="utf-8")
@@ -202,3 +201,29 @@ def test_save_retries_on_vanishing_tmp(temp_dir: Path) -> None:
     assert len(loaded) == 1
     assert loaded[0].name == "retry"
     assert meta.get("cycle") == 1
+
+
+def test_save_uses_unique_temp_per_call(temp_dir: Path) -> None:
+    """Each save() must write to a distinct temp file so concurrent evolution
+    cycles never clobber each other's temp file (the original production bug:
+    a fixed "genomes.json.tmp" got os.replace'd away by a sibling cycle).
+
+    复现原 bug 根因：两次连续 save 必须使用【不同】的临时文件名。
+    """
+    g = MinisterGenome(name="u", domain="d")
+    path = temp_dir / "genomes.json"
+    seen: list[str] = []
+    real_replace = os.replace
+
+    def _record(src: str, dst: str) -> None:
+        seen.append(os.path.basename(src))
+        return real_replace(src, dst)
+
+    with patch("os.replace", side_effect=_record):
+        GenomeStore.save(path, [g])
+        GenomeStore.save(path, [g])
+
+    assert len(seen) == 2, "两次 save 应各产生一次 replace 调用"
+    assert seen[0] != seen[1], "两次 save 应使用不同的临时文件名"
+    assert all(t.startswith("genomes.") and t.endswith(".tmp") for t in seen)
+    assert path.is_file()

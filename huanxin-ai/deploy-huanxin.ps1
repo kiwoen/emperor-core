@@ -87,9 +87,11 @@ Step "Recent ECS logs (docker compose logs --tail 40 huanxin-ai)"
 & ssh "$EcsUser@$EcsHost" "cd $DeployDir && docker compose logs --tail 40 huanxin-ai"
 Write-Host ""
 
-# 6. In-container /status healthcheck (bypasses ssh+exec empty-output quirk)
+# 6. In-container /status healthcheck (bypasses ssh+exec empty-output quirk).
+# Single-quoted python -c arg survives the PowerShell -> ssh -> bash quote collapse
+# (double quotes get eaten by the remote shell), inner url uses double quotes.
 Step "In-container /status healthcheck"
-& ssh "$EcsUser@$EcsHost" "cd $DeployDir && docker compose exec -T huanxin-ai python -c ""import urllib.request as u; print(u.urlopen(''http://localhost:8000/status'', timeout=10).read().decode())"""
+& ssh "$EcsUser@$EcsHost" "cd $DeployDir && docker compose exec -T huanxin-ai python -c 'import urllib.request as u; print(u.urlopen(""http://localhost:8000/status"", timeout=10).read().decode())'"
 if ($LASTEXITCODE -ne 0) { Warn "/status check failed or returned empty; verify logs above." }
 
 # 7. Optional GitHub backup push (ECS no longer pulls from GitHub; this is just a safety backup)
