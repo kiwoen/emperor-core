@@ -603,13 +603,69 @@ def create_app(
 
     # ── Endpoints ──────────────────────────────────────────────────
 
-    @app.get("/")
+    @app.get("/", response_class=HTMLResponse)
     def root():
-        return {
-            "service": "emperor-court",
-            "status": "ok",
-            "config_loaded": config is not None,
-        }
+        """极简 HTML 着陆页（公开）。
+
+        浏览器直开 huanxin.kdns.fr/ 时返回可读页面而非裸 JSON；
+        纯 API 探针请走 /health（liveness）与 /status（扩展状态）。
+        旧的 config_loaded 字段因 create_app 调用方从不传 SurvivalConfig 而
+        恒为 False，此处改为如实反映 Huanxin 编排器是否已注入（app.extra["emperor"]）。
+        """
+        emperor = app.extra.get("emperor")
+        emperor_loaded = emperor is not None
+        cfg = getattr(emperor, "config", None)
+        version = getattr(cfg, "version", "n/a") if cfg else "n/a"
+        links = [
+            ("仪表盘 / Dashboard", "/dashboard"),
+            ("旧版监控 / Legacy", "/dashboard/legacy"),
+            ("登录 / Login", "/api/auth/login"),
+            ("健康探针 / Health", "/health"),
+            ("扩展状态 / Status", "/status"),
+            ("自进化状态 / Self-Evolve", "/api/dashboard/self-evolve-status"),
+        ]
+        rows = "\n".join(
+            f'      <li><a href="{href}">{label}</a></li>' for label, href in links
+        )
+        html = f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>幻炘AI · emperor-court</title>
+  <style>
+    :root {{ color-scheme: dark; }}
+    body {{ font-family: -apple-system, Segoe UI, Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+           background:#0d1117; color:#e6edf3; margin:0; padding:48px 24px; }}
+    .wrap {{ max-width:720px; margin:0 auto; }}
+    h1 {{ font-size:28px; margin:0 0 4px; }}
+    .badge {{ display:inline-block; padding:2px 10px; border-radius:999px; font-size:12px;
+             background:#1f6feb22; color:#58a6ff; border:1px solid #1f6feb55; }}
+    .ok {{ color:#3fb950; }} .warn {{ color:#d29922; }}
+    p.lead {{ color:#8b949e; margin:8px 0 24px; }}
+    ul {{ list-style:none; padding:0; margin:0; display:grid; gap:10px; }}
+    li a {{ display:block; padding:14px 18px; border-radius:10px; text-decoration:none;
+            background:#161b22; color:#e6edf3; border:1px solid #30363d; transition:.15s; }}
+    li a:hover {{ border-color:#1f6feb; background:#1c2333; }}
+    code {{ background:#161b22; padding:1px 6px; border-radius:4px; font-size:13px; }}
+    footer {{ margin-top:28px; color:#6e7681; font-size:12px; }}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>幻炘AI <span class="badge">emperor-court</span></h1>
+    <p class="lead">多领域 AI Agent 管理系统 · 服务运行中</p>
+    <p>服务状态：<span class="ok">● ok</span> &nbsp;|&nbsp; 编排器已注入：
+       <span class="{'ok' if emperor_loaded else 'warn'}">{'是' if emperor_loaded else '否'}</span>
+       &nbsp;|&nbsp; 版本：<code>{version}</code></p>
+    <ul>
+{rows}
+    </ul>
+    <footer>健康探针请使用 <code>/health</code>（容器/云平台 liveness）；扩展状态见 <code>/status</code>。</footer>
+  </div>
+</body>
+</html>"""
+        return HTMLResponse(content=html)
 
     @app.get("/health")
     def health():

@@ -114,6 +114,18 @@ class TestDashboardNotPublic:
         # / 在 public_paths → 200（T-A03：根路径仍公共）
         assert unauth_client.get("/").status_code == 200
 
+    def test_root_landing_page_is_html(self):
+        # 根路由改为 HTML 着陆页（公开）：返回 200、Content-Type 为 text/html、
+        # 正文含 "emperor-court" 服务标识。使用裸 TestClient(app) 不挂 Authorization 头。
+        from huanxin.court_api import app
+        from fastapi.testclient import TestClient
+
+        c = TestClient(app)
+        r = c.get("/")
+        assert r.status_code == 200
+        assert r.headers["content-type"].startswith("text/html")
+        assert "emperor-court" in r.text
+
     def test_dashboard_blocked_without_bearer(self, unauth_client):
         # /dashboard 不在 public_paths → 401（T-A03 核心）
         assert unauth_client.get("/dashboard").status_code == 401
