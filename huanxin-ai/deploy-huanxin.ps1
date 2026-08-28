@@ -87,26 +87,28 @@ Step "Recent ECS logs (docker compose logs --tail 40 huanxin-ai)"
 & ssh "$EcsUser@$EcsHost" "cd $DeployDir && docker compose logs --tail 40 huanxin-ai"
 Write-Host ""
 
-# 6. In-container /status healthcheck.
-# Use a base64-embedded python snippet piped to `python -` so there are NO
-# nested quotes to get mangled across PowerShell -> ssh -> remote bash -> container sh.
-# (A plain `python -c '...urlopen("http://...")...'` loses its double quotes and
-#  raises SyntaxError; base64 avoids every shell-quoting hazard.)
-$statusB64 = "aW1wb3J0IHVybGxpYi5yZXF1ZXN0IGFzIHUKcHJpbnQodS51cmxvcGVuKCJodHRwOi8vbG9jYWxob3N0OjgwMDAvc3RhdHVzIiwgdGltZW91dD0xMCkucmVhZCgpLmRlY29kZSgpKQo="
-Step "In-container /status healthcheck"
+# 6. In-container healthcheck.
+# Hit /health (NOT /status): the app enforces a session-login token_guard whose
+# public_paths allowlist is only ("/health", "/api/auth/login", "/api/auth/register"),
+# so /status correctly returns 401 without a Bearer token. /health is the intended
+# liveness probe and returns 200 with {"status":"ok","service":"huanxin-ai"}.
+# The snippet is base64-embedded and piped to `python -` so there are NO nested
+# quotes to get mangled across PowerShell -> ssh -> remote bash -> container sh.
+$statusB64 = "aW1wb3J0IHVybGxpYi5yZXF1ZXN0IGFzIHUKcHJpbnQodS51cmxvcGVuKCJodHRwOi8vbG9jYWxob3N0OjgwMDAvaGVhbHRoIiwgdGltZW91dD0xMCkucmVhZCgpLmRlY29kZSgpKQo="
+Step "In-container /health liveness check"
 $statusOk = $false
 for ($i = 1; $i -le 5; $i++) {
     $out = & ssh "$EcsUser@$EcsHost" "cd $DeployDir && echo $statusB64 | base64 -d | docker compose exec -T huanxin-ai python -"
     if ($LASTEXITCODE -eq 0 -and $out) {
-        Ok "/status OK (attempt $i):"
+        Ok "/health OK (attempt $i):"
         Write-Host "  $out"
         $statusOk = $true
         break
     }
-    Write-Host "  [retry $i] status not ready yet, waiting 2s..." -ForegroundColor Yellow
+    Write-Host "  [retry $i] not ready yet, waiting 2s..." -ForegroundColor Yellow
     Start-Sleep -Seconds 2
 }
-if (-not $statusOk) { Warn "/status check failed or returned empty; verify logs above." }
+if (-not $statusOk) { Warn "/health check failed or returned empty; verify logs above." }
 
 # 7. Optional GitHub backup push (ECS no longer pulls from GitHub; this is just a safety backup)
 if (-not $SkipPush) {
