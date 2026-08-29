@@ -1,5 +1,9 @@
 name: CI
 
+defaults:
+  run:
+    working-directory: huanxin-ai
+
 on:
   pull_request:
     branches: [main, master]
@@ -58,7 +62,7 @@ jobs:
       - uses: codecov/codecov-action@v4
         if: matrix.os == 'ubuntu-latest'
         with:
-          files: ./coverage.xml
+          files: ./huanxin-ai/coverage.xml
           flags: py${{ matrix.python }}
 
   typecheck:
