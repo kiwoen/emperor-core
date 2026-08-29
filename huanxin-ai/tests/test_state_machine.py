@@ -383,3 +383,22 @@ class TestWorkflowAPIEndpoints:
             "workflow_name": "invalid_workflow",
         })
         assert resp.status_code == 400
+
+def test_external_context_is_passed_to_callbacks():
+    seen = []
+
+    def record(ctx):
+        seen.append(ctx)
+
+    sm = StateMachine()
+    sm.add_state(State(name="a", on_exit=record))
+    sm.add_state(State(name="b", on_enter=record))
+    sm.add_transition(Transition("a", "b"))
+
+    sm.start("a")
+    external = StateMachineContext(current_state="a")
+    sm.trigger("b", external)
+
+    assert seen[0] is not None
+    assert seen[1] is external
+
