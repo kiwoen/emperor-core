@@ -174,7 +174,7 @@ class StateMachine:
         self._completed = False
         self._context.history.append(initial_state)
 
-        self._invoke_on_enter(initial_state)
+        self._invoke_on_enter(initial_state, self._context)
         return self._context
 
     def trigger(
@@ -225,7 +225,7 @@ class StateMachine:
             )
 
         # Execute exit callback
-        self._invoke_on_exit(current)
+        self._invoke_on_exit(current, ctx)
 
         # Execute transition action
         if matched.action is not None:
@@ -246,7 +246,7 @@ class StateMachine:
             ctx.history = ctx.history[-self.HISTORY_LIMIT:]
 
         # Execute enter callback
-        self._invoke_on_enter(target_state)
+        self._invoke_on_enter(target_state, ctx)
 
         return ctx
 
@@ -321,21 +321,21 @@ class StateMachine:
 
     # ── Internal helpers ───────────────────────────────────────────
 
-    def _invoke_on_enter(self, state_name: str) -> None:
+    def _invoke_on_enter(self, state_name: str, context: Optional[StateMachineContext] = None) -> None:
         state = self._states.get(state_name)
         if state is None or state.on_enter is None:
             return
         try:
-            state.on_enter(self._context)
+            state.on_enter(context if context is not None else self._context)
         except Exception as exc:
             logger.exception("[StateMachine] on_enter callback failed for '%s': %s", state_name, exc)
 
-    def _invoke_on_exit(self, state_name: str) -> None:
+    def _invoke_on_exit(self, state_name: str, context: Optional[StateMachineContext] = None) -> None:
         state = self._states.get(state_name)
         if state is None or state.on_exit is None:
             return
         try:
-            state.on_exit(self._context)
+            state.on_exit(context if context is not None else self._context)
         except Exception as exc:
             logger.exception("[StateMachine] on_exit callback failed for '%s': %s", state_name, exc)
 
