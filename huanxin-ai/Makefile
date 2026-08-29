@@ -14,11 +14,11 @@ install-dev: ## Install with dev dependencies
 	$(PIP) install -e ".[dev]"
 
 test: ## Run pytest (skip network tests)
-	$(PYTHON) -m pytest tests/ -q --tb=short -m "not network" --timeout 120 \ \
+	$(PYTHON) -m pytest tests/ -q --tb=short -m "not network" --timeout 120 \
 		--ignore=tests/test_e2e_integration.py
 
 test-all: ## Run full test suite including network
-	$(PYTHON) -m pytest tests/ -q --tb=short --timeout 120 \ \
+	$(PYTHON) -m pytest tests/ -q --tb=short --timeout 120 \
 		--ignore=tests/test_e2e_integration.py
 
 lint: ## Lint with ruff
@@ -33,7 +33,7 @@ typecheck: ## Type check with mypy
 
 coverage: ## Run tests with coverage report
 	$(PYTHON) -m pytest tests/ -q --tb=short -m "not network" \
-		--cov=huanxin --cov-report=html --cov-report=term \ \
+		--cov=huanxin --cov-report=html --cov-report=term \
 		--ignore=tests/test_e2e_integration.py
 
 clean: ## Remove build artifacts and cache
