@@ -63,7 +63,7 @@ def test_max_points_keeps_latest_records(monkeypatch, tmp_path):
     path = tmp_path / "learning_curve.json"
     monkeypatch.setattr(learning_curve, "_PATH", path)
     payload = {
-        "points": [{"round": i} for i in range(learning_curve._MAX_POINTS)],
+        "points": [{"round": i} for i in range(1, learning_curve._MAX_POINTS + 1)],
         "next_round": learning_curve._MAX_POINTS + 1,
     }
     path.write_text(json.dumps(payload), encoding="utf-8")
