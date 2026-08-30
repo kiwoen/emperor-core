@@ -326,26 +326,38 @@ class TestHuanxinStateMachineIntegration:
 class TestWorkflowAPIEndpoints:
     """Test GET /api/workflows and POST /api/workflows/execute."""
 
-    def test_list_workflows_endpoint(self):
-        """26. GET /api/workflows returns template list."""
+    @pytest.fixture
+    def workflow_client(self, monkeypatch, tmp_path):
+        # Keep auth state isolated and use a deterministic test-only admin login.
+        monkeypatch.setenv("HUANXIN_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("HUANXIN_ADMIN_USER", "coverage-admin")
+        monkeypatch.setenv("HUANXIN_ADMIN_PASS", "coverage-password")
+        from huanxin.api import auth_store
+        auth_store._conn = None
         from huanxin.court_api import create_app
         from fastapi.testclient import TestClient
 
-        app = create_app()
-        client = TestClient(app)
+        client = TestClient(create_app())
+        login = client.post("/api/auth/login", json={
+            "username": "coverage-admin",
+            "password": "coverage-password",
+        })
+        assert login.status_code == 200
+        client.headers.update({"Authorization": f"Bearer {login.json()['token']}"})
+        return client
+
+    def test_list_workflows_endpoint(self, workflow_client):
+        """26. GET /api/workflows returns template list."""
+        client = workflow_client
         resp = client.get("/api/workflows")
         assert resp.status_code == 200
         data = resp.json()
         assert "workflows" in data
         assert data["count"] >= 2
 
-    def test_execute_dispatch_workflow_endpoint(self):
+    def test_execute_dispatch_workflow_endpoint(self, workflow_client):
         """27. POST /api/workflows/execute with dispatch_workflow succeeds."""
-        from huanxin.court_api import create_app
-        from fastapi.testclient import TestClient
-
-        app = create_app()
-        client = TestClient(app)
+        client = workflow_client
         resp = client.post("/api/workflows/execute", json={
             "workflow_name": "dispatch_workflow",
             "data": {"test": True},
@@ -356,13 +368,9 @@ class TestWorkflowAPIEndpoints:
         assert data["success"] is True
         assert data["status"] == "completed"
 
-    def test_execute_error_recovery_endpoint(self):
+    def test_execute_error_recovery_endpoint(self, workflow_client):
         """28. POST /api/workflows/execute with error_recovery_workflow succeeds."""
-        from huanxin.court_api import create_app
-        from fastapi.testclient import TestClient
-
-        app = create_app()
-        client = TestClient(app)
+        client = workflow_client
         resp = client.post("/api/workflows/execute", json={
             "workflow_name": "error_recovery_workflow",
             "max_retries": 3,
@@ -372,13 +380,9 @@ class TestWorkflowAPIEndpoints:
         assert data["success"] is True
         assert data["status"] == "escalated"
 
-    def test_execute_invalid_workflow_returns_400(self):
+    def test_execute_invalid_workflow_returns_400(self, workflow_client):
         """29. POST /api/workflows/execute with unknown name returns 400."""
-        from huanxin.court_api import create_app
-        from fastapi.testclient import TestClient
-
-        app = create_app()
-        client = TestClient(app)
+        client = workflow_client
         resp = client.post("/api/workflows/execute", json={
             "workflow_name": "invalid_workflow",
         })
