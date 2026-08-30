@@ -131,7 +131,13 @@ class VectorMemory:
             ids = [f"mem_{current + i}" for i in range(len(texts))]
 
         if metadatas is None:
-            metadatas = [{} for _ in texts]
+            metadatas = [{"source": "unknown"} for _ in texts]
+        else:
+            # ChromaDB requires every metadata mapping to contain at least one field.
+            metadatas = [
+                metadata if metadata else {"source": "unknown"}
+                for metadata in metadatas
+            ]
 
         self._collection.add(documents=list(texts), metadatas=list(metadatas), ids=list(ids))
         logger.debug("[VectorMemory] Added %d document(s)", len(texts))
