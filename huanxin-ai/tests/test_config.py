@@ -79,7 +79,7 @@ class TestDefaultConfig:
 
     def test_default_max_ministers(self):
         cfg = HuanxinConfig()
-        assert cfg.max_ministers == 50
+        assert cfg.max_ministers == 20
 
 
 # ══════════════════════════════════════════════════════════════════
