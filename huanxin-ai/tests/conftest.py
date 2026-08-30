@@ -72,7 +72,7 @@ def _request_with_test_session(self, method, url, **kwargs):
 @pytest.fixture(autouse=True)
 def _track_current_test(request, monkeypatch):
     global _current_test
-    _current_test = f"{str(request.node.fspath)}::{request.node.nodeid}"
+    _current_test = f"{Path(str(request.node.fspath)).name}::{request.node.nodeid}"
     monkeypatch.setattr(TestClient, "request", _request_with_test_session)
     yield
     _current_test = ""
