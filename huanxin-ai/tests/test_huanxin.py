@@ -13,6 +13,20 @@ from huanxin.core import Huanxin, HuanxinConfig
 from huanxin.guardrail_chain import GuardrailChain, GuardrailMode
 
 
+@pytest.fixture(autouse=True)
+def isolate_huanxin_state(monkeypatch, tmp_path):
+    """Keep this module independent from the repository's persisted runtime state."""
+    monkeypatch.setenv("HUANXIN_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("HUANXIN_COURT_PATH", str(tmp_path))
+    monkeypatch.setattr(
+        "huanxin.core.load_app_config",
+        lambda config_path=None: HuanxinConfig(
+            data_dir=tmp_path,
+            court_path=str(tmp_path),
+        ),
+    )
+
+
 # ══════════════════════════════════════════════════════════════════
 # HuanxinConfig
 # ══════════════════════════════════════════════════════════════════
