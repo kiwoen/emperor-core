@@ -52,19 +52,21 @@ def _request_with_test_session(self, method, url, **kwargs):
     if response.status_code != 401 or str(url).endswith("/api/auth/login"):
         return response
 
-    login = _original_request(
-        self,
-        "POST",
-        "/api/auth/login",
-        json={
-            "username": os.environ["HUANXIN_ADMIN_USER"],
-            "password": os.environ["HUANXIN_ADMIN_PASS"],
-        },
-    )
-    if login.status_code != 200:
+    # Create a real session in the same store as the application. This avoids
+    # relying on a second TestClient request while the app is still initializing.
+    from huanxin.api import auth_store
+    user = auth_store.get_user_by_username(os.environ["HUANXIN_ADMIN_USER"])
+    if user is None:
+        auth_store.ensure_admin(
+            os.environ["HUANXIN_ADMIN_USER"],
+            os.environ["HUANXIN_ADMIN_PASS"],
+        )
+        user = auth_store.get_user_by_username(os.environ["HUANXIN_ADMIN_USER"])
+    if user is None:
         return response
 
-    headers["Authorization"] = f"Bearer {login.json()['token']}"
+    token = auth_store.create_session(user["id"])
+    headers["Authorization"] = f"Bearer {token}"
     kwargs["headers"] = headers
     return _original_request(self, method, url, **kwargs)
 
