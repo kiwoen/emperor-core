@@ -221,7 +221,7 @@ class HuanxinConfig(BaseSettings):
 
     # ── Evolution / breeding ────────────────────────────────────────
     min_ministers: int = 3
-    max_ministers: int = 50
+    max_ministers: int = 20
     genome_path: str = ""
     history_path: str = ""
     crossover_rate: float = 0.6
